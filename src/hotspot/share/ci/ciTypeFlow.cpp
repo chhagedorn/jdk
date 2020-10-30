@@ -1903,7 +1903,8 @@ void ciTypeFlow::Block::print_on(outputStream* st) const {
     st->print(" loops:");
     Loop* lp = loop();
     do {
-      st->print(" %d<-%d", lp->head()->pre_order(),lp->tail()->pre_order());
+      st->print(" %d<-", lp->head()->pre_order());
+      lp->print_tails_pre_order(st);
       if (lp->is_irreducible()) st->print("(ir)");
       lp = lp->parent();
     } while (lp->parent() != NULL);
@@ -2230,16 +2231,7 @@ bool ciTypeFlow::clone_loop_heads(Loop* lp, StateVector* temp_vector, JsrSet* te
     if (ch != NULL)
       continue;
 
-    // Clone head
-    Block* new_head = head->looping_succ(lp);
-    Block* clone = clone_loop_head(lp, temp_vector, temp_set);
-    // Update lp's info
-    clone->set_loop(lp);
-    lp->set_head(new_head);
-    lp->set_tail(clone);
-    // And move original head into outer loop
-    head->set_loop(lp->parent());
-
+    clone_loop_head(lp, temp_vector, temp_set);
     rslt = true;
   }
   return rslt;
@@ -2248,73 +2240,94 @@ bool ciTypeFlow::clone_loop_heads(Loop* lp, StateVector* temp_vector, JsrSet* te
 // ------------------------------------------------------------------
 // ciTypeFlow::clone_loop_head
 //
-// Clone lp's head and replace tail's successors with clone.
+// Clone lp's head and replace the successor of each tail (previously the head) with a single clone of the head.
+// The single clone becomes a backedge copy of the head which either return to the new_head or to the loop exit.
+// The clone is now the unique tail of the loop. The original loop head is moved into the outer loop.
 //
-//  |
-//  v
-// head <-> body
-//  |
-//  v
-// exit
+//    entry
+//       \    /-----------\
+//        v  v            |
+//   /--- head <----\     |
+//   |     |        |     |
+//   v     v        |     |
+//  exit  body -> tail 2  |
+//         |              |
+//         v              |
+//        tail 1 ---------/
 //
-// new_head
+// new_head is the first block in the old body after head.
 //
-//  |
-//  v
-// head ----------\
-//  |             |
-//  |             v
-//  |  clone <-> body
-//  |    |
-//  | /--/
-//  | |
-//  v v
-// exit
+//     entry
+//       |
+//       v
+//      head
+//    /    \
+//   /      v
+//   |    new_head <----\
+//   |      /   \       |
+//   |     v     v      |
+//   |  tail 1  tail 2  |
+//   |     \     /      |
+//   |      v   v       |
+// exit <-- clone ------/
 //
-ciTypeFlow::Block* ciTypeFlow::clone_loop_head(Loop* lp, StateVector* temp_vector, JsrSet* temp_set) {
+void ciTypeFlow::clone_loop_head(Loop* lp, StateVector* temp_vector, JsrSet* temp_set) {
   Block* head = lp->head();
-  Block* tail = lp->tail();
   if (CITraceTypeFlow) {
-    tty->print(">> Requesting clone of loop head "); head->print_value_on(tty);
-    tty->print("  for predecessor ");                tail->print_value_on(tty);
+    tty->print(">> Requesting clone of loop head ");
+    head->print_value_on(tty);
+    tty->print("  for predecessor ");
+    lp->print_tails_pre_order(tty);
     tty->cr();
   }
+  Block* new_head = head->looping_succ(lp);
   Block* clone = block_at(head->start(), head->jsrs(), create_backedge_copy);
   assert(clone->backedge_copy_count() == 1, "one backedge copy for all back edges");
-
   assert(!clone->has_pre_order(), "just created");
   clone->set_next_pre_order();
 
   // Insert clone after (orig) tail in reverse post order
-  clone->set_rpo_next(tail->rpo_next());
-  tail->set_rpo_next(clone);
+  clone->set_rpo_next(lp->first_tail()->rpo_next());
+  lp->first_tail()->set_rpo_next(clone);
 
-  // tail->head becomes tail->clone
-  for (SuccIter iter(tail); !iter.done(); iter.next()) {
-    if (iter.succ() == head) {
-      iter.set_succ(clone);
-      // Update predecessor information
-      head->predecessors()->remove(tail);
-      clone->predecessors()->append(tail);
-    }
-  }
-  flow_block(tail, temp_vector, temp_set);
-  if (head == tail) {
-    // For self-loops, clone->head becomes clone->clone
-    flow_block(clone, temp_vector, temp_set);
-    for (SuccIter iter(clone); !iter.done(); iter.next()) {
+  for (int i = 0; i < lp->tails()->length(); i++) {
+    Block* tail = lp->tails()->at(i);
+
+    // tail->head becomes tail->clone
+    for (SuccIter iter(tail); !iter.done(); iter.next()) {
       if (iter.succ() == head) {
         iter.set_succ(clone);
         // Update predecessor information
-        head->predecessors()->remove(clone);
-        clone->predecessors()->append(clone);
-        break;
+        head->predecessors()->remove(tail);
+        clone->predecessors()->append(tail);
       }
     }
+    flow_block(tail, temp_vector, temp_set);
+    if (head == tail) {
+      // For self-loops, clone->head becomes clone->clone
+      flow_block(clone, temp_vector, temp_set);
+      for (SuccIter iter(clone); !iter.done(); iter.next()) {
+        if (iter.succ() == head) {
+          iter.set_succ(clone);
+          // Update predecessor information
+          head->predecessors()->remove(clone);
+          clone->predecessors()->append(clone);
+          break;
+        }
+      }
+    }
+    flow_block(clone, temp_vector, temp_set);
   }
-  flow_block(clone, temp_vector, temp_set);
 
-  return clone;
+  clone->set_loop(lp);
+  // Loop has only one tail now, the new cloned block
+  lp->clear_tails();
+  lp->add_tail(clone);
+
+  // Update lp's info
+  lp->set_head(new_head);
+  // And move original head into outer loop
+  head->set_loop(lp->parent());
 }
 
 // ------------------------------------------------------------------
@@ -2458,7 +2471,7 @@ void ciTypeFlow::PreorderLoops::next() {
 // Child and sibling pointers will be setup later.
 // Sort is (looking from leaf towards the root)
 //  descending on primary key: loop head's pre_order, and
-//  ascending  on secondary key: loop tail's pre_order.
+//  ascending  on secondary key: loop first discovered tail's pre_order.
 ciTypeFlow::Loop* ciTypeFlow::Loop::sorted_merge(Loop* lp) {
   Loop* leaf = this;
   Loop* prev = NULL;
@@ -2472,7 +2485,7 @@ ciTypeFlow::Loop* ciTypeFlow::Loop::sorted_merge(Loop* lp) {
       if (current->head()->pre_order() < lp_pre_order)
         break;
       if (current->head()->pre_order() == lp_pre_order &&
-          current->tail()->pre_order() > lp->tail()->pre_order()) {
+          current->first_tail()->pre_order() > lp->first_tail()->pre_order()) {
         break;
       }
       prev = current;
@@ -2508,9 +2521,13 @@ void ciTypeFlow::build_loop_tree(Block* blk) {
       assert(succ->pre_order() <= blk->pre_order(), "should be backedge");
 
       // Create a LoopNode to mark this loop.
-      lp = new (arena()) Loop(succ, blk);
-      if (succ->loop() == NULL)
+      if (succ->loop() == NULL) {
+        lp = new(arena()) Loop(arena(), succ, blk);
         succ->set_loop(lp);
+      } else {
+        lp = succ->loop();
+        succ->loop()->add_tail(blk);
+      }
       // succ->loop will be updated to innermost loop on a later call, when blk==succ
 
     } else {  // Nested loop
@@ -2614,16 +2631,33 @@ int ciTypeFlow::Loop::depth() const {
 // ciTypeFlow::Loop::print
 void ciTypeFlow::Loop::print(outputStream* st, int indent) const {
   for (int i = 0; i < indent; i++) st->print(" ");
-  st->print("%d<-%d %s",
-            is_root() ? 0 : this->head()->pre_order(),
-            is_root() ? 0 : this->tail()->pre_order(),
-            is_irreducible()?" irr":"");
+  st->print("%d<-", is_root() ? 0 : this->head()->pre_order());
+  print_tails_pre_order(st, indent);
+  st->print(" %s", is_irreducible()?" irr":"");
   st->print(" defs: ");
   def_locals()->print_on(st, _head->outer()->method()->max_locals());
   st->cr();
   for (Loop* ch = child(); ch != NULL; ch = ch->sibling())
     ch->print(st, indent+2);
 }
+
+void ciTypeFlow::Loop::print_tails_pre_order(outputStream* st, int indent) const {
+  if (_tails->length() == 1) {
+    st->print("%d", first_tail()->pre_order());
+  } else {
+    st->print("[");
+    for (int i = 0; i < _tails->length(); i++) {
+      st->print("%d", _tails->at(i)->pre_order());
+      if (i < _tails->length() - 1) {
+        st->print(",");
+      } else {
+        st->print("]");
+      }
+    }
+  }
+}
+
+
 #endif
 
 // ------------------------------------------------------------------
@@ -2645,7 +2679,7 @@ void ciTypeFlow::df_flow_types(Block* start,
   root_head->set_post_order(0);
   root_tail->set_pre_order(max_jint);
   root_tail->set_post_order(max_jint);
-  set_loop_tree_root(new (arena()) Loop(root_head, root_tail));
+  set_loop_tree_root(new (arena()) Loop(arena(), root_head, root_tail));
 
   stk.push(start);
 
