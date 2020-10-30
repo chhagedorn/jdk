@@ -713,26 +713,35 @@ public:
     Loop* _sibling;  // List of siblings, null terminated
     Loop* _child;    // Head of child list threaded thru sibling pointer
     Block* _head;    // Head of loop
-    Block* _tail;    // Tail of loop
+    GrowableArray<Block*>* _tails; // Possibly multiple tails of the loop
     bool   _irreducible;
     LocalSet _def_locals;
 
   public:
-    Loop(Block* head, Block* tail) :
-      _parent(NULL), _sibling(NULL), _child(NULL),
-      _head(head),   _tail(tail),
-      _irreducible(false), _def_locals() {}
+    Loop(Arena* arena, Block* head, Block* first_tail) :
+            _parent(NULL), _sibling(NULL), _child(NULL),
+            _head(head), _irreducible(false), _def_locals()
+    {
+      _tails = new (arena) GrowableArray<Block*>(arena, 1, 0, NULL);
+      _tails->push(first_tail);
+    }
 
     Loop* parent()  const { return _parent; }
     Loop* sibling() const { return _sibling; }
     Loop* child()   const { return _child; }
     Block* head()   const { return _head; }
-    Block* tail()   const { return _tail; }
+    // First discovered tail of the loop that is used for sorting.
+    Block* first_tail() const {
+      assert(_tails->length() > 0, "Must have at least one element");
+      return _tails->at(0);
+    }
+    GrowableArray<Block*>* tails() const { return _tails; }
+    void clear_tails() { _tails->clear(); }
     void set_parent(Loop* p)  { _parent = p; }
     void set_sibling(Loop* s) { _sibling = s; }
     void set_child(Loop* c)   { _child = c; }
     void set_head(Block* hd)  { _head = hd; }
-    void set_tail(Block* tl)  { _tail = tl; }
+    void add_tail(Block* tl) { _tails->push(tl); }
 
     int depth() const;              // nesting depth
 
@@ -755,9 +764,10 @@ public:
     }
     bool is_irreducible() const { return _irreducible; }
 
-    bool is_root() const { return _tail->pre_order() == max_jint; }
+    bool is_root() const { return first_tail()->pre_order() == max_jint; }
 
     void print(outputStream* st = tty, int indent = 0) const PRODUCT_RETURN;
+    void print_tails_pre_order(outputStream* st = tty, int indent = 0) const PRODUCT_RETURN;
   };
 
   // Preorder iteration over the loop tree.
@@ -798,7 +808,7 @@ private:
   bool clone_loop_heads(Loop* lp, StateVector* temp_vector, JsrSet* temp_set);
 
   // Clone lp's head and replace tail's successors with clone.
-  Block* clone_loop_head(Loop* lp, StateVector* temp_vector, JsrSet* temp_set);
+  void clone_loop_head(Loop* lp, StateVector* temp_vector, JsrSet* temp_set);
 
 public:
   // Return the block beginning at bci which has a JsrSet compatible
