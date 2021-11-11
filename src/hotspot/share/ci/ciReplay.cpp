@@ -1010,18 +1010,23 @@ class CompileReplay : public StackObj {
   // static fields but it's impossible to properly rerun the static
   // initializer.
   void process_staticfield(TRAPS) {
-    InstanceKlass* k = (InstanceKlass *)parse_klass(CHECK);
+    InstanceKlass* k = (InstanceKlass*)parse_klass(CHECK);
+    const char* field_name = parse_escaped_string();
+    const char* field_signature = parse_string();
 
     if (k == NULL || ReplaySuppressInitializers == 0 ||
         (ReplaySuppressInitializers == 2 && k->class_loader() == NULL)) {
+      if (field_signature[0] == JVM_SIGNATURE_CLASS) {
+        // Do not initialize the static field but resolve the instance klass of the value in order to whitelist it.
+        const char* string_value = parse_escaped_string();
+        Klass* k_value = resolve_klass(string_value, CHECK);
+        new_ciInstanceKlass(InstanceKlass::cast(k_value));
+      }
       skip_remaining();
       return;
     }
 
     assert(k->is_initialized(), "must be");
-
-    const char* field_name = parse_escaped_string();
-    const char* field_signature = parse_string();
     fieldDescriptor fd;
     Symbol* name = SymbolTable::new_symbol(field_name);
     Symbol* sig = SymbolTable::new_symbol(field_signature);
@@ -1113,8 +1118,10 @@ class CompileReplay : public StackObj {
         Handle value = java_lang_String::create_from_str(string_value, CHECK);
         java_mirror->obj_field_put(fd.offset(), value());
       } else if (field_signature[0] == JVM_SIGNATURE_CLASS) {
-        Klass* k = resolve_klass(string_value, CHECK);
-        oop value = InstanceKlass::cast(k)->allocate_instance(CHECK);
+        Klass* k_value = resolve_klass(string_value, CHECK);
+        InstanceKlass* ik_value = InstanceKlass::cast(k_value);
+        new_ciInstanceKlass(ik_value); // whitelist instance klass of value
+        oop value = ik_value->allocate_instance(CHECK);
         java_mirror->obj_field_put(fd.offset(), value);
       } else {
         report_error("unhandled staticfield");
