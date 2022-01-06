@@ -833,6 +833,24 @@ Compile::Compile( ciEnv* ci_env, ciMethod* target, int osr_bci,
 
   // Now generate code
   Code_Gen();
+
+#ifndef PRODUCT
+  if (print_ideal()) {
+    ttyLocker ttyl;  // keep the following output all in one block
+    // This output goes directly to the tty, not the compiler log.
+    // To enable tools to match it up with the compilation activity,
+    // be sure to tag this tty output with the compile ID.
+    if (xtty != NULL) {
+      xtty->head("ideal_code_gen compile_id='%d'%s", compile_id(),
+                 is_osr_compilation()    ? " compile_kind='osr'" :
+                 "");
+    }
+    root()->dump(9999);
+    if (xtty != NULL) {
+      xtty->tail("ideal_code_gen");
+    }
+  }
+#endif
 }
 
 //------------------------------Compile----------------------------------------

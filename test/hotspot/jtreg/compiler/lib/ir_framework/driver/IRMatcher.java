@@ -176,9 +176,10 @@ public class IRMatcher {
     private void flushOutput(String line, StringBuilder builder, String currentMethod) {
         TestFramework.check(!currentMethod.isEmpty(), "current method must be set");
         IRMethod irMethod = compilations.get(currentMethod);
-        if (line.startsWith("</i")) {
+        Phase phase = Phase.valueOfTag(line.substring(2, line.length() - 1));
+        if (phase != null) {
             // PrintIdeal
-            irMethod.setIdealOutput(builder.toString());
+            irMethod.setIdealOutput(builder.toString(), phase);
         } else {
             // PrintOptoAssembly
             irMethod.setOptoAssemblyOutput(builder.toString());
@@ -241,6 +242,7 @@ public class IRMatcher {
      * interested in.
      */
     private static boolean isPrintIdealStart(String line) {
+
         return line.startsWith("<ideal") && !line.contains("compile_kind='");
     }
 
@@ -274,18 +276,20 @@ public class IRMatcher {
     private void applyRulesForMethod(IRMethod irMethod) {
         this.irMethod = irMethod;
         method = irMethod.getMethod();
-        String testOutput = irMethod.getOutput();
-        if (testOutput.isEmpty()) {
-            String msg = "Method was not compiled. Did you specify any compiler directives preventing a compilation or used a " +
-                         "@Run method in STANDALONE mode? In the latter case, make sure to always trigger a C2 compilation " +
-                         "by invoking the test enough times.";
-            fails.computeIfAbsent(method, k -> new ArrayList<>()).add(msg);
-            return;
-        }
+        for (Phase phase : irMethod.getPhases()) {
+            String testOutput = irMethod.getOutput(phase);
+            if (testOutput.isEmpty()) {
+                String msg = "Method was not compiled for phase " + phase.name() + ". Did you specify any compiler directives preventing a compilation or used a " +
+                             "@Run method in STANDALONE mode? In the latter case, make sure to always trigger a C2 compilation " +
+                             "by invoking the test enough times.";
+                fails.computeIfAbsent(method, k -> new ArrayList<>()).add(msg);
+                return;
+            }
 
-        if (TestFramework.VERBOSE) {
-            System.out.println("Output of " + method + ":");
-            System.out.println(testOutput);
+            if (TestFramework.VERBOSE) {
+                System.out.println("Output of " + method + " of phase " + phase.name() + ":");
+                System.out.println(testOutput);
+            }
         }
         Arrays.stream(irMethod.getRuleIds()).forEach(this::applyIRRule);
     }
@@ -316,7 +320,7 @@ public class IRMatcher {
         if (irAnno.failOn().length != 0) {
             String failOnRegex = String.join("|", IRNode.mergeNodes(irAnno.failOn()));
             Pattern pattern = Pattern.compile(failOnRegex);
-            Matcher matcher = pattern.matcher(irMethod.getOutput());
+            Matcher matcher = pattern.matcher(irMethod.getOutput(irAnno.phase()));
             long matchCount = matcher.results().count();
             if (matchCount > 0) {
                 addFailOnFailsForOutput(failMsg, pattern, matchCount);
@@ -329,15 +333,15 @@ public class IRMatcher {
      * to the user.
      */
     private void addFailOnFailsForOutput(StringBuilder failMsg, Pattern pattern, long matchCount) {
-        long idealCount = pattern.matcher(irMethod.getIdealOutput()).results().count();
+        long idealCount = pattern.matcher(irMethod.getIdealOutput(irAnno.phase())).results().count();
         long optoAssemblyCount = pattern.matcher(irMethod.getOptoAssemblyOutput()).results().count();
         if (matchCount != idealCount + optoAssemblyCount || (idealCount != 0 && optoAssemblyCount != 0)) {
             // Report with Ideal and Opto Assembly
-            addFailOnFailsForOutput(failMsg, irMethod.getOutput());
+            addFailOnFailsForOutput(failMsg, irMethod.getOutput(irAnno.phase()));
             irMethod.needsAllOutput();
         } else if (optoAssemblyCount == 0) {
             // Report with Ideal only
-            addFailOnFailsForOutput(failMsg, irMethod.getIdealOutput());
+            addFailOnFailsForOutput(failMsg, irMethod.getIdealOutput(irAnno.phase()));
             irMethod.needsIdeal();
         } else {
             // Report with Opto Assembly only
@@ -376,7 +380,7 @@ public class IRMatcher {
     private void applyCounts(StringBuilder failMsg) {
         if (irAnno.counts().length != 0) {
             boolean hasFails = false;
-            String testOutput = irMethod.getOutput();
+            String testOutput = irMethod.getOutput(irAnno.phase());
             int countsId = 1;
             final List<String> nodesWithCount = IRNode.mergeNodes(irAnno.counts());
             for (int i = 0; i < nodesWithCount.size(); i += 2) {
@@ -428,8 +432,8 @@ public class IRMatcher {
         failMsg.append("    Expected ").append(expectedCount).append(" but found ").append(actualCount);
 
         if (actualCount > 0) {
-            Matcher matcher = pattern.matcher(irMethod.getOutput());
-            long idealCount = pattern.matcher(irMethod.getIdealOutput()).results().count();
+            Matcher matcher = pattern.matcher(irMethod.getOutput(irAnno.phase()));
+            long idealCount = pattern.matcher(irMethod.getIdealOutput(irAnno.phase())).results().count();
             long optoAssemblyCount = pattern.matcher(irMethod.getOptoAssemblyOutput()).results().count();
             if (actualCount != idealCount + optoAssemblyCount || (idealCount != 0 && optoAssemblyCount != 0)) {
                 irMethod.needsAllOutput();
@@ -465,9 +469,17 @@ public class IRMatcher {
                 IRMethod irMethod = compilations.get(method.getName());
                 String output;
                 if (irMethod.usesIdeal() && irMethod.usesOptoAssembly()) {
-                    output = irMethod.getOutput();
+                    StringBuilder idealBuilder = new StringBuilder();
+                    for (Phase phase : irMethod.getPhases()) {
+                        idealBuilder.append(System.lineSeparator()).append(irMethod.getOutput(phase));
+                    }
+                    output = idealBuilder.toString();
                 } else if (irMethod.usesIdeal()) {
-                    output = irMethod.getIdealOutput();
+                    StringBuilder idealBuilder = new StringBuilder();
+                    for (Phase phase : irMethod.getPhases()) {
+                        idealBuilder.append(System.lineSeparator()).append(irMethod.getIdealOutput(phase));
+                    }
+                    output = idealBuilder.toString();
                 } else if (irMethod.usesOptoAssembly()) {
                     output = irMethod.getOptoAssemblyOutput();
                 } else {

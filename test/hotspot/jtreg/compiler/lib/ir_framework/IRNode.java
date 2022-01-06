@@ -65,6 +65,7 @@ public class IRNode {
 
     public static final String FIELD_ACCESS = "(.*Field: *" + END;
 
+    public static final String MACH_PROJ = START + "MachProj" + MID + END;
     public static final String STORE = START + "Store(B|C|S|I|L|F|D|P|N)" + MID + END;
     public static final String STORE_B = START + "StoreB" + MID + END; // Store to boolean is also mapped to byte
     public static final String STORE_C = START + "StoreC" + MID + END;
