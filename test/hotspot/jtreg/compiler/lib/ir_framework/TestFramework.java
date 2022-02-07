@@ -317,6 +317,7 @@ public class TestFramework {
         if (!SKIP_WHITEBOX_INSTALL) {
             installWhiteBox();
         }
+        checkIRRuleCompilePhasesFormat();
         disableIRVerificationIfNotFeasible();
 
         if (scenarios == null) {
@@ -334,6 +335,16 @@ public class TestFramework {
         } else {
             startWithScenarios();
         }
+    }
+
+    private void checkIRRuleCompilePhasesFormat() {
+        for (Method m : testClass.getDeclaredMethods()) {
+            for (IR irAnno : m.getAnnotationsByType(IR.class)) {
+                TestFormat.checkNoThrow(irAnno.phase().length > 0,
+                                        "@IR rule " + irAnno + " must specify a non-empty list of compile phases \"phase\" at " + m);
+            }
+        }
+        TestFormat.throwIfAnyFailures();
     }
 
     /**
