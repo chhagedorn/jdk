@@ -293,7 +293,7 @@ public class TestFramework {
      * @return the same framework instance.
      */
     public TestFramework addScenarios(Scenario... scenarios) {
-        TestFormat.check(scenarios != null && Arrays.stream(scenarios).noneMatch(Objects::isNull),
+        TestFormat.checkThrow(scenarios != null && Arrays.stream(scenarios).noneMatch(Objects::isNull),
                          "A scenario cannot be null");
         if (this.scenarios == null) {
             this.scenarios = new ArrayList<>();
@@ -302,10 +302,11 @@ public class TestFramework {
 
         for (Scenario scenario : scenarios) {
             int scenarioIndex = scenario.getIndex();
-            TestFormat.check(scenarioIndices.add(scenarioIndex),
+            TestFormat.checkNoThrow(scenarioIndices.add(scenarioIndex),
                              "Cannot define two scenarios with the same index " + scenarioIndex);
             this.scenarios.add(scenario);
         }
+        TestFormat.throwIfAnyFailures();
         return this;
     }
 
@@ -373,7 +374,7 @@ public class TestFramework {
      * @return the same framework instance.
      */
     public TestFramework setDefaultWarmup(int defaultWarmup) {
-        TestFormat.check(defaultWarmup >= 0, "Cannot specify a negative default warm-up");
+        TestFormat.checkThrow(defaultWarmup >= 0, "Cannot specify a negative default warm-up");
         this.defaultWarmup = defaultWarmup;
         return this;
     }
