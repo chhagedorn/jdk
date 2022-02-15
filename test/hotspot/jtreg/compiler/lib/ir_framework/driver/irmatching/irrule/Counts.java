@@ -25,10 +25,7 @@ package compiler.lib.ir_framework.driver.irmatching.irrule;
 
 import compiler.lib.ir_framework.CompilePhase;
 import compiler.lib.ir_framework.IR;
-import compiler.lib.ir_framework.driver.irmatching.parser.ParsedNode;
 import compiler.lib.ir_framework.shared.Comparison;
-import compiler.lib.ir_framework.shared.ComparisonConstraintParser;
-import compiler.lib.ir_framework.shared.TestFormat;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,34 +38,13 @@ import java.util.regex.Pattern;
  * @see IR#counts()
  */
 class Counts extends CheckAttribute {
-    public List<Constraint> constraints;
+    private final List<CountsConstraint> constraints;
 
-    private Counts(List<Constraint> constraints, CompilePhase compilePhase) {
-        super(compilePhase);
+    public Counts(List<CountsConstraint> constraints, CompilePhase compilePhase) {
+        super(constraints, compilePhase);
         this.constraints = constraints;
     }
 
-    public static Counts create(List<ParsedNode> nodes, CompilePhase compilePhase, IRRule irRule) {
-        List<Constraint> constraints = new ArrayList<>();
-        int nodeId = 1;
-        for (ParsedNode parsedNode : nodes) {
-            String node = parsedNode.getNodeString();
-            String countConstraint = parsedNode.getCountConstraint();
-            Comparison<Long> comparison = parseComparison(irRule, node, countConstraint);
-            constraints.add(new Constraint(node, comparison, nodeId));
-            nodeId++;
-        }
-        return new Counts(constraints, compilePhase);
-    }
-
-    private static String getPostfixErrorMsg(IRRule irRule, String node) {
-        return "for IR rule " + irRule.getRuleId() + ", node \"" + node + "\" at " + irRule.getMethod();
-    }
-
-    private static Comparison<Long> parseComparison(IRRule irRule, String node, String constraint) {
-        String postfixErrorMsg = "in count constraint " + getPostfixErrorMsg(irRule, node);
-        return ComparisonConstraintParser.parse(constraint, Long::parseLong, postfixErrorMsg);
-    }
 
     @Override
     public CountsMatchResult apply(String compilation) {
@@ -78,27 +54,27 @@ class Counts extends CheckAttribute {
     }
 
     private void checkConstraints(CountsMatchResult result, String compilation) {
-        for (Constraint constraint : constraints) {
+        for (CountsConstraint constraint : constraints) {
             checkConstraint(result, compilation, constraint);
         }
     }
 
-    private void checkConstraint(CountsMatchResult result, String compilation, Constraint constraint) {
+    private void checkConstraint(CountsMatchResult result, String compilation, CountsConstraint constraint) {
         long foundCount = getFoundCount(compilation, constraint);
-        Comparison<Long> comparison = constraint.comparison;
+        Comparison<Long> comparison = constraint.getComparison();
         if (!comparison.compare(foundCount)) {
             result.addFailure(createRegexFailure(compilation, constraint, foundCount));
         }
     }
 
-    private long getFoundCount(String compilation, Constraint constraint) {
-        Pattern pattern = Pattern.compile(constraint.nodeRegex);
+    private long getFoundCount(String compilation, CountsConstraint constraint) {
+        Pattern pattern = Pattern.compile(constraint.getNode());
         Matcher matcher = pattern.matcher(compilation);
         return matcher.results().count();
     }
 
-    private CountsRegexFailure createRegexFailure(String compilation, Constraint constraint, long foundCount) {
-        Pattern p = Pattern.compile(constraint.nodeRegex);
+    private CountsRegexFailure createRegexFailure(String compilation, CountsConstraint constraint, long foundCount) {
+        Pattern p = Pattern.compile(constraint.getNode());
         Matcher m = p.matcher(compilation);
         List<String> matches;
         if (m.find()) {
@@ -106,18 +82,7 @@ class Counts extends CheckAttribute {
         } else {
             matches = new ArrayList<>();
         }
-        return new CountsRegexFailure(constraint.nodeRegex, constraint.nodeId, foundCount, constraint.comparison, matches);
-    }
-
-    static class Constraint {
-        final String nodeRegex;
-        final Comparison<Long> comparison;
-        private final int nodeId;
-
-        Constraint(String nodeRegex, Comparison<Long> comparison, int nodeId) {
-            this.nodeRegex = nodeRegex;
-            this.comparison = comparison;
-            this.nodeId = nodeId;
-        }
+        return new CountsRegexFailure(constraint.getNode(), constraint.getRegexNodeId(), foundCount,
+                                      constraint.getComparison(), matches);
     }
 }
