@@ -28,47 +28,42 @@ import compiler.lib.ir_framework.shared.Comparison;
 import java.util.List;
 
 /**
- * This class represents an IR matching failure of a regex of a counts attribute of an IR rule.
+ * This class represents a failure when applying a {@link CountsConstraint} on a compile phase output.
  *
+ * @see CountsConstraint
  * @see Counts
+ * @see CountsMatchResult
  */
-class CountsRegexFailure extends RegexFailure {
+class CountsConstraintFailure extends ConstraintFailure {
     private final String failedComparison;
-    private final int foundMatchesCount;
 
-    public CountsRegexFailure(String nodeRegex, int nodeId, long foundMatchesCount, Comparison<Long> comparison, List<String> matches) {
+    public CountsConstraintFailure(String nodeRegex, int nodeId, Comparison<Long> comparison, List<String> matches) {
         super(nodeRegex, nodeId, matches);
-        this.failedComparison = "[found] " + foundMatchesCount + " " + comparison.getComparator() + " "
+        this.failedComparison = "[found] " + matches.size() + " " + comparison.getComparator() + " "
                                 + comparison.getGivenValue() + " [given]";
-        this.foundMatchesCount = (int)foundMatchesCount;
-    }
-
-    @Override
-    public int getMatchedNodesCount() {
-        return foundMatchesCount;
     }
 
     @Override
     public String buildFailureMessage(int indentationSize) {
-        return getRegexLine(indentationSize)
-               + getFailedComparison(indentationSize + 2)
-               + getMatchedNodesBlock(indentationSize + 2);
+        return buildRegexHeader(indentationSize)
+               + buildFailedComparisonMessage(indentationSize + 2)
+               + buildMatchedNodesMessage(indentationSize + 2);
     }
 
-    private String getFailedComparison(int indentation) {
+    private String buildFailedComparisonMessage(int indentation) {
         return getIndentation(indentation) + "- Failed comparison: " + failedComparison + System.lineSeparator();
     }
 
     @Override
-    protected String getMatchedNodesBlock(int indentation) {
-        if (matches.isEmpty()) {
-            return getEmptyNodeMatchesLine(indentation);
+    protected String buildMatchedNodesMessage(int indentation) {
+        if (matchedNodes.isEmpty()) {
+            return buildEmptyNodeMatchesMessage(indentation);
         } else {
-            return super.getMatchedNodesBlock(indentation);
+            return super.buildMatchedNodesMessage(indentation);
         }
     }
 
-    private String getEmptyNodeMatchesLine(int indentation) {
+    private String buildEmptyNodeMatchesMessage(int indentation) {
         return getIndentation(indentation) + "- No nodes matched!" + System.lineSeparator();
     }
 
@@ -76,5 +71,4 @@ class CountsRegexFailure extends RegexFailure {
     protected String getMatchedPrefix() {
         return "Matched";
     }
-
 }

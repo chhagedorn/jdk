@@ -23,47 +23,42 @@
 
 package compiler.lib.ir_framework.driver.irmatching.irrule.constraint;
 
-import compiler.lib.ir_framework.CompilePhase;
 import compiler.lib.ir_framework.IR;
+import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.shared.Comparison;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Class representing a counts attribute of an IR rule.
+ * This class represents a fully parsed {@link IR#counts()} attribute of an IR rule for a compile phase.
  *
  * @see IR#counts()
+ * @see CheckAttribute
  */
-public class Counts extends CheckAttribute {
-    private final List<CountsConstraint> constraints;
+public class Counts extends CheckAttribute<CountsConstraint> {
 
-    public Counts(List<CountsConstraint> constraints, CompilePhase compilePhase) {
-        super(constraints, compilePhase);
-        this.constraints = constraints;
+    public Counts(List<CountsConstraint> constraints) {
+        super(constraints);
     }
-
 
     @Override
     public CountsMatchResult apply(String compilation) {
         CountsMatchResult result = new CountsMatchResult();
-        checkConstraints(result, compilation);
+        List<ConstraintFailure> failures = checkConstraints(compilation);
+        if (!failures.isEmpty()) {
+            result.setFailures(failures);
+        }
         return result;
     }
 
-    private void checkConstraints(CountsMatchResult result, String compilation) {
-        for (CountsConstraint constraint : constraints) {
-            checkConstraint(result, compilation, constraint);
-        }
-    }
-
-    private void checkConstraint(CountsMatchResult result, String compilation, CountsConstraint constraint) {
+    @Override
+    protected void checkConstraint(List<ConstraintFailure> constraintFailures, CountsConstraint constraint, String compilation) {
         long foundCount = getFoundCount(compilation, constraint);
         Comparison<Long> comparison = constraint.getComparison();
         if (!comparison.compare(foundCount)) {
-            result.addFailure(createRegexFailure(compilation, constraint, foundCount));
+            constraintFailures.add(createRegexFailure(compilation, constraint, foundCount));
         }
     }
 
@@ -73,16 +68,9 @@ public class Counts extends CheckAttribute {
         return matcher.results().count();
     }
 
-    private CountsRegexFailure createRegexFailure(String compilation, CountsConstraint constraint, long foundCount) {
-        Pattern p = Pattern.compile(constraint.getRegex());
-        Matcher m = p.matcher(compilation);
-        List<String> matches;
-        if (m.find()) {
-            matches = getMatchedNodes(m);
-        } else {
-            matches = new ArrayList<>();
-        }
-        return new CountsRegexFailure(constraint.getRegex(), constraint.getIndex(), foundCount,
-                                      constraint.getComparison(), matches);
+    private CountsConstraintFailure createRegexFailure(String compilation, CountsConstraint constraint, long foundCount) {
+        List<String> matches = getMatchedNodes(constraint, compilation);
+        TestFramework.check(foundCount == matches.size(), "must find same number: " + foundCount + " vs. " + matches.size());
+        return new CountsConstraintFailure(constraint.getRegex(), constraint.getIndex(), constraint.getComparison(), matches);
     }
 }
