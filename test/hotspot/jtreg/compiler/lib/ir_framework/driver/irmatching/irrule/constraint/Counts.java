@@ -21,7 +21,7 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.irmatching.irrule;
+package compiler.lib.ir_framework.driver.irmatching.irrule.constraint;
 
 import compiler.lib.ir_framework.CompilePhase;
 import compiler.lib.ir_framework.IR;
@@ -37,7 +37,7 @@ import java.util.regex.Pattern;
  *
  * @see IR#counts()
  */
-class Counts extends CheckAttribute {
+public class Counts extends CheckAttribute {
     private final List<CountsConstraint> constraints;
 
     public Counts(List<CountsConstraint> constraints, CompilePhase compilePhase) {
@@ -68,13 +68,13 @@ class Counts extends CheckAttribute {
     }
 
     private long getFoundCount(String compilation, CountsConstraint constraint) {
-        Pattern pattern = Pattern.compile(constraint.getNode());
+        Pattern pattern = Pattern.compile(constraint.getRegex());
         Matcher matcher = pattern.matcher(compilation);
         return matcher.results().count();
     }
 
     private CountsRegexFailure createRegexFailure(String compilation, CountsConstraint constraint, long foundCount) {
-        Pattern p = Pattern.compile(constraint.getNode());
+        Pattern p = Pattern.compile(constraint.getRegex());
         Matcher m = p.matcher(compilation);
         List<String> matches;
         if (m.find()) {
@@ -82,7 +82,7 @@ class Counts extends CheckAttribute {
         } else {
             matches = new ArrayList<>();
         }
-        return new CountsRegexFailure(constraint.getNode(), constraint.getRegexNodeId(), foundCount,
+        return new CountsRegexFailure(constraint.getRegex(), constraint.getIndex(), foundCount,
                                       constraint.getComparison(), matches);
     }
 }
