@@ -30,8 +30,8 @@ import compiler.lib.ir_framework.shared.TestFrameworkException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -47,23 +47,21 @@ class HotSpotPidFileParser {
     private static final Pattern COMPILE_ID_PATTERN = Pattern.compile("compile_id='(\\d+)'");
 
     private final Pattern compileIdPatternForTestClass;
-    private Map<String, IRMethod> compilationsMap;
+    private final Map<String, TestMethod> testCompilationsMap;
 
-    public HotSpotPidFileParser(String testClass) {
+    public HotSpotPidFileParser(String testClass, Map<String, TestMethod> testCompilationsMap) {
         this.compileIdPatternForTestClass = Pattern.compile("compile_id='(\\d+)'.*" + Pattern.quote(testClass) + " (\\S+)");
+        this.testCompilationsMap = testCompilationsMap;
     }
 
-    public void setCompilationsMap(Map<String, IRMethod> compilationsMap) {
-        this.compilationsMap = compilationsMap;
-    }
     /**
      * Parse the hotspot_pid*.log file from the test VM. Read the PrintIdeal and PrintOptoAssembly outputs for all
      * methods of the test class that need to be IR matched (found in compilations map).
      */
-    public Collection<IRMethod> parseCompilations(String hotspotPidFileName) {
+    public List<IRMethod> parseCompilations(String hotspotPidFileName) {
         try {
             processFileLines(hotspotPidFileName);
-            return compilationsMap.values();
+            return testCompilationsMap.values().stream().map(TestMethod::createIRMethod).toList();
         } catch (IOException e) {
             throw new TestFrameworkException("Error while reading " + hotspotPidFileName, e);
         } catch (FileCorruptedException e) {
@@ -72,7 +70,7 @@ class HotSpotPidFileParser {
     }
 
     private void processFileLines(String hotspotPidFileName) throws IOException {
-        Map<Integer, IRMethod> compileIdMap = new HashMap<>();
+        Map<Integer, TestMethod> compileIdMap = new HashMap<>();
         try (var reader = Files.newBufferedReader(Paths.get(hotspotPidFileName))) {
             Line line = new Line(reader, compileIdPatternForTestClass);
             BlockOutputReader blockOutputReader = new BlockOutputReader(reader);
@@ -87,7 +85,7 @@ class HotSpotPidFileParser {
         }
     }
 
-    private void parseTestMethodCompileId(Map<Integer, IRMethod> compileIdMap, String line) {
+    private void parseTestMethodCompileId(Map<Integer, TestMethod> compileIdMap, String line) {
         String methodName = parseMethodName(line);
         if (isTestAnnotatedMethod(methodName)) {
             int compileId = getCompileId(line);
@@ -102,14 +100,12 @@ class HotSpotPidFileParser {
     }
 
     private boolean isTestAnnotatedMethod(String testMethodName) {
-        return compilationsMap.containsKey(testMethodName);
+        return testCompilationsMap.containsKey(testMethodName);
     }
 
-    private IRMethod getIrMethod(String testMethodName) {
-        return compilationsMap.get(testMethodName);
+    private TestMethod getIrMethod(String testMethodName) {
+        return testCompilationsMap.get(testMethodName);
     }
-
-
 
     private int getCompileId(String line) {
         Matcher matcher = COMPILE_ID_PATTERN.matcher(line);
@@ -119,24 +115,24 @@ class HotSpotPidFileParser {
         return Integer.parseInt(matcher.group(1));
     }
 
-    private boolean isTestMethodBlockStart(Line line, Map<Integer, IRMethod> compileIdMap) {
+    private boolean isTestMethodBlockStart(Line line, Map<Integer, TestMethod> compileIdMap) {
       return line.isBlockStart() && isTestClassMethodBlock(line, compileIdMap);
     }
 
-    private boolean isTestClassMethodBlock(Line line, Map<Integer, IRMethod> compileIdMap) {
+    private boolean isTestClassMethodBlock(Line line, Map<Integer, TestMethod> compileIdMap) {
         return compileIdMap.containsKey(getCompileId(line.getLine()));
     }
 
-    public void setIRMethodOutput(String blockOutput, Line blockStartLine, Map<Integer, IRMethod> compileIdMap) {
-        IRMethod irMethod = compileIdMap.get(getCompileId(blockStartLine.getLine()));
-        setIRMethodOutput(blockOutput, blockStartLine, irMethod);
+    public void setIRMethodOutput(String blockOutput, Line blockStartLine, Map<Integer, TestMethod> compileIdMap) {
+        TestMethod testMethod = compileIdMap.get(getCompileId(blockStartLine.getLine()));
+        setIRMethodOutput(blockOutput, blockStartLine, testMethod);
     }
 
-    private void setIRMethodOutput(String blockOutput, Line blockStartLine, IRMethod irMethod) {
+    private void setIRMethodOutput(String blockOutput, Line blockStartLine, TestMethod testMethod) {
         if (blockStartLine.isPrintIdealStart()) {
-            irMethod.setIdealOutput(blockOutput, blockStartLine.getCompilePhase());
+            testMethod.setIdealOutput(blockOutput, blockStartLine.getCompilePhase());
         } else {
-            irMethod.setOptoAssemblyOutput(blockOutput);
+            testMethod.setOptoAssemblyOutput(blockOutput);
         }
     }
 }

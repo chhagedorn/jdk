@@ -37,39 +37,34 @@ import java.util.regex.Pattern;
  * @see IR#counts()
  * @see CheckAttribute
  */
-public class Counts extends CheckAttribute<CountsConstraint> {
+public class Counts extends CheckAttribute<CountsConstraint, CountsMatchResult> {
 
-    public Counts(List<CountsConstraint> constraints) {
-        super(constraints);
+    public Counts(List<CountsConstraint> constraints, String compilationOutput) {
+        super(constraints, compilationOutput);
     }
 
     @Override
-    public CountsMatchResult apply(String compilation) {
-        CountsMatchResult result = new CountsMatchResult();
-        List<ConstraintFailure> failures = checkConstraints(compilation);
-        if (!failures.isEmpty()) {
-            result.setFailures(failures);
-        }
-        return result;
+    protected CountsMatchResult createMatchResult() {
+        return new CountsMatchResult();
     }
 
     @Override
-    protected void checkConstraint(List<ConstraintFailure> constraintFailures, CountsConstraint constraint, String compilation) {
-        long foundCount = getFoundCount(compilation, constraint);
+    protected void checkConstraint(List<ConstraintFailure> constraintFailures, CountsConstraint constraint) {
+        long foundCount = getFoundCount(constraint);
         Comparison<Long> comparison = constraint.getComparison();
         if (!comparison.compare(foundCount)) {
-            constraintFailures.add(createRegexFailure(compilation, constraint, foundCount));
+            constraintFailures.add(createRegexFailure(constraint, foundCount));
         }
     }
 
-    private long getFoundCount(String compilation, CountsConstraint constraint) {
+    private long getFoundCount(CountsConstraint constraint) {
         Pattern pattern = Pattern.compile(constraint.getRegex());
-        Matcher matcher = pattern.matcher(compilation);
+        Matcher matcher = pattern.matcher(compilationOutput);
         return matcher.results().count();
     }
 
-    private CountsConstraintFailure createRegexFailure(String compilation, CountsConstraint constraint, long foundCount) {
-        List<String> matches = getMatchedNodes(constraint, compilation);
+    private CountsConstraintFailure createRegexFailure(CountsConstraint constraint, long foundCount) {
+        List<String> matches = getMatchedNodes(constraint);
         TestFramework.check(foundCount == matches.size(), "must find same number: " + foundCount + " vs. " + matches.size());
         return new CountsConstraintFailure(constraint.getRegex(), constraint.getIndex(), constraint.getComparison(), matches);
     }
