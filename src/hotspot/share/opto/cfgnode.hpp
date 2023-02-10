@@ -297,6 +297,18 @@ class TemplateAssertionPredicateNode : public Node {
   TemplateAssertionPredicateNode(Node* control, BoolNode* bol_init_value, BoolNode* bol_last_value,
                                  int initialized_opcode, Compile* C);
 
+  bool is_useless() const {
+    return _useless;
+  }
+
+  void mark_useless() {
+    _useless = true;
+  }
+
+  void mark_useful() {
+    _useless = false;
+  }
+
   virtual int Opcode() const;
   virtual bool pinned() const { return true; }
   virtual bool is_CFG() const { return true; }

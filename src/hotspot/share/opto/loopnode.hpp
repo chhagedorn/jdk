@@ -1379,15 +1379,7 @@ public:
   Node* add_range_check_elimination_assertion_predicate(IdealLoopTree* loop, Node* ctrl, int scale_con, Node* offset,
                                                         Node* limit, jint stride_con, Node* value);
 
-  // Helper function to collect predicate for eliminating the useless ones
   void eliminate_useless_predicates();
-  void eliminate_useless_template_assertion_predicates();
-  void eliminate_useless_template_assertion_predicates(IdealLoopTree* loop, Unique_Node_List& useful_predicates);
-  void eliminate_useless_parse_predicates();
-  void eliminate_useless_parse_predicates(IdealLoopTree* loop);
-  void mark_useful_parse_predicates_for_loop(IdealLoopTree* loop);
-  void add_useless_parse_predicates_to_igvn();
-
 
   bool has_control_dependencies_from_predicates(LoopNode* head) const;
   void verify_fast_loop(LoopNode* head, const ProjNode* proj_true) const NOT_DEBUG_RETURN;

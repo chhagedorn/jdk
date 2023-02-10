@@ -26,6 +26,7 @@
 #define SHARE_OPTO_PREDICATES_HPP
 
 #include "opto/cfgnode.hpp"
+#include "loopnode.hpp"
 
 /*
  * There are different kinds of predicates throughout the code. We differentiate between the following predicates:
@@ -444,5 +445,63 @@ class ParsePredicateIterator : public StackObj {
   }
 
   ParsePredicateNode* next();
+};
+
+class LoopTreeIteratorLoopPredication : public StackObj {
+  Compile* C;
+  IdealLoopTree* _ltree_root;
+  void (*_callback)(IdealLoopTree*);
+
+  void walk(IdealLoopTree* loop);
+
+ public:
+  LoopTreeIteratorLoopPredication(Compile* C, IdealLoopTree* ltree_root, void (*callback)(IdealLoopTree*))
+      : C(C),
+        _ltree_root(ltree_root),
+        _callback(callback) {}
+
+  void walk() {
+    if (C->has_loops()) {
+      walk(_ltree_root);
+    }
+  }
+};
+
+class UsefulPredicateMarker : public StackObj {
+ private:
+  template<typename PredicateNode, typename Iterator> static void mark(const Predicates& predicates);
+
+ public:
+  static void mark_predicates(IdealLoopTree* loop) {
+    Node* entry = loop->_head->in(LoopNode::EntryControl);
+    const Predicates predicates(entry);
+    mark_parse_predicates(predicates);
+    mark_template_assertion_predicates(predicates);
+  }
+
+  static void mark_parse_predicates(const Predicates& predicates) {
+    mark<ParsePredicateNode, ParsePredicateIterator>(predicates);
+  }
+
+  static void mark_template_assertion_predicates(const Predicates& predicates) {
+    mark<TemplateAssertionPredicateNode, TemplateAssertionPredicateIterator>(predicates);
+  }
+};
+
+class EliminateUselessPredicates : public StackObj {
+  Compile* C;
+  PhaseIterGVN* _igvn;
+  IdealLoopTree* _ltree_root;
+
+  template<typename Predicate_List> static void mark_predicates_useless(Predicate_List predicate_list);
+  template<typename Predicate_List> void add_useless_predicates_to_igvn(Predicate_List predicate_list);
+
+ public:
+  EliminateUselessPredicates(Compile* C, PhaseIterGVN* igvn, IdealLoopTree* ltree_root)
+      : C(C),
+        _igvn(igvn),
+        _ltree_root(ltree_root) {}
+
+  void eliminate();
 };
 #endif // SHARE_OPTO_PREDICATES_HPP

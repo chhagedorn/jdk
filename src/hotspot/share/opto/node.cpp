@@ -525,6 +525,10 @@ Node *Node::clone() const {
     C->add_parse_predicate(n->as_ParsePredicate());
   }
 
+  if (n->is_TemplateAssertionPredicate()) {
+    C->add_template_assertion_predicate(n->as_TemplateAssertionPredicate());
+  }
+
   BarrierSetC2* bs = BarrierSet::barrier_set()->barrier_set_c2();
   bs->register_potential_barrier_node(n);
 
@@ -623,8 +627,8 @@ void Node::destruct(PhaseValues* phase) {
   if (is_expensive()) {
     compile->remove_expensive_node(this);
   }
-  if (Opcode() == Op_Opaque4) {
-    compile->remove_template_assertion_predicate_opaq(this);
+  if (is_TemplateAssertionPredicate()) {
+    compile->remove_template_assertion_predicate(as_TemplateAssertionPredicate());
   }
   if (is_ParsePredicate()) {
     compile->remove_parse_predicate(as_ParsePredicate());

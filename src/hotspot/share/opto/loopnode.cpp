@@ -4023,110 +4023,17 @@ void PhaseIdealLoop::log_loop_tree() {
   }
 }
 
-// Eliminate all template assertion predicates that do not belong to their originally associated loop anymore by
-// replacing the bool test of the If node by a constant. IGVN will then clean up these nodes later.
-void PhaseIdealLoop::eliminate_useless_template_assertion_predicates() {
-  Unique_Node_List useful_predicates;
-  if (C->has_loops()) {
-    eliminate_useless_template_assertion_predicates(_ltree_root->_child, useful_predicates);
-  }
-  for (int i = 0; i < C->template_assertion_predicate_count(); i++) {
-    Node* opaque4 = C->template_assertion_predicate_opaq_node(i);
-    assert(opaque4->Opcode() == Op_Opaque4, "must be");
-    if (!useful_predicates.member(opaque4)) { // not in the useful list
-      _igvn.replace_node(opaque4, opaque4->in(2));
-    }
-  }
-}
-
-
-void PhaseIdealLoop::eliminate_useless_template_assertion_predicates(IdealLoopTree* loop, Unique_Node_List &useful_predicates) {
-  if (loop->_child) { // child
-    eliminate_useless_template_assertion_predicates(loop->_child, useful_predicates);
-  }
-
-  if (loop->can_apply_loop_predication()) {
-    Node* entry = loop->_head->in(LoopNode::EntryControl);
-    const Predicates predicates(entry);
-    if (UseProfiledLoopPredicate) {
-      const RegularPredicateBlock* profiled_loop_predicate_block = predicates.profiled_loop_predicate_block();
-      if (profiled_loop_predicate_block->has_parse_predicate()) { // right pattern that can be used by loop predication
-        IfProjNode* parse_predicate_proj = profiled_loop_predicate_block->parse_predicate_success_proj();
-        get_assertion_predicates(parse_predicate_proj, useful_predicates, true);
-      }
-    }
-
-    if (UseLoopPredicate) {
-      const RegularPredicateBlock* loop_predicate_block = predicates.loop_predicate_block();
-      if (loop_predicate_block->has_parse_predicate()) { // right pattern that can be used by loop predication
-        IfProjNode* parse_predicate_proj = loop_predicate_block->parse_predicate_success_proj();
-        get_assertion_predicates(parse_predicate_proj, useful_predicates, true);
-      }
-    }
-  }
-
-  if (loop->_next) { // sibling
-    eliminate_useless_template_assertion_predicates(loop->_next, useful_predicates);
-  }
-}
-
-// Eliminate all parse predicates that do not belong to their originally associated loop anymore by marking them
-// as useless. IGVN will then clean up these nodes later.
-void PhaseIdealLoop::eliminate_useless_parse_predicates() {
-  for (int i = 0; i < C->parse_predicate_count(); i++) {
-    C->parse_predicate(i)->mark_useless();
-  }
-
-  if (C->has_loops()) {
-    eliminate_useless_parse_predicates(_ltree_root->_child);
-  }
-
-  add_useless_parse_predicates_to_igvn();
-}
-
-void PhaseIdealLoop::add_useless_parse_predicates_to_igvn() {
-  for (int i = 0; i < C->parse_predicate_count(); i++) {
-    ParsePredicateNode* parse_predicate_node = C->parse_predicate(i);
-    if (parse_predicate_node->is_useless()) {
-      _igvn._worklist.push(parse_predicate_node);
-    }
-  }
-}
-
-void PhaseIdealLoop::eliminate_useless_parse_predicates(IdealLoopTree* loop) {
-  if (loop->_child) { // child
-    eliminate_useless_parse_predicates(loop->_child);
-  }
-
-  if (loop->can_apply_loop_predication()) {
-    mark_useful_parse_predicates_for_loop(loop);
-  }
-
-  if (loop->_next) { // sibling
-    eliminate_useless_parse_predicates(loop->_next);
-  }
-}
-
-void PhaseIdealLoop::mark_useful_parse_predicates_for_loop(IdealLoopTree* loop) {
-  Node* entry = loop->_head->in(LoopNode::EntryControl);
-  const Predicates predicates(entry);
-  ParsePredicateIterator iterator(predicates);
-  while (iterator.has_next()) {
-    iterator.next()->mark_useful();
-  }
-}
-
 //------------------------eliminate_useless_predicates-----------------------------
 // Eliminate all inserted predicates if they could not be used by loop predication.
 // Note: it will also eliminates loop limits check predicate since it also uses
 // Opaque1 node (see Parse::add_predicate()).
 void PhaseIdealLoop::eliminate_useless_predicates() {
   if (C->parse_predicate_count() == 0 && C->template_assertion_predicate_count() == 0) {
-    return; // no predicate left
+    return; // no predicates left
   }
 
-  eliminate_useless_parse_predicates();
-  eliminate_useless_template_assertion_predicates();
+  EliminateUselessPredicates eliminator(C, &_igvn, _ltree_root);
+  eliminator.eliminate();
 }
 
 //------------------------process_expensive_nodes-----------------------------
