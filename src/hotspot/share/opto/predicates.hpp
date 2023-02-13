@@ -575,6 +575,138 @@ class NodeInClonedLoop : public NodeInLoop {
   }
 };
 
+class AssertionPredicateBool : public StackObj {
+  PhaseIdealLoop* _phase;
+  Compile* C;
+
+ public:
+  AssertionPredicateBool(PhaseIdealLoop* phase) : _phase(phase), C(phase->C) {}
+
+  // Is 'n' a node that can be found on the input chain of a Template Assertion Predicate bool (i.e. between a Template
+// TemplateAssertionPredicate node and the OpaqueLoop* nodes (excluded))?
+  static bool could_node_be_part_of_bool(const Node* n) {
+    int op = n->Opcode();
+    return (n->is_Bool() ||
+            n->is_Cmp() ||
+            op == Op_AndL ||
+            op == Op_OrL ||
+            op == Op_RShiftL ||
+            op == Op_LShiftL ||
+            op == Op_LShiftI ||
+            op == Op_AddL ||
+            op == Op_AddI ||
+            op == Op_MulL ||
+            op == Op_MulI ||
+            op == Op_SubL ||
+            op == Op_SubI ||
+            op == Op_ConvI2L ||
+            op == Op_CastII);
+  }
+
+  BoolNode* clone(Node* bol, Node* ctrl) {
+    return create(bol, nullptr, nullptr, ctrl);
+  }
+
+// Create a new Bool node from the provided Template Assertion Predicate.
+// Replace found OpaqueLoop* nodes with new_init and new_stride, respectively.
+  BoolNode* create(Node* bol, Node* new_init, Node* new_stride, Node* ctrl) {
+    Node_Stack to_clone(2);
+    assert(bol->is_Bool() && bol->unique_out()->is_TemplateAssertionPredicate(), "must be TemplateAssertionPredicate Bool node");
+    to_clone.push(bol, 1);
+    const uint current = C->unique();
+    Node* result = nullptr;
+    const bool clone_opaque_loop_nodes = new_init == nullptr && new_stride == nullptr;
+    assert(new_init != nullptr || clone_opaque_loop_nodes, "new_init must be set when new_stride is non-null");
+    // Look for the opaque node to replace with the new value
+    // and clone everything in between. We keep the Opaque4 node
+    // so the duplicated predicates are eliminated once loop
+    // opts are over: they are here only to keep the IR graph
+    // consistent.
+    do {
+      Node* n = to_clone.node();
+      uint i = to_clone.index();
+      Node* input = n->in(i);
+      if (could_node_be_part_of_bool(input)) {
+        to_clone.push(input, 1);
+        continue;
+      }
+      if (input->is_Opaque1()) {
+        if (n->_idx < current) {
+          n = n->clone();
+          _phase->register_new_node(n, ctrl);
+        }
+        int op = input->Opcode();
+        if (op == Op_OpaqueLoopInit) {
+          if (clone_opaque_loop_nodes && input->_idx < current && new_init == nullptr) {
+            new_init = input->clone();
+            _phase->register_new_node(new_init, ctrl);
+          }
+          n->set_req(i, new_init);
+        } else {
+          if (clone_opaque_loop_nodes && input->_idx < current && new_stride == nullptr) {
+            new_stride = input->clone();
+            _phase->register_new_node(new_stride, ctrl);
+          }
+          assert(op == Op_OpaqueLoopStride, "unexpected opaque node");
+          if (new_stride != nullptr) {
+            n->set_req(i, new_stride);
+          }
+        }
+        to_clone.set_node(n);
+      }
+      while (true) {
+        Node* cur = to_clone.node();
+        uint j = to_clone.index();
+        if (j+1 < cur->req()) {
+          to_clone.set_index(j+1);
+          break;
+        }
+        to_clone.pop();
+        if (to_clone.size() == 0) {
+          result = cur;
+          break;
+        }
+        Node* next = to_clone.node();
+        j = to_clone.index();
+        if (next->in(j) != cur) {
+          assert(cur->_idx >= current || next->in(j)->Opcode() == Op_Opaque1, "new node or Opaque1 being replaced");
+          if (next->_idx < current) {
+            next = next->clone();
+            _phase->register_new_node(next, ctrl);
+            to_clone.set_node(next);
+          }
+          next->set_req(j, cur);
+        }
+      }
+    } while (result == nullptr);
+    assert(result->_idx >= current, "new node expected");
+    assert(!clone_opaque_loop_nodes || new_init != nullptr, "new_init must always be found and cloned");
+    return result->as_Bool();
+  }
+};
+
+
+class TemplateAssertionPredicate : public StackObj {
+  PhaseIdealLoop* _phase;
+  AssertionPredicateBool _assertion_predicate_bool;
+ public:
+  TemplateAssertionPredicate(PhaseIdealLoop* phase) : _phase(phase), _assertion_predicate_bool(phase) {}
+
+  TemplateAssertionPredicateNode* clone(TemplateAssertionPredicateNode* template_assertion_predicate, Node* new_entry) {
+    BoolNode* init_bool = _assertion_predicate_bool.clone(template_assertion_predicate->in(TemplateAssertionPredicateNode::InitValue), new_entry);
+    BoolNode* last_bool = _assertion_predicate_bool.clone(template_assertion_predicate->in(TemplateAssertionPredicateNode::LastValue), new_entry);
+    Node* clone = template_assertion_predicate->clone();
+    _phase->igvn().replace_input_of(clone, TemplateAssertionPredicateNode::InitValue, init_bool);
+    _phase->igvn().replace_input_of(clone, TemplateAssertionPredicateNode::LastValue, last_bool);
+    _phase->igvn().register_new_node_with_optimizer(clone);
+    _phase->igvn().replace_input_of(clone, 0, new_entry);
+    _phase->set_idom(clone, new_entry, _phase->dom_depth(new_entry));
+    return clone->as_TemplateAssertionPredicate();
+  }
+
+  void update_data_dependencies(TemplateAssertionPredicateNode* template_assertion_predicate, NodeInLoop* node_in_loop);
+};
+
 // Class to clone Template Assertion Predicates.
 class CloneTemplateAssertionPredicates : public StackObj {
   Node* _new_entry;
@@ -586,7 +718,6 @@ class CloneTemplateAssertionPredicates : public StackObj {
   collect_template_assertion_predicates(const Predicates& predicates);
   void clone_in_reverse_order(GrowableArray<TemplateAssertionPredicateNode*>& template_assertion_predicate_nodes);
   void clone_template_assertion_predicate(TemplateAssertionPredicateNode* template_assertion_predicate);
-  void update_data_dependencies(const TemplateAssertionPredicateNode* template_assertion_predicate);
 
  public:
   CloneTemplateAssertionPredicates(Node* new_entry, NodeInLoop* node_in_loop, PhaseIdealLoop* phase)

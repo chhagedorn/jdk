@@ -225,20 +225,18 @@ void CloneTemplateAssertionPredicates::clone_in_reverse_order(GrowableArray<Temp
   }
 }
 
-void CloneTemplateAssertionPredicates::clone_template_assertion_predicate(TemplateAssertionPredicateNode* template_assertion_predicate) {
-  Node* clone = template_assertion_predicate->clone();
-  _phase->igvn().register_new_node_with_optimizer(clone);
-  _phase->igvn().replace_input_of(clone, 0, _new_entry);
-  _phase->set_idom(clone, _new_entry, _dom_depth);
-  _new_entry = clone;
-  update_data_dependencies(template_assertion_predicate);
+void CloneTemplateAssertionPredicates::clone_template_assertion_predicate(TemplateAssertionPredicateNode* template_assertion_predicate_node) {
+  TemplateAssertionPredicate template_assertion_predicate(template_assertion_predicate_node, _phase);
+  _new_entry = template_assertion_predicate.clone(_new_entry);
+  template_assertion_predicate.update_data_dependencies(_new_entry->as_TemplateAssertionPredicate(), _node_in_loop);
 }
 
-void CloneTemplateAssertionPredicates::update_data_dependencies(const TemplateAssertionPredicateNode* template_assertion_predicate) {
-  for (DUIterator_Fast imax, i = template_assertion_predicate->fast_outs(imax); i < imax; i++) {
-    Node* node = template_assertion_predicate->fast_out(i);
-    if (!node->is_CFG() && _node_in_loop->check(node)) {
-      _phase->igvn().replace_input_of(node, 0, _new_entry);
+void TemplateAssertionPredicate::update_data_dependencies(TemplateAssertionPredicateNode* new_template_assertion_predicate,
+                                                          NodeInLoop* node_in_loop) {
+  for (DUIterator_Fast imax, i = _template_assertion_predicate->fast_outs(imax); i < imax; i++) {
+    Node* node = _template_assertion_predicate->fast_out(i);
+    if (!node->is_CFG() && node_in_loop->check(node)) {
+      _phase->igvn().replace_input_of(node, 0, new_template_assertion_predicate);
       --i;
       --imax;
     }
