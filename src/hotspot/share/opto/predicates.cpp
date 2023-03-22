@@ -204,31 +204,17 @@ Node* CloneParsePredicates::clone(const RegularPredicateBlocks* regular_predicat
   return _new_entry;
 }
 
-GrowableArray<TemplateAssertionPredicateNode*>
-CloneTemplateAssertionPredicates::collect_template_assertion_predicates(const Predicates& predicates) {
-  TemplateAssertionPredicateIterator template_assertion_predicate_iterator(predicates);
-  GrowableArray<TemplateAssertionPredicateNode*> template_assertion_predicate_nodes;
-  while (true) {
-    TemplateAssertionPredicateNode* template_assertion_predicate = template_assertion_predicate_iterator.next();
-    if (template_assertion_predicate == nullptr) {
-      break;
-    }
-    template_assertion_predicate_nodes.push(template_assertion_predicate);
-  }
-  return template_assertion_predicate_nodes;
-}
-
-// Clone in reverse order to keep the order found for the original loop to be unswitched.
-void CloneTemplateAssertionPredicates::clone_in_reverse_order(GrowableArray<TemplateAssertionPredicateNode*>& template_assertion_predicate_nodes) {
-  for (int i = template_assertion_predicate_nodes.length() - 1; i >= 0; i--) {
-    clone_template_assertion_predicate(template_assertion_predicate_nodes.at(i));
-  }
-}
-
 void CloneTemplateAssertionPredicates::clone_template_assertion_predicate(TemplateAssertionPredicateNode* template_assertion_predicate_node) {
   TemplateAssertionPredicate template_assertion_predicate(template_assertion_predicate_node, _phase);
-  _new_entry = template_assertion_predicate.clone(_new_entry);
-  template_assertion_predicate.update_data_dependencies(_new_entry->as_TemplateAssertionPredicate(), _node_in_loop);
+  TemplateAssertionPredicateNode* clone = template_assertion_predicate.clone(_new_entry);
+  if (_previous_clone != nullptr) {
+    _phase->igvn().replace_input_of(_previous_clone, 0, clone);
+  }
+  _previous_clone = clone;
+  if (_last_clone == nullptr) {
+    _last_clone = clone;
+  }
+  template_assertion_predicate.update_data_dependencies(clone, _node_in_loop);
 }
 
 void TemplateAssertionPredicate::update_data_dependencies(TemplateAssertionPredicateNode* new_template_assertion_predicate,
@@ -244,14 +230,19 @@ void TemplateAssertionPredicate::update_data_dependencies(TemplateAssertionPredi
 }
 
 // Clones the given Template Assertion Predicates to '_new_entry'. If a Template Assertion Predicate has control
-// dependent output nodes, these are rewired if they belong to the unswichted loop to which we are cloning to.
+// dependent output nodes, these are rewired if they belong to the unswitched loop to which we are cloning to.
 // This is checked with the node index captured before creating the slow loop.
 // Returns the last node in the newly created Template Assertion Predicate chain.
 Node* CloneTemplateAssertionPredicates::clone(const Predicates& predicates) {
-  GrowableArray<TemplateAssertionPredicateNode*> template_assertion_predicate_nodes =
-          collect_template_assertion_predicates(predicates);
-  clone_in_reverse_order(template_assertion_predicate_nodes);
-  return _new_entry;
+  TemplateAssertionPredicateIterator template_assertion_predicate_iterator(predicates);
+  while (true) {
+    TemplateAssertionPredicateNode* template_assertion_predicate = template_assertion_predicate_iterator.next();
+    if (template_assertion_predicate == nullptr) {
+      break;
+    }
+    clone_template_assertion_predicate(template_assertion_predicate);
+  }
+  return _last_clone;
 }
 
 // Check if 'n' belongs to the init or last value Template Assertion Predicate bool, including the OpaqueLoop* nodes.

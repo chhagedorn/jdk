@@ -665,10 +665,9 @@ class CloneTemplateAssertionPredicates : public StackObj {
   NodeInLoop* _node_in_loop;
   PhaseIdealLoop* _phase;
   uint _dom_depth;
+  TemplateAssertionPredicateNode* _previous_clone;
+  TemplateAssertionPredicateNode* _last_clone;
 
-  static GrowableArray<TemplateAssertionPredicateNode*>
-  collect_template_assertion_predicates(const Predicates& predicates);
-  void clone_in_reverse_order(GrowableArray<TemplateAssertionPredicateNode*>& template_assertion_predicate_nodes);
   void clone_template_assertion_predicate(TemplateAssertionPredicateNode* template_assertion_predicate);
 
  public:
@@ -676,7 +675,9 @@ class CloneTemplateAssertionPredicates : public StackObj {
           : _new_entry(new_entry),
             _node_in_loop(node_in_loop),
             _phase(phase),
-            _dom_depth(phase->dom_depth(new_entry)) {}
+            _dom_depth(phase->dom_depth(new_entry)),
+            _previous_clone(nullptr),
+            _last_clone(nullptr) {}
 
   Node* clone(const Predicates& predicates);
 };
