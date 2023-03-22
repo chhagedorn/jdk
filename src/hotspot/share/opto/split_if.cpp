@@ -425,20 +425,28 @@ class CloneTemplateAssertionPredicateBoolDown {
     }
   }
 
-  void clone_template_assertion_predicate_bool_and_replace(TemplateAssertionPredicateNode* template_assertion_predicate_node,
-                                                           const BoolNode* template_assertion_predicate_bool) {
-    TemplateAssertionPredicate template_assertion_predicate(template_assertion_predicate_node, _phase);
-    Node* new_ctrl = template_assertion_predicate_node->in(0);
-    int bool_index;
-    BoolNode* cloned_bool;
-    if (template_assertion_predicate_bool == template_assertion_predicate_node->in(TemplateAssertionPredicateNode::InitValue)) {
-      cloned_bool = template_assertion_predicate.clone_init_value_bool(new_ctrl);
-      bool_index = TemplateAssertionPredicateNode::InitValue;
+  void clone_template_assertion_predicate_bool_and_replace(TemplateAssertionPredicateNode* template_assertion_predicate,
+                                                           const BoolNode* template_assertion_predicate_bool_node) {
+    Node* new_ctrl = template_assertion_predicate->in(0);
+    const int bool_index = template_assertion_predicate_bool_index(template_assertion_predicate,
+                                                                   template_assertion_predicate_bool_node);
+    CloneOpaqueLoopNodes clone_opaque_loop_nodes(_phase);
+    TemplateAssertionPredicateBool
+    template_assertion_predicate_bool(template_assertion_predicate_bool_node->in(bool_index)->as_Bool(),
+                                      &clone_opaque_loop_nodes, _phase);
+    BoolNode* cloned_bool = template_assertion_predicate_bool.clone(new_ctrl);
+    _phase->igvn().replace_input_of(template_assertion_predicate, bool_index, cloned_bool);
+  }
+
+
+  static int template_assertion_predicate_bool_index(const TemplateAssertionPredicateNode* template_assertion_predicate_node,
+                                              const BoolNode* template_assertion_predicate_bool_node) {
+    if (template_assertion_predicate_bool_node
+        == template_assertion_predicate_node->in(TemplateAssertionPredicateNode::InitValue)) {
+      return TemplateAssertionPredicateNode::InitValue;
     } else {
-      cloned_bool = template_assertion_predicate.clone_last_value_bool(new_ctrl);
-      bool_index = TemplateAssertionPredicateNode::LastValue;
+      return TemplateAssertionPredicateNode::LastValue;
     }
-    _phase->igvn().replace_input_of(template_assertion_predicate_node, bool_index, cloned_bool);
   }
 
  public:

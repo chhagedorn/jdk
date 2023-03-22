@@ -24,6 +24,7 @@
 
 #include "precompiled.hpp"
 #include "opto/callnode.hpp"
+#include "opto/opaquenode.hpp"
 #include "opto/predicates.hpp"
 
 // Walk over all Initialized Assertion Predicates and return the entry into the first Initialized Assertion Predicate
@@ -205,7 +206,8 @@ Node* CloneParsePredicates::clone(const RegularPredicateBlocks* regular_predicat
 }
 
 void CloneTemplateAssertionPredicates::clone_template_assertion_predicate(TemplateAssertionPredicateNode* template_assertion_predicate_node) {
-  TemplateAssertionPredicate template_assertion_predicate(template_assertion_predicate_node, _phase);
+  TemplateAssertionPredicate template_assertion_predicate(template_assertion_predicate_node,
+                                                          _replace_opaque_loop_node, _phase);
   TemplateAssertionPredicateNode* clone = template_assertion_predicate.clone(_new_entry);
   if (_previous_clone != nullptr) {
     _phase->igvn().replace_input_of(_previous_clone, 0, clone);
@@ -265,13 +267,12 @@ bool TemplateAssertionPredicateBool::is_related_node(Node* n) {
 // Create a new Bool node from the provided Template Assertion Predicate.
 // Replace found OpaqueLoop* nodes with new_init and new_stride, respectively, if non-null.
 // All newly cloned (non-CFG) nodes will get 'ctrl' as new ctrl.
-BoolNode* TemplateAssertionPredicateBool::create(Node* ctrl, Node* new_init, Node* new_stride) {
+BoolNode* TemplateAssertionPredicateBool::create(Node* ctrl) {
   Node_Stack to_clone(2);
   to_clone.push(_bol, 1);
   const uint idx_before_cloning = C->unique();
   Node* result = nullptr;
-  const bool clone_opaque_loop_nodes = new_init == nullptr && new_stride == nullptr;
-  assert(new_init != nullptr || clone_opaque_loop_nodes, "new_init must be set when new_stride is non-null");
+  bool found_init = false;
   // Look for the opaque node to replace with the new value
   // and clone everything in between. We keep the Opaque4 node
   // so the duplicated predicates are eliminated once loop
@@ -292,20 +293,12 @@ BoolNode* TemplateAssertionPredicateBool::create(Node* ctrl, Node* new_init, Nod
       }
       const int op = input->Opcode();
       if (op == Op_OpaqueLoopInit) {
-        if (clone_opaque_loop_nodes && input->_idx < idx_before_cloning && new_init == nullptr) {
-          new_init = input->clone();
-          _phase->register_new_node(new_init, ctrl);
-        }
-        n->set_req(i, new_init);
+        Node* replacement = _replace_opaque_loop_node->replace_init(input->as_OpaqueLoopInit(), ctrl);
+        n->set_req(i, replacement);
+        found_init = true;
       } else {
-        if (clone_opaque_loop_nodes && input->_idx < idx_before_cloning && new_stride == nullptr) {
-          new_stride = input->clone();
-          _phase->register_new_node(new_stride, ctrl);
-        }
-        assert(op == Op_OpaqueLoopStride, "unexpected opaque node");
-        if (new_stride != nullptr) {
-          n->set_req(i, new_stride);
-        }
+        Node* replacement = _replace_opaque_loop_node->replace_stride(input->as_OpaqueLoopStride(), ctrl);
+        n->set_req(i, replacement);
       }
       to_clone.set_node(n);
     }
@@ -335,8 +328,33 @@ BoolNode* TemplateAssertionPredicateBool::create(Node* ctrl, Node* new_init, Nod
     }
   } while (result == nullptr);
   assert(result->_idx >= idx_before_cloning, "new node expected");
-  assert(!clone_opaque_loop_nodes || new_init != nullptr, "new_init must always be found and cloned");
+  assert(found_init, "OpaqueLoopInitNode must always be found");
   return result->as_Bool();
+}
+
+Node* CloneOpaqueLoopNodes::replace_init(OpaqueLoopInitNode* init, Node* ctrl) {
+  return clone_old(init, ctrl);
+}
+
+Node* CloneOpaqueLoopNodes::replace_stride(OpaqueLoopStrideNode* stride, Node* ctrl) {
+  return clone_old(stride, ctrl);
+}
+
+Node* ReplaceOpaqueLoopInitNode::replace_init(OpaqueLoopInitNode* init, Node* ctrl) {
+  return _new_init;
+}
+
+Node* ReplaceOpaqueLoopInitNode::replace_stride(OpaqueLoopStrideNode* stride, Node* ctrl) {
+  // Do nothing.
+  return stride;
+}
+
+Node* ReplaceOpaqueLoopNodes::replace_init(OpaqueLoopInitNode* init, Node* ctrl) {
+  return _new_init;
+}
+
+Node* ReplaceOpaqueLoopNodes::replace_stride(OpaqueLoopStrideNode* stride, Node* ctrl) {
+  return _new_stride;
 }
 
 TemplateAssertionPredicateNode* TemplateAssertionPredicate::clone(Node* new_entry) {

@@ -192,6 +192,7 @@
  */
 
 class Predicates;
+class ReplaceOpaqueLoopNode;
 
 // Class to represent the Assertion Predicates with a HaltNode instead of an UCT (i.e. either an initialized predicate
 // or a template copied to the main-loop.
@@ -578,6 +579,7 @@ class NodeInClonedLoop : public NodeInLoop {
 // Class that represents either the BoolNode for the initial value or the last value of a Template Assertion Predicate.
 class TemplateAssertionPredicateBool : public StackObj {
   BoolNode* _bol;
+  ReplaceOpaqueLoopNode* _replace_opaque_loop_node;
   PhaseIdealLoop* _phase;
   Compile* C;
 
@@ -618,7 +620,11 @@ class TemplateAssertionPredicateBool : public StackObj {
   }
 
  public:
-  TemplateAssertionPredicateBool(BoolNode* bol, PhaseIdealLoop* phase) : _bol(bol), _phase(phase), C(phase->C) {
+  TemplateAssertionPredicateBool(BoolNode* bol, ReplaceOpaqueLoopNode* replace_opaque_loop_node, PhaseIdealLoop* phase)
+      : _bol(bol),
+        _replace_opaque_loop_node(replace_opaque_loop_node),
+        _phase(phase),
+        C(phase->C) {
     assert(bol->unique_out()->is_TemplateAssertionPredicate(), "must be TemplateAssertionPredicate Bool node");
   }
 
@@ -627,41 +633,82 @@ class TemplateAssertionPredicateBool : public StackObj {
   // Clone the Template Assertion Predicate bool including all nodes on the input chain up to and including the
   // OpaqueLoop* nodes. Sets 'ctrl' as new ctrl for all cloned (non-CFG) nodes.
   BoolNode* clone(Node* ctrl) {
-    return create(ctrl, nullptr, nullptr);
+    return create(ctrl);
   }
 
-  BoolNode* create(Node* ctrl, Node* new_init, Node* new_stride);
+  BoolNode* create(Node* ctrl);
+};
+
+class ReplaceOpaqueLoopNode : public ResourceObj {
+ public:
+  virtual Node* replace_init(OpaqueLoopInitNode* init, Node* ctrl) = 0;
+  virtual Node* replace_stride(OpaqueLoopStrideNode* stride, Node* ctrl) = 0;
+};
+
+class CloneOpaqueLoopNodes : public ReplaceOpaqueLoopNode {
+  PhaseIdealLoop* _phase;
+
+  Node* clone_old(const Node* old_node, Node* ctrl) {
+    Node* clone = old_node->clone();
+    _phase->register_new_node(clone, ctrl);
+    return clone;
+  }
+
+ public:
+  CloneOpaqueLoopNodes(PhaseIdealLoop* phase) : _phase(phase) {}
+
+  Node* replace_init(OpaqueLoopInitNode* init, Node* ctrl) override;
+  Node* replace_stride(OpaqueLoopStrideNode* stride, Node* ctrl) override;
+};
+
+class ReplaceOpaqueLoopInitNode : public ReplaceOpaqueLoopNode {
+  Node* _new_init;
+
+ public:
+  ReplaceOpaqueLoopInitNode(Node* new_init) : _new_init(new_init) {}
+
+  Node* replace_init(OpaqueLoopInitNode* init, Node* ctrl) override;
+  Node* replace_stride(OpaqueLoopStrideNode* stride, Node* ctrl) override;
+};
+
+class ReplaceOpaqueLoopNodes : public ReplaceOpaqueLoopNode {
+  Node* _new_init;
+  Node* _new_stride;
+
+ public:
+  ReplaceOpaqueLoopNodes(Node* new_init, Node* new_stride)
+      : _new_init(new_init),
+        _new_stride(new_stride) {}
+
+  Node* replace_init(OpaqueLoopInitNode* init, Node* ctrl) override;
+  Node* replace_stride(OpaqueLoopStrideNode* stride, Node* ctrl) override;
 };
 
 class TemplateAssertionPredicate : public StackObj {
-  PhaseIdealLoop* _phase;
   TemplateAssertionPredicateNode* _template_assertion_predicate;
   TemplateAssertionPredicateBool _init_value_bool;
   TemplateAssertionPredicateBool _last_value_bool;
+  PhaseIdealLoop* _phase;
+
 
  public:
-  TemplateAssertionPredicate(TemplateAssertionPredicateNode* template_assertion_predicate, PhaseIdealLoop* phase)
-      : _phase(phase),
-        _template_assertion_predicate(template_assertion_predicate),
-        _init_value_bool(TemplateAssertionPredicateBool(template_assertion_predicate->in(TemplateAssertionPredicateNode::InitValue)->as_Bool(), phase)),
-        _last_value_bool(TemplateAssertionPredicateBool(template_assertion_predicate->in(TemplateAssertionPredicateNode::LastValue)->as_Bool(), phase)) {}
+  TemplateAssertionPredicate(TemplateAssertionPredicateNode* template_assertion_predicate,
+                             ReplaceOpaqueLoopNode* replace_opaque_loop_node, PhaseIdealLoop* phase)
+      : _template_assertion_predicate(template_assertion_predicate),
+        _init_value_bool(TemplateAssertionPredicateBool(template_assertion_predicate->in(TemplateAssertionPredicateNode::InitValue)->as_Bool(),
+                                                        replace_opaque_loop_node, phase)),
+        _last_value_bool(TemplateAssertionPredicateBool(template_assertion_predicate->in(TemplateAssertionPredicateNode::LastValue)->as_Bool(),
+                                                        replace_opaque_loop_node, phase)),
+        _phase(phase) {}
 
   TemplateAssertionPredicateNode* clone(Node* new_entry);
-
-  BoolNode* clone_init_value_bool(Node* new_ctrl) {
-      return _init_value_bool.clone(new_ctrl);
-  }
-
-  BoolNode* clone_last_value_bool(Node* new_ctrl) {
-    return _last_value_bool.clone(new_ctrl);
-  }
-
   void update_data_dependencies(TemplateAssertionPredicateNode* template_assertion_predicate, NodeInLoop* node_in_loop);
 };
 
 // Class to clone Template Assertion Predicates.
 class CloneTemplateAssertionPredicates : public StackObj {
   Node* _new_entry;
+  ReplaceOpaqueLoopNode* _replace_opaque_loop_node;
   NodeInLoop* _node_in_loop;
   PhaseIdealLoop* _phase;
   uint _dom_depth;
@@ -671,13 +718,15 @@ class CloneTemplateAssertionPredicates : public StackObj {
   void clone_template_assertion_predicate(TemplateAssertionPredicateNode* template_assertion_predicate);
 
  public:
-  CloneTemplateAssertionPredicates(Node* new_entry, NodeInLoop* node_in_loop, PhaseIdealLoop* phase)
-          : _new_entry(new_entry),
-            _node_in_loop(node_in_loop),
-            _phase(phase),
-            _dom_depth(phase->dom_depth(new_entry)),
-            _previous_clone(nullptr),
-            _last_clone(nullptr) {}
+  CloneTemplateAssertionPredicates(Node* new_entry, ReplaceOpaqueLoopNode* replace_opaque_loop_node,
+                                   NodeInLoop* node_in_loop, PhaseIdealLoop* phase)
+      : _new_entry(new_entry),
+        _replace_opaque_loop_node(replace_opaque_loop_node),
+        _node_in_loop(node_in_loop),
+        _phase(phase),
+        _dom_depth(phase->dom_depth(new_entry)),
+        _previous_clone(nullptr),
+        _last_clone(nullptr) {}
 
   Node* clone(const Predicates& predicates);
 };

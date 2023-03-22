@@ -274,7 +274,9 @@ class UnswitchedLoop : public StackObj {
   // Assertion Predicates to the new ones.
   // Returns the last node in the newly created Template Assertion Predicate chain.
   Node* clone_template_assertion_predicates(Node* new_entry) const {
-    CloneTemplateAssertionPredicates clone_template_assertion_predicates(new_entry, _index_in_loop, _phase);
+    CloneOpaqueLoopNodes clone_opaque_loop_nodes(_phase);
+    CloneTemplateAssertionPredicates clone_template_assertion_predicates(new_entry, &clone_opaque_loop_nodes,
+                                                                         _index_in_loop, _phase);
     return clone_template_assertion_predicates.clone(*_predicates);
   }
 };
