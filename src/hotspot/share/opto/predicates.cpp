@@ -87,7 +87,6 @@ bool RuntimePredicate::is_success_proj(Node* node, Deoptimization::DeoptReason d
 TemplateAssertionPredicateIterator::TemplateAssertionPredicateIterator(const Predicates& predicates)
     : _current(predicates.template_assertion_predicate_block()->last()) {}
 
-
 TemplateAssertionPredicateNode* TemplateAssertionPredicateIterator::next() {
   assert(has_next(), "always check has_next() first");
   TemplateAssertionPredicateNode* current = _current->as_TemplateAssertionPredicate();
@@ -95,15 +94,19 @@ TemplateAssertionPredicateNode* TemplateAssertionPredicateIterator::next() {
   return current;
 }
 
-TemplateAssertionPredicateBlock::TemplateAssertionPredicateBlock(Node* loop_entry) : _entry(loop_entry), _last(nullptr) {
+TemplateAssertionPredicateBlock::TemplateAssertionPredicateBlock(Node* loop_entry)
+    : _entry(loop_entry),
+      _first(nullptr),
+      _last(nullptr) {
   if (loop_entry->is_TemplateAssertionPredicate()) {
     _last = loop_entry->as_TemplateAssertionPredicate();
     TemplateAssertionPredicateIterator iterator(loop_entry);
-    Node* next = loop_entry;
+    TemplateAssertionPredicateNode* next = _last;
     while (iterator.has_next()) {
       next = iterator.next();
     }
-    _entry = next->in(0);
+    _first = next;
+    _entry = _first->in(0);
   }
 }
 
@@ -216,14 +219,14 @@ void CloneTemplateAssertionPredicates::clone_template_assertion_predicate(Templa
   if (_last_clone == nullptr) {
     _last_clone = clone;
   }
-  template_assertion_predicate.update_data_dependencies(clone, _node_in_loop);
+  template_assertion_predicate.update_data_dependencies(clone, _first_node_index_in_cloned_loop);
 }
 
 void TemplateAssertionPredicate::update_data_dependencies(TemplateAssertionPredicateNode* new_template_assertion_predicate,
-                                                          NodeInLoop* node_in_loop) {
+                                                          const uint first_node_index_in_cloned_loop) {
   for (DUIterator_Fast imax, i = _template_assertion_predicate->fast_outs(imax); i < imax; i++) {
     Node* node = _template_assertion_predicate->fast_out(i);
-    if (!node->is_CFG() && node_in_loop->check(node)) {
+    if (!node->is_CFG() && node->_idx >= first_node_index_in_cloned_loop) {
       _phase->igvn().replace_input_of(node, 0, new_template_assertion_predicate);
       --i;
       --imax;

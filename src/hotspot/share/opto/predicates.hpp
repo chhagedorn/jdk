@@ -193,6 +193,7 @@
 
 class Predicates;
 class ReplaceOpaqueLoopNode;
+class TemplateAssertionPredicateBlock;
 
 // Class to represent the Assertion Predicates with a HaltNode instead of an UCT (i.e. either an initialized predicate
 // or a template copied to the main-loop.
@@ -414,7 +415,8 @@ class TemplateAssertionPredicateIterator : public StackObj {
 
 class TemplateAssertionPredicateBlock : public StackObj {
   Node* _entry;
-  TemplateAssertionPredicateNode* _last; // The last Template Assertion Predicate node of the block.
+  TemplateAssertionPredicateNode* _first;
+  TemplateAssertionPredicateNode* _last;
 
  public:
   TemplateAssertionPredicateBlock(Node* loop_entry);
@@ -427,6 +429,12 @@ class TemplateAssertionPredicateBlock : public StackObj {
     return _last != nullptr;
   }
 
+  // Returns the first Template Assertion Predicate node of the block or null if there is none.
+  TemplateAssertionPredicateNode* first() const {
+    return _first;
+  }
+
+  // Returns the last Template Assertion Predicate node of the block or null if there is none.
   TemplateAssertionPredicateNode* last() const {
     return _last;
   }
@@ -508,7 +516,7 @@ class EliminateUselessPredicates : public StackObj {
 
 // Classes to create a new Parse Predicate node (clone of an old Parse Predicate) for either the fast or slow loop.
 // The fast loop need to create some additional clones while the slow loop can reuse old nodes.
-class NewParsePredicate : public ResourceObj {
+class NewParsePredicate : public StackObj {
  public:
   virtual Node* create(PhaseIdealLoop* phase, Node* new_entry, ParsePredicateSuccessProj* old_proj) = 0;
 };
@@ -531,49 +539,6 @@ class CloneParsePredicates : public StackObj {
         _loop_node(loop_node) {}
 
   Node* clone(const RegularPredicateBlocks* regular_predicate_blocks);
-};
-
-
-// Classes to decide if a node is either in the fast or the slow loop.
-class NodeInLoop : public ResourceObj {
- public:
-  virtual bool check(Node* node) const = 0;
-};
-
-class NodeInOriginalLoop : public NodeInLoop {
- private:
-  PhaseIdealLoop* _phase;
-  IdealLoopTree* _loop;
-  uint _first_node_index_in_cloned_loop;
-
- public:
-  explicit NodeInOriginalLoop(PhaseIdealLoop* phase, IdealLoopTree* loop, uint first_node_index_in_cloned_loop)
-      : _phase(phase),
-        _loop(loop),
-        _first_node_index_in_cloned_loop(first_node_index_in_cloned_loop) {}
-
-  // Check if node inside original loop:
-  // - Node index smaller than first node index in cloned loop.
-  // - Node get_ctrl(node) inside original loop.
-  bool check(Node* node) const override {
-    return node->_idx < _first_node_index_in_cloned_loop && _loop->is_member(_phase->get_loop(_phase->get_ctrl(node)));
-  }
-};
-
-class NodeInClonedLoop : public NodeInLoop {
- private:
-  uint _first_node_index_in_cloned_loop;
-
- public:
-  explicit NodeInClonedLoop(uint first_node_index_in_cloned_loop)
-      : _first_node_index_in_cloned_loop(first_node_index_in_cloned_loop) {}
-
-  // Check if node inside cloned loop:
-  // Node index greater than or equal first node index in cloned loop: Then we know that this node was cloned and is now
-  // part of the cloned loop.
-  bool check(Node* node) const override {
-    return node->_idx >= _first_node_index_in_cloned_loop;
-  }
 };
 
 // Class that represents either the BoolNode for the initial value or the last value of a Template Assertion Predicate.
@@ -702,14 +667,15 @@ class TemplateAssertionPredicate : public StackObj {
         _phase(phase) {}
 
   TemplateAssertionPredicateNode* clone(Node* new_entry);
-  void update_data_dependencies(TemplateAssertionPredicateNode* template_assertion_predicate, NodeInLoop* node_in_loop);
+  void update_data_dependencies(TemplateAssertionPredicateNode* template_assertion_predicate,
+                                uint first_node_index_in_cloned_loop);
 };
 
 // Class to clone Template Assertion Predicates.
 class CloneTemplateAssertionPredicates : public StackObj {
   Node* _new_entry;
   ReplaceOpaqueLoopNode* _replace_opaque_loop_node;
-  NodeInLoop* _node_in_loop;
+  uint _first_node_index_in_cloned_loop;
   PhaseIdealLoop* _phase;
   uint _dom_depth;
   TemplateAssertionPredicateNode* _previous_clone;
@@ -719,10 +685,10 @@ class CloneTemplateAssertionPredicates : public StackObj {
 
  public:
   CloneTemplateAssertionPredicates(Node* new_entry, ReplaceOpaqueLoopNode* replace_opaque_loop_node,
-                                   NodeInLoop* node_in_loop, PhaseIdealLoop* phase)
+                                   uint first_node_index_in_cloned_loop, PhaseIdealLoop* phase)
       : _new_entry(new_entry),
         _replace_opaque_loop_node(replace_opaque_loop_node),
-        _node_in_loop(node_in_loop),
+        _first_node_index_in_cloned_loop(first_node_index_in_cloned_loop),
         _phase(phase),
         _dom_depth(phase->dom_depth(new_entry)),
         _previous_clone(nullptr),

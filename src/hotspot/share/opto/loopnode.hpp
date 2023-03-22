@@ -1408,7 +1408,7 @@ public:
   // Return the inserted if.
   IfNode* create_slow_version_of_loop(IdealLoopTree *loop,
                                         Node_List &old_new,
-                                        IfNode* unswitch_iff,
+                                        IfNode* unswitch_candidate_iff,
                                         CloneLoopMode mode);
 
   // Clone a loop and return the clone head (clone_loop_head).
