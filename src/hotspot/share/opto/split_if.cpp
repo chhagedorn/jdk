@@ -30,7 +30,7 @@
 #include "opto/loopnode.hpp"
 #include "opto/movenode.hpp"
 #include "opto/opaquenode.hpp"
-
+#include "opto/predicates.hpp"
 
 //------------------------------split_thru_region------------------------------
 // Split Node 'n' through merge point.
@@ -95,24 +95,7 @@ bool PhaseIdealLoop::split_up( Node *n, Node *blk1, Node *blk2 ) {
     return true;
   }
 
-  if (subgraph_has_opaque(n)) {
-    Unique_Node_List wq;
-    wq.push(n);
-    for (uint i = 0; i < wq.size(); i++) {
-      Node* m = wq.at(i);
-      if (m->is_If()) {
-        assert(assertion_predicate_has_loop_opaque_node(m->as_If()), "opaque node not reachable from if?");
-        Node* bol = create_bool_from_template_assertion_predicate(m, nullptr, nullptr, m->in(0));
-        _igvn.replace_input_of(m, 1, bol);
-      } else {
-        assert(!m->is_CFG(), "not CFG expected");
-        for (DUIterator_Fast jmax, j = m->fast_outs(jmax); j < jmax; j++) {
-          Node* u = m->fast_out(j);
-          wq.push(u);
-        }
-      }
-    }
-  }
+  clone_template_assertion_predicate_bool_down_if_related(n);
 
   if (n->Opcode() == Op_OpaqueZeroTripGuard) {
     // If this Opaque1 is part of the zero trip guard for a loop:
@@ -424,6 +407,64 @@ bool PhaseIdealLoop::clone_cmp_down(Node* n, const Node* blk1, const Node* blk2)
     }
   }
   return false;
+}
+
+class CloneTemplateAssertionPredicateBoolDown {
+  PhaseIdealLoop* _phase;
+
+  void visit_outputs(Unique_Node_List& list, const Node* n) {
+    for (DUIterator_Fast jmax, j = n->fast_outs(jmax); j < jmax; j++) {
+      Node* out = n->fast_out(j);
+      if (out->is_TemplateAssertionPredicate()) {
+        clone_template_assertion_predicate_bool_and_replace(out->as_TemplateAssertionPredicate(), n->as_Bool());
+        --j;
+        --jmax;
+      } else {
+        list.push(out);
+      }
+    }
+  }
+
+  void clone_template_assertion_predicate_bool_and_replace(TemplateAssertionPredicateNode* template_assertion_predicate_node,
+                                                           const BoolNode* template_assertion_predicate_bool) {
+    TemplateAssertionPredicate template_assertion_predicate(template_assertion_predicate_node, _phase);
+    Node* new_ctrl = template_assertion_predicate_node->in(0);
+    int bool_index;
+    BoolNode* cloned_bool;
+    if (template_assertion_predicate_bool == template_assertion_predicate_node->in(TemplateAssertionPredicateNode::InitValue)) {
+      cloned_bool = template_assertion_predicate.clone_init_value_bool(new_ctrl);
+      bool_index = TemplateAssertionPredicateNode::InitValue;
+    } else {
+      cloned_bool = template_assertion_predicate.clone_last_value_bool(new_ctrl);
+      bool_index = TemplateAssertionPredicateNode::LastValue;
+    }
+    _phase->igvn().replace_input_of(template_assertion_predicate_node, bool_index, cloned_bool);
+  }
+
+ public:
+  CloneTemplateAssertionPredicateBoolDown(PhaseIdealLoop* phase) : _phase(phase) {}
+
+  // 'n' could be a node on the input chain from an OpaqueLoop* node (or an OpaqueLoop* node itself) to a Template Assertion
+  // Predicate bool. In this case, we need to clone the bool and the entire input chain including the OpaqueLoop* nodes
+  // down. This avoids creating the phi node inside the input chain. Otherwise, we could not find the OpaqueLoop* nodes
+  // anymore when trying to access them for a Template Assertion Predicate (pattern matching does not expect phis).
+  void clone_from_related(Node* n) {
+    Unique_Node_List list;
+    list.push(n);
+
+    for (uint i = 0; i < list.size(); i++) {
+      Node* next = list.at(i);
+      assert(!next->is_CFG(), "not CFG expected");
+      visit_outputs(list, next);
+    }
+  }
+};
+
+void PhaseIdealLoop::clone_template_assertion_predicate_bool_down_if_related(Node* n) {
+  if (TemplateAssertionPredicateBool::is_related_node(n)) {
+    CloneTemplateAssertionPredicateBoolDown clone_down(this);
+    clone_down.clone_from_related(n);
+  }
 }
 
 //------------------------------register_new_node------------------------------

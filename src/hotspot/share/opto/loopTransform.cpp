@@ -1405,19 +1405,6 @@ static bool is_part_of_template_assertion_predicate_bool(Node* n) {
           op == Op_CastII);
 }
 
-bool PhaseIdealLoop::subgraph_has_opaque(Node* n) {
-  if (n->Opcode() == Op_OpaqueLoopInit || n->Opcode() == Op_OpaqueLoopStride) {
-    return true;
-  }
-  if (!is_part_of_template_assertion_predicate_bool(n)) {
-    return false;
-  }
-  uint init;
-  uint stride;
-  count_opaque_loop_nodes(n, init, stride);
-  return init != 0 || stride != 0;
-}
-
 bool PhaseIdealLoop::assertion_predicate_has_loop_opaque_node(IfNode* iff) {
   uint init;
   uint stride;

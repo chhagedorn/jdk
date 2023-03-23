@@ -949,7 +949,6 @@ private:
                                                  Node* uncommon_proj, Node* control, IdealLoopTree* outer_loop,
                                                  Node* input_proj);
   static void count_opaque_loop_nodes(Node* n, uint& init, uint& stride);
-  static bool subgraph_has_opaque(Node* n);
   Node* create_bool_from_template_assertion_predicate(Node* template_assertion_predicate, Node* new_init, Node* new_stride,
                                                       Node* control);
   static bool assertion_predicate_has_loop_opaque_node(IfNode* iff);
@@ -1710,13 +1709,12 @@ public:
 
   void finish_clone_loop(Node_List* split_if_set, Node_List* split_bool_set, Node_List* split_cex_set);
 
-  bool clone_cmp_down(Node* n, const Node* blk1, const Node* blk2);
-
-  void clone_loadklass_nodes_at_cmp_index(const Node* n, Node* cmp, int i);
+  bool at_relevant_ctrl(Node* n, const Node* blk1, const Node* blk2);
 
   bool clone_cmp_loadklass_down(Node* n, const Node* blk1, const Node* blk2);
-
-  bool at_relevant_ctrl(Node* n, const Node* blk1, const Node* blk2);
+  void clone_loadklass_nodes_at_cmp_index(const Node* n, Node* cmp, int i);
+  bool clone_cmp_down(Node* n, const Node* blk1, const Node* blk2);
+  void clone_template_assertion_predicate_bool_down_if_related(Node* n);
 };
 
 

@@ -253,3 +253,109 @@ Node* CloneTemplateAssertionPredicates::clone(const Predicates& predicates) {
   clone_in_reverse_order(template_assertion_predicate_nodes);
   return _new_entry;
 }
+
+// Check if 'n' belongs to the init or last value Template Assertion Predicate bool, including the OpaqueLoop* nodes.
+bool TemplateAssertionPredicateBool::is_related_node(Node* n) {
+  ResourceMark rm;
+  Unique_Node_List list;
+  list.push(n);
+  for (uint i = 0; i < list.size(); i++) {
+    Node* next = list.at(i);
+    const int opcode = next->Opcode();
+    if (opcode == Op_OpaqueLoopInit || opcode == Op_OpaqueLoopStride) {
+      return true;
+    } else {
+      push_inputs_if_related_node(list, next);
+    }
+  }
+  return false;
+}
+
+// Create a new Bool node from the provided Template Assertion Predicate.
+// Replace found OpaqueLoop* nodes with new_init and new_stride, respectively, if non-null.
+// All newly cloned (non-CFG) nodes will get 'ctrl' as new ctrl.
+BoolNode* TemplateAssertionPredicateBool::create(Node* ctrl, Node* new_init, Node* new_stride) {
+  Node_Stack to_clone(2);
+  to_clone.push(_bol, 1);
+  const uint idx_before_cloning = C->unique();
+  Node* result = nullptr;
+  const bool clone_opaque_loop_nodes = new_init == nullptr && new_stride == nullptr;
+  assert(new_init != nullptr || clone_opaque_loop_nodes, "new_init must be set when new_stride is non-null");
+  // Look for the opaque node to replace with the new value
+  // and clone everything in between. We keep the Opaque4 node
+  // so the duplicated predicates are eliminated once loop
+  // opts are over: they are here only to keep the IR graph
+  // consistent.
+  do {
+    Node* n = to_clone.node();
+    const uint i = to_clone.index();
+    Node* input = n->in(i);
+    if (could_be_related_node(input)) {
+      to_clone.push(input, 1);
+      continue;
+    }
+    if (input->is_Opaque1()) {
+      if (n->_idx < idx_before_cloning) {
+        n = n->clone();
+        _phase->register_new_node(n, ctrl);
+      }
+      const int op = input->Opcode();
+      if (op == Op_OpaqueLoopInit) {
+        if (clone_opaque_loop_nodes && input->_idx < idx_before_cloning && new_init == nullptr) {
+          new_init = input->clone();
+          _phase->register_new_node(new_init, ctrl);
+        }
+        n->set_req(i, new_init);
+      } else {
+        if (clone_opaque_loop_nodes && input->_idx < idx_before_cloning && new_stride == nullptr) {
+          new_stride = input->clone();
+          _phase->register_new_node(new_stride, ctrl);
+        }
+        assert(op == Op_OpaqueLoopStride, "unexpected opaque node");
+        if (new_stride != nullptr) {
+          n->set_req(i, new_stride);
+        }
+      }
+      to_clone.set_node(n);
+    }
+    while (true) {
+      Node* cur = to_clone.node();
+      uint j = to_clone.index();
+      if (j+1 < cur->req()) {
+        to_clone.set_index(j+1);
+        break;
+      }
+      to_clone.pop();
+      if (to_clone.size() == 0) {
+        result = cur;
+        break;
+      }
+      Node* next = to_clone.node();
+      j = to_clone.index();
+      if (next->in(j) != cur) {
+        assert(cur->_idx >= idx_before_cloning || next->in(j)->Opcode() == Op_Opaque1, "new node or Opaque1 being replaced");
+        if (next->_idx < idx_before_cloning) {
+          next = next->clone();
+          _phase->register_new_node(next, ctrl);
+          to_clone.set_node(next);
+        }
+        next->set_req(j, cur);
+      }
+    }
+  } while (result == nullptr);
+  assert(result->_idx >= idx_before_cloning, "new node expected");
+  assert(!clone_opaque_loop_nodes || new_init != nullptr, "new_init must always be found and cloned");
+  return result->as_Bool();
+}
+
+TemplateAssertionPredicateNode* TemplateAssertionPredicate::clone(Node* new_entry) {
+  BoolNode* new_init_bool = _init_value_bool.clone(new_entry);
+  BoolNode* new_last_bool = _last_value_bool.clone(new_entry);
+  Node* clone = _template_assertion_predicate->clone();
+  _phase->igvn().replace_input_of(clone, TemplateAssertionPredicateNode::InitValue, new_init_bool);
+  _phase->igvn().replace_input_of(clone, TemplateAssertionPredicateNode::LastValue, new_last_bool);
+  _phase->igvn().register_new_node_with_optimizer(clone);
+  _phase->igvn().replace_input_of(clone, 0, new_entry);
+  _phase->set_idom(clone, new_entry, _phase->dom_depth(new_entry));
+  return clone->as_TemplateAssertionPredicate();
+}
