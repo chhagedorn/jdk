@@ -1279,6 +1279,8 @@ public:
   // Generate code to do a loop peel for the given loop (and body).
   // old_new is a temp array.
   void do_peeling( IdealLoopTree *loop, Node_List &old_new );
+  static void create_assertion_predicates_for_cloned_loop(IdealLoopTree* loop, const uint first_cloned_loop_node_index,
+                                                          const Node* new_head);
 
   // Add pre and post loops around the given loop.  These loops are used
   // during RCE, unrolling and aligning loops.

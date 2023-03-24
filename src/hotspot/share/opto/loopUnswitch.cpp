@@ -319,7 +319,8 @@ class UnswitchedLoopPredicates {
 
   // Clone the Template Assertion Predicates and return the clone that represents the last Template Assertion Predicate.
   Node* clone_template_assertion_predicates_to_slow_loop(Node* new_entry) const {
-    CloneTemplateAssertionPredicates clone_template_assertion_predicates(_phase, _first_slow_loop_node_index);
+    DataOutputInClonedLoop data_output_in_cloned_loop(_first_slow_loop_node_index);
+    CloneTemplateAssertionPredicates clone_template_assertion_predicates(_phase, &data_output_in_cloned_loop);
     return clone_template_assertion_predicates.clone(*_predicates, new_entry);
   }
 };
