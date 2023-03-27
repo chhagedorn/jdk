@@ -1287,9 +1287,8 @@ public:
   void insert_pre_post_loops( IdealLoopTree *loop, Node_List &old_new, bool peel_only );
 
   // Add post loop after the given loop.
-  Node *insert_post_loop(IdealLoopTree* loop, Node_List& old_new,
-                         CountedLoopNode* main_head, CountedLoopEndNode* main_end,
-                         Node*& incr, Node* limit, CountedLoopNode*& post_head);
+  Node* insert_post_loop(IdealLoopTree* loop, Node_List& old_new, CountedLoopNode* main_head,
+                         CountedLoopEndNode* main_end, CountedLoopNode*& post_head);
 
   // Add an RCE'd post loop which we will multi-version adapt for run time test path usage
   void insert_scalar_rced_post_loop( IdealLoopTree *loop, Node_List &old_new );

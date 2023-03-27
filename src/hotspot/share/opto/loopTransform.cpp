@@ -1639,8 +1639,7 @@ void PhaseIdealLoop::insert_pre_post_loops(IdealLoopTree *loop, Node_List &old_n
   // Add the post loop
   const uint idx_before_pre_post = Compile::current()->unique();
   CountedLoopNode *post_head = nullptr;
-  Node* post_incr = incr;
-  Node* main_exit = insert_post_loop(loop, old_new, main_head, main_end, post_incr, limit, post_head);
+  Node* main_exit = insert_post_loop(loop, old_new, main_head, main_end, post_head);
   const uint idx_after_post_before_pre = Compile::current()->unique();
 
   //------------------------------
@@ -1740,7 +1739,6 @@ void PhaseIdealLoop::insert_pre_post_loops(IdealLoopTree *loop, Node_List &old_n
   copy_assertion_predicates_to_main_loop(pre_head, castii, stride, outer_loop, outer_main_head, dd_main_head,
                                          idx_before_pre_post, idx_after_post_before_pre, min_taken, post_head->in(1),
                                          old_new);
-  copy_assertion_predicates_to_post_loop(outer_main_head, post_head, post_incr, stride);
 
   // Step B4: Shorten the pre-loop to run only 1 iteration (for now).
   // RCE and alignment may change this later.
@@ -1857,13 +1855,9 @@ void PhaseIdealLoop::insert_vector_post_loop(IdealLoopTree *loop, Node_List &old
   // mark this loop as processed
   main_head->mark_has_atomic_post_loop();
 
-  Node *incr = main_end->incr();
-  Node *limit = main_end->limit();
-
   // In this case we throw away the result as we are not using it to connect anything else.
   CountedLoopNode *post_head = nullptr;
-  insert_post_loop(loop, old_new, main_head, main_end, incr, limit, post_head);
-  copy_assertion_predicates_to_post_loop(main_head->skip_strip_mined(), post_head, incr, main_head->stride());
+  insert_post_loop(loop, old_new, main_head, main_end, post_head);
 
   // It's difficult to be precise about the trip-counts
   // for post loops.  They are usually very short,
@@ -1904,13 +1898,9 @@ void PhaseIdealLoop::insert_scalar_rced_post_loop(IdealLoopTree *loop, Node_List
   // diagnostic to show loop end is not properly formed
   assert(main_end->outcnt() == 2, "1 true, 1 false path only");
 
-  Node *incr = main_end->incr();
-  Node *limit = main_end->limit();
-
   // In this case we throw away the result as we are not using it to connect anything else.
   CountedLoopNode *post_head = nullptr;
-  insert_post_loop(loop, old_new, main_head, main_end, incr, limit, post_head);
-  copy_assertion_predicates_to_post_loop(main_head->skip_strip_mined(), post_head, incr, main_head->stride());
+  insert_post_loop(loop, old_new, main_head, main_end, post_head);
 
   // It's difficult to be precise about the trip-counts
   // for post loops.  They are usually very short,
@@ -1927,9 +1917,8 @@ void PhaseIdealLoop::insert_scalar_rced_post_loop(IdealLoopTree *loop, Node_List
 
 //------------------------------insert_post_loop-------------------------------
 // Insert post loops.  Add a post loop to the given loop passed.
-Node *PhaseIdealLoop::insert_post_loop(IdealLoopTree* loop, Node_List& old_new,
-                                       CountedLoopNode* main_head, CountedLoopEndNode* main_end,
-                                       Node*& incr, Node* limit, CountedLoopNode*& post_head) {
+Node *PhaseIdealLoop::insert_post_loop(IdealLoopTree* loop, Node_List& old_new, CountedLoopNode* main_head,
+                                       CountedLoopEndNode* main_end, CountedLoopNode*& post_head) {
   IfNode* outer_main_end = main_end;
   IdealLoopTree* outer_loop = loop;
   if (main_head->is_strip_mined()) {
@@ -1968,9 +1957,11 @@ Node *PhaseIdealLoop::insert_post_loop(IdealLoopTree* loop, Node_List& old_new,
   // (the previous loop trip-counter exit value) because we will be changing
   // the exit value (via additional unrolling) so we cannot constant-fold away the zero
   // trip guard until all unrolling is done.
-  Node *zer_opaq = new OpaqueZeroTripGuardNode(C, incr, main_end->test_trip());
-  Node *zer_cmp = new CmpINode(zer_opaq, limit);
-  Node *zer_bol = new BoolNode(zer_cmp, main_end->test_trip());
+  Node* incr = main_end->incr();
+  Node* limit = main_end->limit();
+  Node* zer_opaq = new OpaqueZeroTripGuardNode(C, incr, main_end->test_trip());
+  Node* zer_cmp = new CmpINode(zer_opaq, limit);
+  Node* zer_bol = new BoolNode(zer_cmp, main_end->test_trip());
   register_new_node(zer_opaq, new_main_exit);
   register_new_node(zer_cmp, new_main_exit);
   register_new_node(zer_bol, new_main_exit);
@@ -2015,6 +2006,8 @@ Node *PhaseIdealLoop::insert_post_loop(IdealLoopTree* loop, Node_List& old_new,
   // CastII for the new post loop:
   incr = cast_incr_before_loop(zer_opaq->in(1), zer_taken, post_head);
   assert(incr != nullptr, "no castII inserted");
+
+  copy_assertion_predicates_to_post_loop(main_head->skip_strip_mined(), post_head, incr, main_head->stride());
 
   return new_main_exit;
 }
