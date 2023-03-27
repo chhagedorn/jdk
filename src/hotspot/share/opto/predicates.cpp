@@ -208,46 +208,31 @@ Node* CloneParsePredicates::clone(const RegularPredicateBlocks* regular_predicat
   return _new_entry;
 }
 
-void CloneTemplateAssertionPredicates::clone_template_assertion_predicate(TemplateAssertionPredicateNode* template_assertion_predicate_node) {
-  TemplateAssertionPredicate template_assertion_predicate(template_assertion_predicate_node,
-                                                          _replace_opaque_loop_node, _phase);
-  TemplateAssertionPredicateNode* clone = template_assertion_predicate.clone(_new_entry);
-  if (_previous_clone != nullptr) {
-    _phase->igvn().replace_input_of(_previous_clone, 0, clone);
-  }
-  _previous_clone = clone;
-  if (_last_clone == nullptr) {
-    _last_clone = clone;
-  }
-  template_assertion_predicate.update_data_dependencies(clone, _first_node_index_in_cloned_loop);
-}
-
-void TemplateAssertionPredicate::update_data_dependencies(TemplateAssertionPredicateNode* new_template_assertion_predicate,
-                                                          const uint first_node_index_in_cloned_loop) {
-  for (DUIterator_Fast imax, i = _template_assertion_predicate->fast_outs(imax); i < imax; i++) {
-    Node* node = _template_assertion_predicate->fast_out(i);
-    if (!node->is_CFG() && node->_idx >= first_node_index_in_cloned_loop) {
-      _phase->igvn().replace_input_of(node, 0, new_template_assertion_predicate);
-      --i;
-      --imax;
-    }
-  }
-}
-
-// Clones the given Template Assertion Predicates to '_new_entry'. If a Template Assertion Predicate has control
-// dependent output nodes, these are rewired if they belong to the unswitched loop to which we are cloning to.
-// This is checked with the node index captured before creating the slow loop.
-// Returns the last node in the newly created Template Assertion Predicate chain.
-Node* CloneTemplateAssertionPredicates::clone(const Predicates& predicates) {
+// Creates new Template Assertion Predicates below '_new_entry' on the basis of existing Template Assertion Predicates
+// found in 'predicates'. Returns the last node in the newly created Template Assertion Predicate chain.
+Node* CreateTemplateAssertionPredicates::create(const Predicates& predicates) {
   TemplateAssertionPredicateIterator template_assertion_predicate_iterator(predicates);
-  while (true) {
+  TemplateAssertionPredicateNode* previous_template_assertion_predicate = nullptr;
+  while (template_assertion_predicate_iterator.has_next()) {
     TemplateAssertionPredicateNode* template_assertion_predicate = template_assertion_predicate_iterator.next();
-    if (template_assertion_predicate == nullptr) {
-      break;
+    TemplateAssertionPredicateNode* new_template_assertion_predicate = create_from(template_assertion_predicate);
+    if (previous_template_assertion_predicate != nullptr) {
+      _phase->igvn().replace_input_of(previous_template_assertion_predicate, 0, new_template_assertion_predicate);
     }
-    clone_template_assertion_predicate(template_assertion_predicate);
+    previous_template_assertion_predicate = new_template_assertion_predicate;
   }
-  return _last_clone;
+  return _last_template_assertion_predicate;
+}
+
+TemplateAssertionPredicateNode* CreateTemplateAssertionPredicates::create_from(
+    TemplateAssertionPredicateNode* template_assertion_predicate) {
+  TemplateAssertionPredicateNode* clone =
+      _create_template_assertion_predicate->create_from(template_assertion_predicate, _new_entry);
+
+  if (_last_template_assertion_predicate == nullptr) {
+    _last_template_assertion_predicate = clone;
+  }
+  return clone;
 }
 
 // Check if 'n' belongs to the init or last value Template Assertion Predicate bool, including the OpaqueLoop* nodes.
@@ -369,5 +354,23 @@ TemplateAssertionPredicateNode* TemplateAssertionPredicate::clone(Node* new_entr
   _phase->igvn().register_new_node_with_optimizer(clone);
   _phase->igvn().replace_input_of(clone, 0, new_entry);
   _phase->set_idom(clone, new_entry, _phase->dom_depth(new_entry));
+  update_data_dependencies(clone);
   return clone->as_TemplateAssertionPredicate();
+}
+
+TemplateAssertionPredicateNode* TemplateAssertionPredicate::replace(Node* new_entry) {
+  TemplateAssertionPredicateNode* template_assertion_predicate_node = clone(new_entry);
+  template_assertion_predicate_node->mark_useless();
+  return template_assertion_predicate_node;
+}
+
+void TemplateAssertionPredicate::update_data_dependencies(Node* new_template_assertion_predicate) {
+  for (DUIterator_Fast imax, i = _template_assertion_predicate->fast_outs(imax); i < imax; i++) {
+    Node* node = _template_assertion_predicate->fast_out(i);
+    if (!node->is_CFG() && node->_idx >= _first_node_index_in_cloned_loop) {
+      _phase->igvn().replace_input_of(node, 0, new_template_assertion_predicate);
+      --i;
+      --imax;
+    }
+  }
 }

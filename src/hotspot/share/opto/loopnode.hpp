@@ -955,10 +955,6 @@ private:
   void update_main_loop_assertion_predicates(Node* ctrl, CountedLoopNode* loop_head, Node* init, int stride_con);
   void copy_assertion_predicates_to_post_loop(LoopNode* main_loop_head, CountedLoopNode* post_loop_head, Node* init,
                                               Node* stride);
-  void initialize_assertion_predicates_for_peeled_loop(const RegularPredicateBlock* regular_predicate_block,
-                                                       LoopNode* outer_loop_head, int dd_outer_loop_head, Node* init,
-                                                       Node* stride, IdealLoopTree* outer_loop, uint idx_before_clone,
-                                                       const Node_List& old_new);
   void insert_loop_limit_check_predicate(ParsePredicateSuccessProj* loop_limit_check_parse_proj, Node* cmp_limit,
                                          Node* bol);
 #ifdef ASSERT
