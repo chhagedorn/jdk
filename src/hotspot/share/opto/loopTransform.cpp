@@ -1936,6 +1936,7 @@ Node *PhaseIdealLoop::insert_post_loop(IdealLoopTree* loop, Node_List& old_new, 
 
   // Step A1: Clone the loop body of main. The clone becomes the post-loop.
   // The main loop pre-header illegally has 2 control users (old & new loops).
+  const uint first_post_loop_node_index = C->unique();
   clone_loop(loop, old_new, dd_main_exit, ControlAroundStripMined);
   assert(old_new[main_end->_idx]->Opcode() == Op_CountedLoopEnd, "");
   post_head = old_new[main_head->_idx]->as_CountedLoop();
@@ -2007,7 +2008,7 @@ Node *PhaseIdealLoop::insert_post_loop(IdealLoopTree* loop, Node_List& old_new, 
   incr = cast_incr_before_loop(zer_opaq->in(1), zer_taken, post_head);
   assert(incr != nullptr, "no castII inserted");
 
-  copy_assertion_predicates_to_post_loop(main_head->skip_strip_mined(), post_head, incr, main_head->stride());
+  create_assertion_predicates_for_cloned_loop(loop, first_post_loop_node_index, post_head);
 
   return new_main_exit;
 }

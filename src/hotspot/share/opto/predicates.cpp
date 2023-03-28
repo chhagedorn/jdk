@@ -88,6 +88,10 @@ bool RuntimePredicate::is_success_proj(Node* node, Deoptimization::DeoptReason d
 TemplateAssertionPredicateIterator::TemplateAssertionPredicateIterator(const Predicates& predicates)
     : _current(predicates.template_assertion_predicate_block()->last()) {}
 
+TemplateAssertionPredicateIterator::TemplateAssertionPredicateIterator(
+    const TemplateAssertionPredicateBlock* template_assertion_predicate_block)
+    : _current(template_assertion_predicate_block->last()) {}
+
 TemplateAssertionPredicateNode* TemplateAssertionPredicateIterator::next() {
   assert(has_next(), "always check has_next() first");
   TemplateAssertionPredicateNode* current = _current->as_TemplateAssertionPredicate();
@@ -183,14 +187,14 @@ void EliminateUselessPredicates::eliminate() {
   add_useless_predicates_to_igvn(C->template_assertion_predicates());
 }
 
-void CloneParsePredicates::clone_parse_predicate(const RegularPredicateBlock* regular_predicate_block) {
+void ParsePredicates::clone_parse_predicate(const RegularPredicateBlock* regular_predicate_block) {
   if (!regular_predicate_block->is_empty()) {
     ParsePredicateSuccessProj* parse_predicate_proj = regular_predicate_block->parse_predicate_success_proj();
     create_new_parse_predicate(parse_predicate_proj);
   }
 }
 
-void CloneParsePredicates::create_new_parse_predicate(ParsePredicateSuccessProj* predicate_proj) {
+void ParsePredicates::create_new_parse_predicate(ParsePredicateSuccessProj* predicate_proj) {
   _new_entry = _new_parse_predicate->create(_phase, _new_entry, predicate_proj);
   ParsePredicateNode* parse_predicate = _new_entry->in(0)->as_ParsePredicate();
   _phase->igvn().hash_delete(parse_predicate);
@@ -198,7 +202,7 @@ void CloneParsePredicates::create_new_parse_predicate(ParsePredicateSuccessProj*
 
 // Clone the Parse Predicates from the Predicate Blocks to this loop and add them below '_new_entry'.
 // Return the last node in the newly created Parse Predicate chain.
-Node* CloneParsePredicates::clone(const RegularPredicateBlocks* regular_predicate_blocks) {
+Node* ParsePredicates::clone(const RegularPredicateBlocks* regular_predicate_blocks) {
   clone_parse_predicate(regular_predicate_blocks->loop_predicate_block());
   clone_parse_predicate(regular_predicate_blocks->profiled_loop_predicate_block());
   if (!_loop_node->is_CountedLoop()) {
@@ -211,29 +215,23 @@ Node* CloneParsePredicates::clone(const RegularPredicateBlocks* regular_predicat
 
 // Creates new Template Assertion Predicates below '_new_entry' on the basis of existing Template Assertion Predicates
 // found in 'predicates'. Returns the last node in the newly created Template Assertion Predicate chain.
-Node* CreateTemplateAssertionPredicates::create(const Predicates& predicates) {
-  TemplateAssertionPredicateIterator template_assertion_predicate_iterator(predicates);
+Node* TemplateAssertionPredicates::create_at(Node* new_entry,
+                                             NewTemplateAssertionPredicate* _new_template_assertion_predicate) {
+  TemplateAssertionPredicateIterator template_assertion_predicate_iterator(_template_assertion_predicate_block);
   TemplateAssertionPredicateNode* previous_template_assertion_predicate = nullptr;
+  TemplateAssertionPredicateNode* first_template_assertion_predicate = nullptr;
   while (template_assertion_predicate_iterator.has_next()) {
     TemplateAssertionPredicateNode* template_assertion_predicate = template_assertion_predicate_iterator.next();
-    TemplateAssertionPredicateNode* new_template_assertion_predicate = create_from(template_assertion_predicate);
+    TemplateAssertionPredicateNode* new_template_assertion_predicate =
+        _new_template_assertion_predicate->create_from(template_assertion_predicate,
+                                                       new_entry);
     if (previous_template_assertion_predicate != nullptr) {
       _phase->igvn().replace_input_of(previous_template_assertion_predicate, 0, new_template_assertion_predicate);
+      first_template_assertion_predicate = new_template_assertion_predicate;
     }
     previous_template_assertion_predicate = new_template_assertion_predicate;
   }
-  return _last_template_assertion_predicate;
-}
-
-TemplateAssertionPredicateNode* CreateTemplateAssertionPredicates::create_from(
-    TemplateAssertionPredicateNode* template_assertion_predicate) {
-  TemplateAssertionPredicateNode* clone =
-      _create_template_assertion_predicate->create_from(template_assertion_predicate, _new_entry);
-
-  if (_last_template_assertion_predicate == nullptr) {
-    _last_template_assertion_predicate = clone;
-  }
-  return clone;
+  return first_template_assertion_predicate;
 }
 
 // Check if 'n' belongs to the init or last value Template Assertion Predicate bool, including the OpaqueLoop* nodes.
@@ -376,6 +374,11 @@ void TemplateAssertionPredicate::update_data_dependencies(Node* new_template_ass
   }
 }
 
+void TemplateAssertionPredicates::fix_ctrl_for_target_loop(Node* new_target_loop_entry) {
+  _phase->igvn().replace_input_of(_target_strip_mined_head, LoopNode::EntryControl, new_target_loop_entry);
+  _phase->set_idom(_target_strip_mined_head, new_target_loop_entry, _phase->dom_depth(_target_strip_mined_head));
+}
+
 TemplateAssertionPredicateNode*
 ReplaceTemplateAssertionPredicate::create_from(TemplateAssertionPredicateNode* template_assertion_predicate_node,
                                                Node* new_ctrl) {
@@ -437,25 +440,6 @@ void InitializedAssertionPredicates::create(TemplateAssertionPredicateNode* temp
     }
     previous_initialized_predicate_succ_proj = initialized_predicate_succ_proj;
   }
-}
-
-// Creates new Template Assertion Predicates by cloning them from the source loop to the target loop and replacing
-// the OpaqueLoop* nodes with the new init and stride value of the target loop.
-void AssertionPredicatesAtTargetLoop::create_new_templates(
-    OldTemplateAssertionPredicateOutput* old_template_assertion_predicate_output) {
-  assert(must_create(), "no template assertion predicates");
-  Node* target_loop_entry = _target_strip_mined_head->in(LoopNode::EntryControl);
-  Compile* C = _phase->C;
-  Node* opaque_init = new OpaqueLoopInitNode(C, _target_loop_head->init_trip());
-  _phase->register_new_node(opaque_init, target_loop_entry);
-  Node* opaque_stride = new OpaqueLoopStrideNode(C, _target_loop_head->stride());
-  _phase->register_new_node(opaque_stride, target_loop_entry);
-  ReplaceTemplateAssertionPredicates replace_template_assertion_predicates(_phase,
-                                                                           old_template_assertion_predicate_output);
-  Node* new_target_loop_entry = replace_template_assertion_predicates.replace(_source_loop_predicates, target_loop_entry,
-                                                                              opaque_init, opaque_stride);
-  _igvn->replace_input_of(_target_strip_mined_head, LoopNode::EntryControl, new_target_loop_entry);
-  _phase->set_idom(_target_strip_mined_head, new_target_loop_entry, _phase->dom_depth(_target_strip_mined_head));
 }
 
 // Create Initialized Assertion Predicates for the init value from the Template Assertion Predicates.
