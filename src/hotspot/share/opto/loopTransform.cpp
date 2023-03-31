@@ -774,7 +774,8 @@ void PhaseIdealLoop::do_peeling(IdealLoopTree *loop, Node_List &old_new) {
 
   // Step 5: Assertion Predicates initialization
   if (counted_loop && UseLoopPredicate) {
-    create_assertion_predicates_for_cloned_loop(loop, first_peeled_loop_node_index, new_head);
+    create_assertion_predicates(new_head->as_CountedLoop(), head->as_CountedLoop(), loop,
+                                first_peeled_loop_node_index);
   }
 
   // Now force out all loop-invariant dominating tests.  The optimizer
@@ -784,12 +785,12 @@ void PhaseIdealLoop::do_peeling(IdealLoopTree *loop, Node_List &old_new) {
   loop->record_for_igvn();
 }
 
-void PhaseIdealLoop::create_assertion_predicates_for_cloned_loop(IdealLoopTree* loop,
-                                                                 const uint first_cloned_loop_node_index,
-                                                                 const Node* new_head) {
+void PhaseIdealLoop::create_assertion_predicates(CountedLoopNode* source_loop_head, CountedLoopNode* target_loop_head,
+                                                 IdealLoopTree* loop, const uint first_cloned_loop_node_index) {
   DataOutputInOldLoop data_output_in_old_loop(first_cloned_loop_node_index);
-  InitValueAssertionPredicatesAtTargetLoop assertion_predicates(loop, new_head->as_CountedLoop());
-  assertion_predicates.create(&data_output_in_old_loop);
+  AssertionPredicates assertion_predicates(source_loop_head, loop);
+  assertion_predicates.create_for_init_value(target_loop_head, &data_output_in_old_loop);
+  assertion_predicates.remove_old_templates();
 }
 
 //------------------------------policy_maximally_unroll------------------------
@@ -2008,7 +2009,7 @@ Node *PhaseIdealLoop::insert_post_loop(IdealLoopTree* loop, Node_List& old_new, 
   incr = cast_incr_before_loop(zer_opaq->in(1), zer_taken, post_head);
   assert(incr != nullptr, "no castII inserted");
 
-  create_assertion_predicates_for_cloned_loop(loop, first_post_loop_node_index, post_head);
+  create_assertion_predicates(nullptr, post_head, loop, first_post_loop_node_index);
 
   return new_main_exit;
 }

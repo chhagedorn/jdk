@@ -445,6 +445,15 @@ class TemplateAssertionPredicateBlock : public StackObj {
   TemplateAssertionPredicateNode* last() const {
     return _last;
   }
+
+  void mark_useless(PhaseIterGVN* igvn) const {
+    TemplateAssertionPredicateIterator iterator(this);
+    while (iterator.has_next()) {
+      TemplateAssertionPredicateNode* template_assertion_predicate = iterator.next();
+      template_assertion_predicate->mark_useless();
+      igvn->_worklist.push(template_assertion_predicate);
+    }
+  }
 };
 
 
@@ -611,7 +620,7 @@ class TemplateAssertionPredicateBool : public StackObj {
   BoolNode* create(Node* ctrl);
 };
 
-class ReplaceOpaqueLoopNodes : public ResourceObj {
+class ReplaceOpaqueLoopNodes : public StackObj {
  public:
   virtual Node* replace_init(OpaqueLoopInitNode* init, Node* ctrl) = 0;
   virtual Node* replace_stride(OpaqueLoopStrideNode* stride, Node* ctrl) = 0;
@@ -744,16 +753,14 @@ class CloneTemplateAssertionPredicate : public NewTemplateAssertionPredicate {
   }
 };
 
-// Class to replace an existing Template Assertion Predicate at the source loop by replacing the OpaqueLoop* nodes and
-// moving it to the target loop. This is done by cloning and marking the old template as useless.
-class ReplaceTemplateAssertionPredicate : public NewTemplateAssertionPredicate {
+class CreateTemplateAssertionPredicate : public NewTemplateAssertionPredicate {
   PhaseIdealLoop* _phase;
   ReplaceOpaqueLoopInitAndStride _replace_opaque_loop_nodes;
   OldTemplateAssertionPredicateOutput* _old_template_assertion_predicate_output;
 
 
  public:
-  ReplaceTemplateAssertionPredicate(Node* new_init, Node* new_stride, PhaseIdealLoop* phase,
+  CreateTemplateAssertionPredicate(Node* new_init, Node* new_stride, PhaseIdealLoop* phase,
                                     OldTemplateAssertionPredicateOutput* old_template_assertion_predicate_output)
       : _phase(phase),
         _replace_opaque_loop_nodes(new_init, new_stride),
@@ -763,59 +770,40 @@ class ReplaceTemplateAssertionPredicate : public NewTemplateAssertionPredicate {
                                               Node* new_ctrl) override;
 };
 
-// Class to create new Template Assertion Predicates by cloning from existing Template Assertion Predicates.
-class CreateTemplateAssertionPredicates : public StackObj {
-  Node* _new_entry;
-  NewTemplateAssertionPredicate* _new_template_assertion_predicate;
-  PhaseIdealLoop* _phase;
-
- public:
-  CreateTemplateAssertionPredicates(Node* new_entry, NewTemplateAssertionPredicate* create_template_assertion_predicate,
-                                    PhaseIdealLoop* phase)
-      : _new_entry(new_entry),
-        _new_template_assertion_predicate(create_template_assertion_predicate),
-        _phase(phase) {}
-};
-
 // Class to clone existing Template Assertion Predicates.
 class TemplateAssertionPredicates : public StackObj {
   const TemplateAssertionPredicateBlock* _template_assertion_predicate_block;
   PhaseIdealLoop* _phase;
 
- public:
+  TemplateAssertionPredicateNode* create_at(Node* new_entry, NewTemplateAssertionPredicate* _new_template_assertion_predicate);
+
+    public:
   TemplateAssertionPredicates(const TemplateAssertionPredicateBlock* template_assertion_predicate_block, PhaseIdealLoop* phase)
       : _template_assertion_predicate_block(template_assertion_predicate_block),
         _phase(phase) {}
 
-  Node* create_at(Node* new_entry, NewTemplateAssertionPredicate* _new_template_assertion_predicate);
 
   // Replace the Template Assertion Predicates found in 'predicates' by cloning them and replace the OpaqueLoop* nodes
   // with the provided 'new_init' and 'new_stride' nodes. Returns the last node in the newly cloned Template Assertion
   // Predicate chain.
-  Node* clone_to(Node* new_entry, OldTemplateAssertionPredicateOutput* old_template_assertion_predicate_output) {
+  TemplateAssertionPredicateNode* clone_to(Node* new_entry,
+                                           OldTemplateAssertionPredicateOutput* old_template_assertion_predicate_output) {
     CloneTemplateAssertionPredicate clone_template_assertion_predicate(_phase, old_template_assertion_predicate_output);
     return create_at(new_entry, &clone_template_assertion_predicate);
   }
 
-  // Replace the Template Assertion Predicates found in 'predicates' by cloning them and replace the OpaqueLoop* nodes
-  // with the provided 'new_init' and 'new_stride' nodes. The newly created Template Assertion Predicates will be put
-  // below 'new_entry'.
-  // Creates new Template Assertion Predicates by cloning them from the source loop to the target loop and replacing
-// the OpaqueLoop* nodes with the new init and stride value of the target loop.
-  void move_to(CountedLoopNode* target_loop_head, OldTemplateAssertionPredicateOutput* old_template_assertion_predicate_output) {
-    Compile* C = _phase->C;
-    Node* current_target_loop_entry = target_loop_head->in(LoopNode::EntryControl);
-    Node* opaque_init = new OpaqueLoopInitNode(C, target_loop_head->init_trip());
-    _phase->register_new_node(opaque_init, current_target_loop_entry);
-    Node* opaque_stride = new OpaqueLoopStrideNode(C, target_loop_head->stride());
-    _phase->register_new_node(opaque_stride, current_target_loop_entry);
-    ReplaceTemplateAssertionPredicate replace_template_assertion_predicate(opaque_init, opaque_stride, _phase,
+  TemplateAssertionPredicateNode* clone_and_update_to(CountedLoopNode* target_loop_head,
+                                                      OldTemplateAssertionPredicateOutput* old_template_assertion_predicate_output) {
+    Node* opaque_init;
+    Node* opaque_stride;
+    create_opaque_loop_nodes(opaque_init, opaque_stride, target_loop_head);
+    CreateTemplateAssertionPredicate create_template_assertion_predicate(opaque_init, opaque_stride, _phase,
                                                                            old_template_assertion_predicate_output);
-    Node* new_target_loop_entry = create_at(current_target_loop_entry, &replace_template_assertion_predicate);
-    fix_ctrl_for_target_loop(new_target_loop_entry);
+    Node* initial_target_loop_entry = target_loop_head->skip_strip_mined()->in(LoopNode::EntryControl);
+    return create_at(initial_target_loop_entry, &create_template_assertion_predicate);
   }
 
-  void fix_ctrl_for_target_loop(Node* new_target_loop_entry);
+  void create_opaque_loop_nodes(Node*& opaque_init, Node*& opaque_stride, CountedLoopNode* target_loop_head);
 };
 
 class InitializedAssertionPredicate {
@@ -828,132 +816,157 @@ class InitializedAssertionPredicate {
   void create_halt_node(IfFalseNode* fail_proj);
 
  public:
-  InitializedAssertionPredicate(IdealLoopTree* loop, PhaseIdealLoop* phase) : _loop(loop), _phase(phase) {}
+  InitializedAssertionPredicate(IdealLoopTree* loop) : _loop(loop), _phase(loop->_phase) {}
 
   IfTrueNode* create(TemplateAssertionPredicateNode* template_assertion_predicate,
                      ReplaceOpaqueLoopNodes* replace_opaque_loop_nodes, Node* new_ctrl, BoolNode* bol) {
     IfNode* if_node = create_iff(template_assertion_predicate, replace_opaque_loop_nodes, new_ctrl, bol);
-    IfTrueNode* succ_proj = create_iff_out_nodes(if_node);
-    return succ_proj;
+    return create_iff_out_nodes(if_node);
   }
 };
 
-// Interface to create a new Initialized Assertion Predicate at the target loop on the basis of a template.
-class NewInitializedAssertionPredicate : public StackObj {
+// Interface to create new Initialized Assertion Predicates at the target loop on the basis of a template.
+class NewInitializedAssertionPredicates : public StackObj {
  public:
   virtual IfTrueNode* create_from(TemplateAssertionPredicateNode* template_assertion_predicate_node) = 0;
 };
 
 // Class to create a new Initialized Assertion Predicate for the init value at the target loop on the basis of a template.
-class NewInitializedInitValueAssertionPredicate : public NewInitializedAssertionPredicate {
+class CreateInitializedInitValueAssertionPredicate : public NewInitializedAssertionPredicates {
   InitializedAssertionPredicate _initialized_assertion_predicate;
-  ReplaceOpaqueLoopInit _replace_opaque_loop_init_node;
+  ReplaceOpaqueLoopInit _replace_opaque_loop_init;
   Node* _new_ctrl;
 
  public:
-  NewInitializedInitValueAssertionPredicate(Node* new_init, Node* new_ctrl, IdealLoopTree* loop, PhaseIdealLoop* phase)
-      : _initialized_assertion_predicate(loop, phase),
-        _replace_opaque_loop_init_node(new_init),
+  CreateInitializedInitValueAssertionPredicate(Node* new_init, Node* new_ctrl, IdealLoopTree* loop)
+      : _initialized_assertion_predicate(loop),
+        _replace_opaque_loop_init(new_init),
         _new_ctrl(new_ctrl) {}
 
-  IfTrueNode* create_from(TemplateAssertionPredicateNode* template_assertion_predicate) {
+  IfTrueNode* create_from(TemplateAssertionPredicateNode* template_assertion_predicate) override {
     BoolNode* bol = template_assertion_predicate->in(TemplateAssertionPredicateNode::InitValue)->as_Bool();
-    IfTrueNode* succ_proj = _initialized_assertion_predicate.create(template_assertion_predicate,
-                                                                    &_replace_opaque_loop_init_node, _new_ctrl, bol);
-    return succ_proj;
+    return _initialized_assertion_predicate.create(template_assertion_predicate,&_replace_opaque_loop_init,
+                                                   _new_ctrl, bol);
   }
 };
 
 // Class to create a new Initialized Assertion Predicate for the last value at the target loop on the basis of a template.
-class NewInitializedLastValueAssertionPredicate : public NewInitializedAssertionPredicate {
+class CreateInitializedAssertionPredicates : public NewInitializedAssertionPredicates {
   InitializedAssertionPredicate _initialized_assertion_predicate;
-  ReplaceOpaqueLoopInitAndStride _replace_opaque_loop_nodes;
+  ReplaceOpaqueLoopInit _replace_opaque_loop_init;
+  ReplaceOpaqueLoopInitAndStride _replace_opaque_loop_init_and_stride;
   Node* _new_ctrl;
 
  public:
-  NewInitializedLastValueAssertionPredicate(Node* new_init, Node* new_stride, Node* new_ctrl, IdealLoopTree* loop,
-                                            PhaseIdealLoop* phase)
-      : _initialized_assertion_predicate(loop, phase),
-        _replace_opaque_loop_nodes(new_init, new_stride),
+  CreateInitializedAssertionPredicates(Node* new_init, Node* new_stride, Node* new_ctrl, IdealLoopTree* loop)
+      : _initialized_assertion_predicate(loop),
+        _replace_opaque_loop_init(new_init),
+        _replace_opaque_loop_init_and_stride(new_init, new_stride),
         _new_ctrl(new_ctrl) {}
 
-  IfTrueNode* create_from(TemplateAssertionPredicateNode* template_assertion_predicate) {
-    BoolNode* bol = template_assertion_predicate->in(TemplateAssertionPredicateNode::LastValue)->as_Bool();
+  IfTrueNode* create_from(TemplateAssertionPredicateNode* template_assertion_predicate) override {
+    BoolNode* last_bool = template_assertion_predicate->in(TemplateAssertionPredicateNode::LastValue)->as_Bool();
     IfTrueNode* succ_proj = _initialized_assertion_predicate.create(template_assertion_predicate,
-                                                                    &_replace_opaque_loop_nodes, _new_ctrl, bol);
-    return succ_proj;
+                                                                    &_replace_opaque_loop_init_and_stride, _new_ctrl,
+                                                                    last_bool);
+    BoolNode* init_bool = template_assertion_predicate->in(TemplateAssertionPredicateNode::LastValue)->as_Bool();
+    return _initialized_assertion_predicate.create(template_assertion_predicate,&_replace_opaque_loop_init, succ_proj,
+                                                   init_bool);
   }
 };
 
 class InitializedAssertionPredicates {
-  NewInitializedAssertionPredicate* _new_initialized_assertion_predicate;
-  PhaseIterGVN* _igvn;
+  PhaseIdealLoop* _phase;
+  IdealLoopTree* _loop;
 
  public:
-  InitializedAssertionPredicates(NewInitializedAssertionPredicate* new_initialized_assertion_predicate, PhaseIterGVN* igvn)
-      : _new_initialized_assertion_predicate(new_initialized_assertion_predicate),
-        _igvn(igvn) {}
+  InitializedAssertionPredicates(IdealLoopTree* loop) : _phase(loop->_phase), _loop(loop) {}
 
-  void create(TemplateAssertionPredicateNode* template_assertion_predicate);
+  void create(CountedLoopNode* target_loop_head, Node* new_entry) {
+    IdealLoopTree* outer_loop = _loop->head()->as_CountedLoop()->is_strip_mined() ? _loop->_parent->_parent : _loop->_parent;
+    CreateInitializedAssertionPredicates create_initialized_assertion_predicates(
+        target_loop_head->init_trip(), target_loop_head->stride(), new_entry, outer_loop);
+    Node* current_target_loop_entry = target_loop_head->skip_strip_mined()->in(LoopNode::EntryControl);
+    assert(current_target_loop_entry->is_TemplateAssertionPredicate(), "must have created template predicates before");
+    create(current_target_loop_entry->as_TemplateAssertionPredicate(), &create_initialized_assertion_predicates);
+  }
+
+  void create(TemplateAssertionPredicateNode* template_assertion_predicate,
+              NewInitializedAssertionPredicates* new_initialized_assertion_predicates);
+};
+
+class InitializedInitValueAssertionPredicates {
+  IdealLoopTree* _loop;
+
+ public:
+  InitializedInitValueAssertionPredicates(IdealLoopTree* loop) : _loop(loop) {}
+
+  void create(CountedLoopNode* target_loop_head, Node* new_entry) {
+    Node* current_target_loop_entry = target_loop_head->skip_strip_mined()->in(LoopNode::EntryControl);
+    assert(current_target_loop_entry->is_TemplateAssertionPredicate(), "must have created template predicates before");
+    IdealLoopTree* outer_loop = _loop->head()->as_CountedLoop()->is_strip_mined() ? _loop->_parent->_parent : _loop->_parent;
+    CreateInitializedInitValueAssertionPredicate create_initialized_init_value_assertion_predicate(
+        target_loop_head->init_trip(), new_entry, outer_loop);
+    InitializedAssertionPredicates initialized_assertion_predicates(_loop);
+    initialized_assertion_predicates.create(current_target_loop_entry->as_TemplateAssertionPredicate(),
+                                            &create_initialized_init_value_assertion_predicate);
+  }
 };
 
 // Class to create Assertion Predicates at the target loop by moving the templates from the source to the target loop
 // and creating initialized predicates from them.
-class AssertionPredicatesAtTargetLoop {
-  IdealLoopTree* _outer_loop;
+class AssertionPredicates {
   Predicates _source_loop_predicates;
-  CountedLoopNode* _target_loop_head;
-  LoopNode* _target_strip_mined_head;
-  Node* _old_target_loop_entry;
+  IdealLoopTree* _loop;
   PhaseIdealLoop* _phase;
-  PhaseIterGVN* _igvn;
 
-  void create_initialized_last_value_predicates();
+  void create_template_predicates(CountedLoopNode* target_loop_head,
+                                  OldTemplateAssertionPredicateOutput* old_template_assertion_predicate_output) {
+    TemplateAssertionPredicates template_assertion_predicates(_source_loop_predicates.template_assertion_predicate_block(),
+                                                              _phase);
+    TemplateAssertionPredicateNode* new_target_loop_entry =
+        template_assertion_predicates.clone_and_update_to(target_loop_head, old_template_assertion_predicate_output);
+    _phase->replace_loop_entry(target_loop_head->skip_strip_mined(), new_target_loop_entry);
+  }
 
  public:
-  AssertionPredicatesAtTargetLoop(IdealLoopTree* loop, CountedLoopNode* source_loop_head)
-      : _outer_loop(loop->_parent),
-        _source_loop_predicates(source_loop_head->in(LoopNode::EntryControl)),
-        _target_loop_head(loop->_head->as_CountedLoop()),
-        _target_strip_mined_head(loop->_head->as_CountedLoop()->skip_strip_mined()),
-        _old_target_loop_entry(_target_strip_mined_head->in(LoopNode::EntryControl)),
-        _phase(loop->_phase),
-        _igvn(&_phase->igvn()) {}
+  AssertionPredicates(CountedLoopNode* source_loop_head, IdealLoopTree* loop)
+      : _source_loop_predicates(source_loop_head->skip_strip_mined()->in(LoopNode::EntryControl)),
+        _loop(loop),
+        _phase(loop->_phase) {}
 
-  bool must_create() const {
+  bool has_any() const {
     return _source_loop_predicates.template_assertion_predicate_block()->has_any();
   }
 
   // Create all Assertion Predicates at the target loop. 'old_template_assertion_predicate_output' decides if a node
   // belongs to the source or the target loop.
-  void create(OldTemplateAssertionPredicateOutput* old_template_assertion_predicate_output) {
-    if (must_create()) {
-      replace_template_assertion_predicates(old_template_assertion_predicate_output);
-      create_initialized_init_value_predicates();
-      create_initialized_last_value_predicates();
+  void create_for_init_value(CountedLoopNode* target_loop_head,
+                             OldTemplateAssertionPredicateOutput* old_template_assertion_predicate_output) {
+    if (has_any()) {
+      Node* initial_target_loop_entry = target_loop_head->skip_strip_mined()->in(LoopNode::EntryControl);
+      create_template_predicates(target_loop_head, old_template_assertion_predicate_output);
+      InitializedInitValueAssertionPredicates initialized_init_value_assertion_predicates(_loop);
+      initialized_init_value_assertion_predicates.create(target_loop_head, initial_target_loop_entry);
     }
   }
 
-  void create_initialized_init_value_predicates();
-};
-
-// Class to create Assertion Predicates at the target loop by moving the templates from the source to the target loop.
-// This class only creates initialized predicates for the init value from the templates.
-class InitValueAssertionPredicatesAtTargetLoop {
-  AssertionPredicatesAtTargetLoop _assertion_predicates;
-
- public:
-  InitValueAssertionPredicatesAtTargetLoop(IdealLoopTree* loop, CountedLoopNode* source_loop_head)
-      : _assertion_predicates(loop, source_loop_head) {}
-
-  // Create Assertion Predicates at the target loop but only initialize the one for the init value.
-  // 'old_template_assertion_predicate_output' decides if a node belongs to the source or the target loop.
-  void create(OldTemplateAssertionPredicateOutput* old_template_assertion_predicate_output) {
-    if (_assertion_predicates.must_create()) {
-      _assertion_predicates.replace_template_assertion_predicates(old_template_assertion_predicate_output);
-      _assertion_predicates.create_initialized_init_value_predicates();
+  // Create all Assertion Predicates at the target loop. 'old_template_assertion_predicate_output' decides if a node
+  // belongs to the source or the target loop.
+  void create(CountedLoopNode* target_loop_head,
+              OldTemplateAssertionPredicateOutput* old_template_assertion_predicate_output) {
+    if (has_any()) {
+      Node* initial_target_loop_entry = target_loop_head->skip_strip_mined()->in(LoopNode::EntryControl);
+      create_template_predicates(target_loop_head, old_template_assertion_predicate_output);
+      InitializedAssertionPredicates initialized_assertion_predicates(_loop);
+      initialized_assertion_predicates.create(target_loop_head, initial_target_loop_entry);
     }
   }
+
+  void remove_old_templates() {
+    _source_loop_predicates.template_assertion_predicate_block()->mark_useless(&_phase->igvn());
+  }
+
 };
 
 #endif // SHARE_OPTO_PREDICATES_HPP

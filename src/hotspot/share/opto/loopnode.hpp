@@ -1061,6 +1061,16 @@ public:
     lazy_update(old_node, new_node);
   }
 
+  void replace_ctrl_same_depth(Node* n, Node* input) {
+    _igvn.replace_input_of(n, 0, input);
+    set_idom(n, input, dom_depth(n));
+  }
+
+  void replace_loop_entry(LoopNode* loop_node, Node* new_entry) {
+    _igvn.replace_input_of(loop_node, LoopNode::EntryControl, new_entry);
+    set_idom(loop_node, new_entry, dom_depth(loop_node));
+  }
+
 private:
 
   // Place 'n' in some loop nest, where 'n' is a CFG node
@@ -1279,8 +1289,8 @@ public:
   // Generate code to do a loop peel for the given loop (and body).
   // old_new is a temp array.
   void do_peeling( IdealLoopTree *loop, Node_List &old_new );
-  static void create_assertion_predicates_for_cloned_loop(IdealLoopTree* loop, const uint first_cloned_loop_node_index,
-                                                          const Node* new_head);
+  static void create_assertion_predicates(CountedLoopNode* source_loop_head, CountedLoopNode* target_loop_head,
+                                          IdealLoopTree* loop, const uint first_cloned_loop_node_index);
 
   // Add pre and post loops around the given loop.  These loops are used
   // during RCE, unrolling and aligning loops.

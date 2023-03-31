@@ -6290,6 +6290,7 @@ void PhaseIdealLoop::get_idoms(Node* n, const uint count, Unique_Node_List& idom
   Node* next = n;
   for (uint i = 0; !next->is_Start() && i < count; i++) {
     next = idom(next);
+    next->dump();
     assert(!idoms.member(next), "duplicated idom is not possible");
     idoms.push(next);
   }
