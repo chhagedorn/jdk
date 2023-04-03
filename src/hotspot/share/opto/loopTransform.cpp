@@ -787,10 +787,17 @@ void PhaseIdealLoop::do_peeling(IdealLoopTree *loop, Node_List &old_new) {
 
 void PhaseIdealLoop::create_assertion_predicates(CountedLoopNode* source_loop_head, CountedLoopNode* target_loop_head,
                                                  IdealLoopTree* loop, const uint first_cloned_loop_node_index) {
-  DataOutputInOldLoop data_output_in_old_loop(first_cloned_loop_node_index);
+  Compile::current()->print_method(PHASE_END, 3);
   AssertionPredicates assertion_predicates(source_loop_head, loop);
-  assertion_predicates.create_for_init_value(target_loop_head, &data_output_in_old_loop);
+  if (source_loop_head->_idx < target_loop_head->_idx) {
+    ClonedTargetLoopNode data_output_in_cloned_loop(first_cloned_loop_node_index);
+    assertion_predicates.create_for_init_value(target_loop_head, &data_output_in_cloned_loop);
+  } else {
+    OriginalTargetLoopNode data_output_in_old_loop(first_cloned_loop_node_index);
+    assertion_predicates.create_for_init_value(target_loop_head, &data_output_in_old_loop);
+  }
   assertion_predicates.remove_old_templates();
+  Compile::current()->print_method(PHASE_END, 3);
 }
 
 //------------------------------policy_maximally_unroll------------------------
@@ -1641,7 +1648,6 @@ void PhaseIdealLoop::insert_pre_post_loops(IdealLoopTree *loop, Node_List &old_n
   const uint idx_before_pre_post = Compile::current()->unique();
   CountedLoopNode *post_head = nullptr;
   Node* main_exit = insert_post_loop(loop, old_new, main_head, main_end, post_head);
-  const uint idx_after_post_before_pre = Compile::current()->unique();
 
   //------------------------------
   // Step B: Create Pre-Loop.
@@ -1656,6 +1662,8 @@ void PhaseIdealLoop::insert_pre_post_loops(IdealLoopTree *loop, Node_List &old_n
     outer_loop = loop->_parent;
     assert(outer_loop->_head == outer_main_head, "broken loop tree");
   }
+
+  const uint idx_after_post_before_pre = Compile::current()->unique();
   uint dd_main_head = dom_depth(outer_main_head);
   clone_loop(loop, old_new, dd_main_head, ControlAroundStripMined);
   CountedLoopNode*    pre_head = old_new[main_head->_idx]->as_CountedLoop();
@@ -1736,10 +1744,8 @@ void PhaseIdealLoop::insert_pre_post_loops(IdealLoopTree *loop, Node_List &old_n
   // CastII for the main loop:
   Node* castii = cast_incr_before_loop(pre_incr, min_taken, main_head);
   assert(castii != nullptr, "no castII inserted");
-  assert(post_head->in(1)->is_IfProj(), "must be zero-trip guard If node projection of the post loop");
-  copy_assertion_predicates_to_main_loop(pre_head, castii, stride, outer_loop, outer_main_head, dd_main_head,
-                                         idx_before_pre_post, idx_after_post_before_pre, min_taken, post_head->in(1),
-                                         old_new);
+//  assert(post_head->in(1)->is_IfProj(), "must be zero-trip guard If node projection of the post loop"); TODO with assertion predicate skip
+  create_assertion_predicates(pre_head, main_head, loop, idx_after_post_before_pre);
 
   // Step B4: Shorten the pre-loop to run only 1 iteration (for now).
   // RCE and alignment may change this later.
@@ -2009,8 +2015,7 @@ Node *PhaseIdealLoop::insert_post_loop(IdealLoopTree* loop, Node_List& old_new, 
   incr = cast_incr_before_loop(zer_opaq->in(1), zer_taken, post_head);
   assert(incr != nullptr, "no castII inserted");
 
-  create_assertion_predicates(nullptr, post_head, loop, first_post_loop_node_index);
-
+  create_assertion_predicates(main_head, post_head, loop, first_post_loop_node_index);
   return new_main_exit;
 }
 
@@ -2107,6 +2112,7 @@ void PhaseIdealLoop::copy_assertion_predicates_to_post_loop(LoopNode* main_loop_
 // Unroll the loop body one step - make each trip do 2 iterations.
 void PhaseIdealLoop::do_unroll(IdealLoopTree *loop, Node_List &old_new, bool adjust_min_trip) {
   assert(LoopUnrollLimit, "");
+  return;
   CountedLoopNode *loop_head = loop->_head->as_CountedLoop();
   CountedLoopEndNode *loop_end = loop_head->loopexit();
 #ifndef PRODUCT
