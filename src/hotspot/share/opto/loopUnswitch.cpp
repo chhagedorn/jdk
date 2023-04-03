@@ -227,6 +227,7 @@ class NewSlowLoopParsePredicate : public NewParsePredicate {
   }
 };
 
+// Class to create the unswitch If that decides if the slow or fast loop must be executed.
 class UnswitchIf {
   IdealLoopTree* _loop;
   Node* _original_loop_entry;
@@ -245,8 +246,10 @@ class UnswitchIf {
     Node* unswitching_candidate_bool = unswitching_candidate->in(1)->as_Bool();
     IfNode* unswitch_if =
         (unswitching_candidate->Opcode() == Op_RangeCheck) ?
-        new RangeCheckNode(_original_loop_entry, unswitching_candidate_bool, unswitching_candidate->_prob, unswitching_candidate->_fcnt) :
-        new IfNode(_original_loop_entry, unswitching_candidate_bool, unswitching_candidate->_prob, unswitching_candidate->_fcnt);
+        new RangeCheckNode(_original_loop_entry, unswitching_candidate_bool, unswitching_candidate->_prob,
+                           unswitching_candidate->_fcnt) :
+        new IfNode(_original_loop_entry, unswitching_candidate_bool, unswitching_candidate->_prob,
+                   unswitching_candidate->_fcnt);
     _phase->register_node(unswitch_if, outer_loop, _original_loop_entry, dom_depth);
     IfProjNode* if_fast = new IfTrueNode(unswitch_if);
     _phase->register_node(if_fast, outer_loop, unswitch_if, dom_depth);
@@ -256,8 +259,8 @@ class UnswitchIf {
   }
 };
 
+// Class to clone the Parse Predicates from the original loop to be unswitched to the fast and slow loop.
 class UnswitchedParsePredicates {
-  IdealLoopTree* _loop;
   LoopNode* _fast_loop_head; // The original loop becomes the fast loop.
   Node* _original_loop_entry;
   const RegularPredicateBlocks* _regular_predicate_blocks;
@@ -266,27 +269,42 @@ class UnswitchedParsePredicates {
 
  public:
   UnswitchedParsePredicates(IdealLoopTree* loop, const RegularPredicateBlocks* regular_predicate_blocks, uint first_slow_loop_node_index)
-     : _loop(loop),
-       _fast_loop_head(loop->_head->as_Loop()->skip_strip_mined()),
+     : _fast_loop_head(loop->_head->as_Loop()->skip_strip_mined()),
        _original_loop_entry(loop->_head->as_Loop()->skip_strip_mined()->in(LoopNode::EntryControl)),
        _regular_predicate_blocks(regular_predicate_blocks),
        _phase(loop->_phase),
        _first_slow_loop_node_index(first_slow_loop_node_index) {}
 
-  // Check if there are any Parse Predicates to clone and if the current loop entry has any data dependencies.
-  // When peeling or partial peeling a loop, we could have non-CFG nodes being pinned on some CFG nodes in the peeled
-  // section. If all CFG nodes in the peeled section are folded in the next IGVN phase, then the pinned non-CFG nodes
-  // end up at the predicates for the original loop (either a Template Assertion Predicate, if we've created any Hoisted
-  // Predicate in loop predication, or Parse Predicate otherwise). This allows some more checks to be hoisted out of the
-  // fast and slow loop after loop unswitching. If we do that and any of the Hoisted Predicates for the fast or slow loop
-  // fail at runtime (hoisted check is wrong at runtime), we deoptimize and jump to the start of the loop, assuming we
-  // have not executed any statements, yet. This requires, that all pinned non-CFG nodes are executed AFTER the Hoisted
-  // Predicates. We therefore need to update the pins to the fast and slow loop entry node (i.e. after some potentially
-  // created Hoisted Predicates). This is automatically done for pinned nodes inside the loop to be unswitched, as these
-  // are updated when cloning the predicates to the fast and slow loop. However, we could also have pinned non-CFG nodes
-  // that are not part of the original loop and therefore not cloned. But these could be a direct or indirect inputs to
-  // nodes inside the loop to be unswitched. We would need to clone all of them to be able to update the pin to the fast
-  // and slow loop. This is currently not supported. We therefore must bail out of loop unswitching until this is fixed.
+  // Check if there are any Parse Predicates to clone and if the current loop entry has any outside the loop body
+  // non-CFG dependencies. If that is the case, we cannot clone the Parse Predicates for the following reason:
+  //
+  // When peeling or partial peeling a loop, we could have non-CFG nodes N being pinned on some CFG nodes in the peeled
+  // section. If all CFG nodes in the peeled section are folded in the next IGVN phase, then the pinned non-CFG nodes N
+  // end up at the loop entry of the original loop. If we still find Parse Predicates at that point (i.e. not decided to
+  // remove all Parse Predicates and give up on further Loop Predication, yet), then these Parse Predicates can be cloned
+  // to the fast and slow loop when unswitching this loop at some point:
+  //
+  //     Parse Predicates                   Some CFG node                                Some CFG node
+  //            |                                |                                     /      |       \
+  //  [Assertion Predicates]*   IGVN      Parse Predicates      unswitch             N1  Unswitch If   N2
+  //            |               ===>             |                ===>                  /           \
+  //     peeled CFG node               [Assertion Predicates]*             Parse Predicates        Parse Predicates
+  //     /      |      \                  /      |      \                         |                       |
+  //    N1     loop    N2                N1     loop    N2              [Assertion Predicates]*  [Assertion Predicates]*
+  //                                                                              |                       |
+  //                                                                          fast loop               slow loop
+  //
+  // This allows some more checks to be hoisted out of the fast and slow loop (i.e. creating Hoisted Predicates between
+  // the loop head and the Unswitch If). If one of these new Hoisted Predicates fail at runtime, we deoptimize and jump
+  // to the start of the loop in the interpreter, assuming that no statement was executed in the loop body, yet. However,
+  // the pinned statements N (N1, N2 in the figure above) could have already been executed with potentially visible side
+  // effects (i.e. storing a field). This is wrong. To fix that, we must move these pinned non-CFG nodes BELOW the Hoisted
+  // Predicates of the unswitched loops. This is done for nodes being part of the fast and slow loop body (i.e. part of
+  // the original loop to be unswitched). But we could also have non-CFG nodes that are not part of the loop body (i.e.
+  // only part of the originally peeled section). To force such a node to be executed after the newly created Hoisted
+  // Predicates of the fast/slow loop, we would need to clone it such that we can move the original node to the fast loop
+  // and the clone to the slow loop (or vice versa).to the slow and the fast loop. This, however, is not supported (yet).
+  // Therefore, we cannot clone the Parse Predicates to the fast and slow loop in this case.
   bool can_clone() const {
     const uint entry_outcnt = _original_loop_entry->outcnt();
     assert(entry_outcnt >= 3, "must have at least unswitch If, fast, and slow loop head after cloning the loop");
@@ -317,14 +335,14 @@ class UnswitchedParsePredicates {
 
   // Clone the predicates from the original loop (if there are any) to the fast loop and add them below 'new_entry'.
   // Return the last node in the newly created predicate node chain which is the new entry to the fast loop.
-  Node* clone_to_fast_loop(IfTrueNode* fast_loop_unswitch_if_proj) {
+  Node* clone_to_fast_loop(IfTrueNode* fast_loop_unswitch_if_proj) const {
     NewFastLoopParsePredicate new_fast_loop_parse_predicate;
     return clone_parse_predicates_to_loop(fast_loop_unswitch_if_proj, &new_fast_loop_parse_predicate);
   }
 
   // Clone the predicates from the original loop (if there are any) to the slow loop and add them below 'new_entry'.
   // Return the last node in the newly created predicate node chain which is the new entry to the slow loop.
-  Node* clone_to_slow_loop(IfFalseNode* slow_loop_unswitch_if_proj) {
+  Node* clone_to_slow_loop(IfFalseNode* slow_loop_unswitch_if_proj) const {
     NewSlowLoopParsePredicate new_slow_loop_parse_predicate;
     return clone_parse_predicates_to_loop(slow_loop_unswitch_if_proj, &new_slow_loop_parse_predicate);
   }
@@ -335,6 +353,7 @@ class UnswitchedParsePredicates {
   }
 };
 
+// Class to clone the Template Assertion Predicates from the original loop to be unswitched to the fast and slow loop.
 class UnswitchedTemplateAssertionPredicates {
   const TemplateAssertionPredicateBlock* _template_assertion_predicate_block;
   PhaseIdealLoop* _phase;
@@ -364,6 +383,8 @@ class UnswitchedTemplateAssertionPredicates {
     return _template_assertion_predicate_block->has_any();
   }
 
+  // We can directly re-use the original templates and move them to the fast loop. We can then clone them to the slow
+  // loop from there. Return the last Template Assertion Predicate.
   Node* move_to_fast_loop(Node* new_entry_to_templates, IfNode* unswitch_if_node) const {
     rewire_unswitch_if(unswitch_if_node);
     rewire_templates(new_entry_to_templates);
@@ -378,6 +399,8 @@ class UnswitchedTemplateAssertionPredicates {
   }
 };
 
+// Class to unswitch a loop and create predicates at the new loops. The newly cloned loop becomes the slow loop while
+// the original loop becomes the fast loop.
 class UnswitchedLoop {
   LoopNode* _fast_loop_head; // The original loop becomes the fast loop.
   LoopNode* _fast_loop_strip_mined_head;
@@ -385,6 +408,36 @@ class UnswitchedLoop {
   Predicates _predicates;
   Node_List* _old_new;
   PhaseIdealLoop* _phase;
+
+  // Create Parse Predicates for the fast and slow loop if possible. Return the new fast loop and slow loop entry in
+  // 'fast_loop_entry' and 'slow_loop_entry'.
+  void create_parse_predicates(Node*& fast_loop_entry, Node*& slow_loop_entry,
+                               const uint first_slow_loop_node_index) const {
+    UnswitchedParsePredicates unswitched_parse_predicates(_loop, _predicates.regular_predicate_blocks(),
+                                                          first_slow_loop_node_index);
+    if (unswitched_parse_predicates.can_clone()) {
+      fast_loop_entry = unswitched_parse_predicates.clone_to_fast_loop(fast_loop_entry->as_IfTrue());
+      slow_loop_entry = unswitched_parse_predicates.clone_to_slow_loop(slow_loop_entry->as_IfFalse());
+    }
+  }
+
+  // Create Template Assertion Predicates for the fast and slow loop if possible. Return the new fast loop and slow loop
+  // entry in 'fast_loop_entry' and 'slow_loop_entry'.
+  void create_template_assertion_predicates(Node*& fast_loop_entry, Node*& slow_loop_entry, IfNode* unswitch_if_node,
+                                            const uint first_slow_loop_node_index) const {
+    const UnswitchedTemplateAssertionPredicates unswitched_template_assertion_predicates(
+        _predicates.template_assertion_predicate_block(), _phase, first_slow_loop_node_index);
+    if (unswitched_template_assertion_predicates.has_any()) {
+      fast_loop_entry = unswitched_template_assertion_predicates.move_to_fast_loop(fast_loop_entry, unswitch_if_node);
+      slow_loop_entry = unswitched_template_assertion_predicates.clone_to_slow_loop(slow_loop_entry);
+    }
+  }
+
+  void fix_ctrl_of_loops(Node* fast_loop_entry, Node* slow_loop_entry) {
+    _phase->replace_loop_entry(_fast_loop_strip_mined_head, fast_loop_entry);
+    LoopNode* slow_loop_head = _old_new->at(_fast_loop_strip_mined_head->_idx)->as_Loop();
+    _phase->replace_loop_entry(slow_loop_head, slow_loop_entry);
+  }
 
  public:
   UnswitchedLoop(IdealLoopTree* loop, Node_List* old_new)
@@ -396,6 +449,7 @@ class UnswitchedLoop {
         _phase(loop->_phase) {}
 
 
+  // Unswitch on the invariant unswitching candidate If. Return the new if which switches between the slow and fast loop.
   IfNode* unswitch(IfNode* unswitching_candidate) {
     UnswitchIf unswitch_if(_fast_loop_head->is_strip_mined() ? _loop->_parent : _loop->_parent->_parent);
     IfNode* unswitch_if_node = unswitch_if.create(unswitching_candidate);
@@ -403,30 +457,13 @@ class UnswitchedLoop {
     _phase->clone_loop(_loop, *_old_new, _phase->dom_depth(_fast_loop_head),
                        PhaseIdealLoop::CloneIncludesStripMined, unswitch_if_node);
 
-    UnswitchedParsePredicates unswitched_parse_predicates(_loop, _predicates.regular_predicate_blocks(),
-                                                          first_slow_loop_node_index);
     Node* fast_loop_entry = unswitch_if_node->proj_out(true);
     Node* slow_loop_entry = unswitch_if_node->proj_out(false);
-    if (unswitched_parse_predicates.can_clone()) {
-      fast_loop_entry = unswitched_parse_predicates.clone_to_fast_loop(fast_loop_entry->as_IfTrue());
-      slow_loop_entry = unswitched_parse_predicates.clone_to_slow_loop(slow_loop_entry->as_IfFalse());
-    }
-
-    const UnswitchedTemplateAssertionPredicates unswitched_template_assertion_predicates(
-        _predicates.template_assertion_predicate_block(), _phase, first_slow_loop_node_index);
-    if (unswitched_template_assertion_predicates.has_any()) {
-      fast_loop_entry = unswitched_template_assertion_predicates.move_to_fast_loop(fast_loop_entry, unswitch_if_node);
-      slow_loop_entry = unswitched_template_assertion_predicates.clone_to_slow_loop(slow_loop_entry);
-    }
+    create_parse_predicates(fast_loop_entry, slow_loop_entry, first_slow_loop_node_index);
+    create_template_assertion_predicates(fast_loop_entry,slow_loop_entry, unswitch_if_node, first_slow_loop_node_index);
 
     fix_ctrl_of_loops(fast_loop_entry, slow_loop_entry);
     return unswitch_if_node;
-  }
-
-  void fix_ctrl_of_loops(Node* fast_loop_entry, Node* slow_loop_entry) {
-    _phase->replace_loop_entry(_fast_loop_strip_mined_head, fast_loop_entry);
-    LoopNode* slow_loop_head = _old_new->at(_fast_loop_strip_mined_head->_idx)->as_Loop();
-    _phase->replace_loop_entry(slow_loop_head, slow_loop_entry);
   }
 };
 
@@ -438,7 +475,6 @@ IfNode* PhaseIdealLoop::create_slow_version_of_loop(IdealLoopTree* loop, Node_Li
                                                     IfNode* unswitching_candidate) {
   UnswitchedLoop unswitched_loop(loop, &old_new);
   IfNode* unswitch_if = unswitched_loop.unswitch(unswitching_candidate);
-  assert(false, "true");
   recompute_dom_depth();
   return unswitch_if;
 }
