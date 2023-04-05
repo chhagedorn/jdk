@@ -25,6 +25,7 @@
 #ifndef SHARE_OPTO_CFGNODE_HPP
 #define SHARE_OPTO_CFGNODE_HPP
 
+#include "opaquenode.hpp"
 #include "opto/multnode.hpp"
 #include "opto/node.hpp"
 #include "opto/opcodes.hpp"
@@ -298,8 +299,7 @@ class TemplateAssertionPredicateNode : public Node {
   TemplateAssertionPredicateNode(Node* control, BoolNode* bol_init_value, BoolNode* bol_last_value,
                                  int initialized_opcode, Compile* C);
 
-
-  IfNode* create_initialized_assertion_predicate(Node* control, BoolNode* bol,
+  IfNode* create_initialized_assertion_predicate(Node* control, OpaqueAssertionPredicateNode* bol,
                                                  AssertionPredicateType initialized_assertion_predicate_type);
 
   bool is_useless() const {
@@ -465,10 +465,10 @@ public:
   IfNode(Node* control, Node* bol, float p, float fcnt);
 
  protected:
-  IfNode(Node* control, BoolNode* bol, AssertionPredicateType initialized_assertion_predicate_type);
+  IfNode(Node* control, OpaqueAssertionPredicateNode* bol, AssertionPredicateType initialized_assertion_predicate_type);
  public:
   static IfNode*
-  create_initialized_assertion_predicate(Node* control, BoolNode* bol,
+  create_initialized_assertion_predicate(Node* control, OpaqueAssertionPredicateNode* bol,
                                          AssertionPredicateType initialized_assertion_predicate_type) {
     return new IfNode(control, bol, initialized_assertion_predicate_type);
   }
@@ -498,7 +498,7 @@ class RangeCheckNode : public IfNode {
 private:
   int is_range_check(Node* &range, Node* &index, jint &offset);
 
-  RangeCheckNode(Node* control, BoolNode* bol, AssertionPredicateType initialized_assertion_predicate_type)
+  RangeCheckNode(Node* control, OpaqueAssertionPredicateNode* bol, AssertionPredicateType initialized_assertion_predicate_type)
       : IfNode(control, bol, initialized_assertion_predicate_type) {
     init_class_id(Class_RangeCheck);
   }
@@ -509,7 +509,7 @@ public:
   }
 
   static RangeCheckNode*
-  create_initialized_assertion_predicate(Node* control, BoolNode* bol,
+  create_initialized_assertion_predicate(Node* control, OpaqueAssertionPredicateNode* bol,
                                          AssertionPredicateType initialized_assertion_predicate_type) {
     return new RangeCheckNode(control, bol, initialized_assertion_predicate_type);
   }

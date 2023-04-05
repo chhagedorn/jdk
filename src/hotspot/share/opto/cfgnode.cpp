@@ -2679,7 +2679,7 @@ TemplateAssertionPredicateNode::TemplateAssertionPredicateNode(Node* control, Bo
 }
 
 IfNode* TemplateAssertionPredicateNode::create_initialized_assertion_predicate(
-    Node* control, BoolNode* bol, AssertionPredicateType initialized_assertion_predicate_type) {
+    Node* control, OpaqueAssertionPredicateNode* bol, AssertionPredicateType initialized_assertion_predicate_type) {
   return _initialized_opcode == Op_If ?
          IfNode::create_initialized_assertion_predicate(control, bol, initialized_assertion_predicate_type) :
          RangeCheckNode::create_initialized_assertion_predicate(control, bol, initialized_assertion_predicate_type);

@@ -432,9 +432,8 @@ class CloneTemplateAssertionPredicateBoolDown {
                                                                    template_assertion_predicate_bool_node);
     CloneOpaqueLoopNodes clone_opaque_loop_nodes(_phase);
     TemplateAssertionPredicateBool
-    template_assertion_predicate_bool(template_assertion_predicate_bool_node->in(bool_index)->as_Bool(),
-                                      &clone_opaque_loop_nodes, _phase);
-    BoolNode* cloned_bool = template_assertion_predicate_bool.clone(new_ctrl);
+    template_assertion_predicate_bool(template_assertion_predicate_bool_node->in(bool_index)->as_Bool(), _phase);
+    BoolNode* cloned_bool = template_assertion_predicate_bool.create_from(new_ctrl, &clone_opaque_loop_nodes);
     _phase->igvn().replace_input_of(template_assertion_predicate, bool_index, cloned_bool);
   }
 

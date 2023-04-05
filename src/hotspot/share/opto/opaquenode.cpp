@@ -64,6 +64,10 @@ const Type* Opaque4Node::Value(PhaseGVN* phase) const {
   return phase->type(in(1));
 }
 
+const Type* OpaqueAssertionPredicateNode::Value(PhaseGVN* phase) const {
+  return phase->type(in(1));
+}
+
 //=============================================================================
 
 uint ProfileBooleanNode::hash() const { return NO_HASH; }

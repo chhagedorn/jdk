@@ -2540,13 +2540,13 @@ SafePointNode* CountedLoopNode::outer_safepoint() const {
   return l->outer_safepoint();
 }
 
-Node* CountedLoopNode::skip_assertion_predicates_with_halt() {
+Node* CountedLoopNode::skip_assertion_predicates() {
   Node* ctrl = in(LoopNode::EntryControl);
   if (is_main_loop()) {
     ctrl = skip_strip_mined()->in(LoopNode::EntryControl);
   }
   if (is_main_loop() || is_post_loop()) {
-    AssertionPredicatesWithHalt assertion_predicates(ctrl);
+    const AssertionPredicateBlock assertion_predicates(ctrl);
 #ifdef ASSERT
     Predicates predicates(assertion_predicates.entry());
     assert(!predicates.has_any(), "should not find any other predicates in main or post loop");
@@ -5546,7 +5546,7 @@ Node* CountedLoopNode::is_canonical_loop_entry() {
   if (!is_main_loop() && !is_post_loop()) {
     return nullptr;
   }
-  Node* ctrl = skip_assertion_predicates_with_halt();
+  Node* ctrl = skip_assertion_predicates();
 
   if (ctrl == nullptr || (!ctrl->is_IfTrue() && !ctrl->is_IfFalse())) {
     return nullptr;

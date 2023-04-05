@@ -2375,6 +2375,7 @@ void PhaseMacroExpand::eliminate_macro_nodes() {
                n->Opcode() == Op_Opaque4   ||
                n->Opcode() == Op_MaxL      ||
                n->Opcode() == Op_MinL      ||
+               n->Opcode() == Op_OpaqueAssertionPredicate ||
                n->is_TemplateAssertionPredicate() ||
                BarrierSet::barrier_set()->barrier_set_c2()->is_gc_barrier_node(n),
                "unknown node type in macro list");
@@ -2454,6 +2455,15 @@ bool PhaseMacroExpand::expand_macro_nodes() {
         _igvn.replace_node(n, n->in(1));
 #else
         _igvn.replace_node(n, n->in(2));
+#endif
+        success = true;
+      } else if (n->Opcode() == Op_OpaqueAssertionPredicate) {
+        // Initialized Assertion Predicates must always evaluate to true. Therefore, we get rid of them in product builds
+        // as they are useless. In debug builds we keep them as additional verification code.
+#ifdef ASSERT
+        _igvn.replace_node(n, n->in(1));
+#else
+        _igvn.replace_node(n, _igvn.intcon(1));
 #endif
         success = true;
       } else if (n->is_TemplateAssertionPredicate()) {

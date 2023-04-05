@@ -54,7 +54,8 @@ IfNode::IfNode(Node* control, Node* bol, float p, float fcnt)
   init_node(control, bol);
 }
 
-IfNode::IfNode(Node* control, BoolNode* bol, AssertionPredicateType initialized_assertion_predicate_type)
+IfNode::IfNode(Node* control, OpaqueAssertionPredicateNode* bol,
+               AssertionPredicateType initialized_assertion_predicate_type)
     : MultiBranchNode(2),
       _prob(PROB_MAX),
       _fcnt(COUNT_UNKNOWN),

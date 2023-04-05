@@ -332,7 +332,7 @@ public:
   virtual IfFalseNode* outer_loop_exit() const;
   virtual SafePointNode* outer_safepoint() const;
 
-  Node* skip_assertion_predicates_with_halt();
+  Node* skip_assertion_predicates();
 
   virtual BasicType bt() const {
     return T_INT;
@@ -1061,9 +1061,9 @@ public:
     lazy_update(old_node, new_node);
   }
 
-  void replace_ctrl_same_depth(Node* n, Node* input) {
-    _igvn.replace_input_of(n, 0, input);
-    set_idom(n, input, dom_depth(n));
+  void replace_ctrl_same_depth(Node* n, Node* new_ctrl) {
+    _igvn.replace_input_of(n, 0, new_ctrl);
+    set_idom(n, new_ctrl, dom_depth(n));
   }
 
   void replace_loop_entry(LoopNode* loop_node, Node* new_entry) {
@@ -1290,7 +1290,10 @@ public:
   // old_new is a temp array.
   void do_peeling( IdealLoopTree *loop, Node_List &old_new );
   static void create_assertion_predicates(CountedLoopNode* source_loop_head, CountedLoopNode* target_loop_head,
-                                          IdealLoopTree* loop, const uint first_cloned_loop_node_index);
+                                          IdealLoopTree* loop, uint first_cloned_loop_node_index);
+  static void replace_assertion_predicates(CountedLoopNode* source_loop_head, CountedLoopNode* target_loop_head,
+                                           IdealLoopTree* loop, uint first_cloned_loop_node_index);
+  static void update_assertion_predicates_during_unroll(CountedLoopNode* loop_head, IdealLoopTree* loop);
 
   // Add pre and post loops around the given loop.  These loops are used
   // during RCE, unrolling and aligning loops.
