@@ -288,7 +288,8 @@ public:
 };
 
 class TemplateAssertionPredicateNode : public Node {
-  int _initialized_opcode;
+  int _initialized_init_value_opcode;
+  int _initialized_last_value_opcode;
   bool _useless; // If the associated loop dies, this template assertion predicate becomes useless and can be cleaned up by Identity().
 
   virtual uint size_of() const { return sizeof(*this); }
@@ -297,7 +298,7 @@ class TemplateAssertionPredicateNode : public Node {
   enum { InitValue = 1, LastValue = 2 };
 
   TemplateAssertionPredicateNode(Node* control, BoolNode* bol_init_value, BoolNode* bol_last_value,
-                                 int initialized_opcode, Compile* C);
+                                 int initialized_init_value_opcode, int initialized_last_value_opcode, Compile* C);
 
   IfNode* create_initialized_assertion_predicate(Node* control, OpaqueAssertionPredicateNode* bol,
                                                  AssertionPredicateType initialized_assertion_predicate_type);
@@ -463,15 +464,7 @@ public:
   // gen_subtype_check() and catch_inline_exceptions().
 
   IfNode(Node* control, Node* bol, float p, float fcnt);
-
- protected:
-  IfNode(Node* control, OpaqueAssertionPredicateNode* bol, AssertionPredicateType initialized_assertion_predicate_type);
- public:
-  static IfNode*
-  create_initialized_assertion_predicate(Node* control, OpaqueAssertionPredicateNode* bol,
-                                         AssertionPredicateType initialized_assertion_predicate_type) {
-    return new IfNode(control, bol, initialized_assertion_predicate_type);
-  }
+  NOT_PRODUCT(IfNode(Node* control, Node* bol, float p, float fcnt, AssertionPredicateType assertion_predicate_type);)
 
   virtual int Opcode() const;
   virtual bool pinned() const { return true; }
@@ -497,22 +490,18 @@ public:
 class RangeCheckNode : public IfNode {
 private:
   int is_range_check(Node* &range, Node* &index, jint &offset);
-
-  RangeCheckNode(Node* control, OpaqueAssertionPredicateNode* bol, AssertionPredicateType initialized_assertion_predicate_type)
-      : IfNode(control, bol, initialized_assertion_predicate_type) {
-    init_class_id(Class_RangeCheck);
-  }
 public:
   RangeCheckNode(Node* control, Node* bol, float p, float fcnt)
     : IfNode(control, bol, p, fcnt) {
     init_class_id(Class_RangeCheck);
   }
 
-  static RangeCheckNode*
-  create_initialized_assertion_predicate(Node* control, OpaqueAssertionPredicateNode* bol,
-                                         AssertionPredicateType initialized_assertion_predicate_type) {
-    return new RangeCheckNode(control, bol, initialized_assertion_predicate_type);
+#ifdef NOT_PRODUCT
+  RangeCheckNode(Node* control, Node* bol, float p, float fcnt, AssertionPredicateType assertion_predicate_type)
+      : IfNode(control, bol, p, fcnt, assertion_predicate_type) {
+    init_class_id(Class_RangeCheck);
   }
+#endif // NOT_PRODUCT
 
   virtual int Opcode() const;
   virtual Node* Ideal(PhaseGVN *phase, bool can_reshape);

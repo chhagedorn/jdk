@@ -1105,32 +1105,27 @@ TemplateAssertionPredicateNode* PhaseIdealLoop::add_template_assertion_predicate
   OpaqueLoopInitNode* opaque_init = new OpaqueLoopInitNode(C, loop_head->init_trip());
   register_new_node(opaque_init, new_ctrl);
   const bool upper = (stride > 0) != (scale > 0); // Make sure, rc_predicate chooses "scale*init + offset" case.
-  bool overflow;
+  bool overflow_init_value;
   BoolNode* bol_init = rc_predicate(loop, new_ctrl, scale, offset, opaque_init, nullptr, stride, rng, upper,
-                                    overflow, negate);
+                                    overflow_init_value, negate);
   assert(opaque_init->outcnt() > 0, "should be used");
 
   // Second predicate for init + (current stride - initial stride)
   // This is identical to the previous predicate initially but as
   // unrolling proceeds current stride is updated.
-  Node* init_stride = loop->_head->as_CountedLoop()->stride();
-  Node* opaque_stride = new OpaqueLoopStrideNode(C, init_stride);
-  register_new_node(opaque_stride, new_ctrl);
-  Node* last_value = new SubINode(opaque_stride, init_stride);
-  register_new_node(last_value, new_ctrl);
-  last_value = new AddINode(opaque_init, last_value);
-  register_new_node(last_value, new_ctrl);
-  // init + (current stride - initial stride) is within the loop so narrow its type by leveraging the type of the iv Phi
-  last_value = new CastIINode(last_value, loop_head->phi()->bottom_type());
-  register_new_node(last_value, new_ctrl);
-  BoolNode* bol_last = rc_predicate(loop, new_ctrl, scale, offset, last_value, nullptr, stride, rng,
-                                    upper, overflow, negate);
+  Node* last_value = create_last_value(loop, new_ctrl, opaque_init);
 
+  bool overflow_last_value;
+
+  BoolNode* bol_last = rc_predicate(loop, new_ctrl, scale, offset, last_value, nullptr, stride, rng, upper,
+                                    overflow_last_value, negate);
   assert(last_value->outcnt() > 0, "should be used");
   LoopNode* outer_head = loop_head->skip_strip_mined();
   Node* outer_loop_entry = outer_head->in(LoopNode::EntryControl);
   TemplateAssertionPredicateNode* template_assertion_predicate_node
-          = new TemplateAssertionPredicateNode(outer_loop_entry, bol_init, bol_last, overflow ? Op_If : if_opcode, C);
+      = new TemplateAssertionPredicateNode(outer_loop_entry, bol_init, bol_last,
+                                           overflow_init_value ? Op_If : if_opcode,
+                                           overflow_last_value ? Op_If : if_opcode, C);
   register_control(template_assertion_predicate_node, get_loop(outer_loop_entry), outer_loop_entry);
   _igvn.replace_input_of(outer_head, LoopNode::EntryControl, template_assertion_predicate_node);
   return template_assertion_predicate_node;

@@ -2667,11 +2667,14 @@ const RegMask &GotoNode::out_RegMask() const {
 
 TemplateAssertionPredicateNode::TemplateAssertionPredicateNode(Node* control, BoolNode* bol_init_value,
                                                                BoolNode* bol_last_value,
-                                                               int initialized_opcode, Compile* C)
+                                                               int initialized_init_value_opcode,
+                                                               int initialized_last_value_opcode, Compile* C)
     : Node(control, bol_init_value, bol_last_value),
-      _initialized_opcode(initialized_opcode),
+      _initialized_init_value_opcode(initialized_init_value_opcode),
+      _initialized_last_value_opcode(initialized_last_value_opcode),
       _useless(false) {
-  assert(initialized_opcode == Op_If || initialized_opcode == Op_RangeCheck, "invalid opcode");
+  assert(initialized_init_value_opcode == Op_If || initialized_init_value_opcode == Op_RangeCheck, "invalid opcode");
+  assert(initialized_last_value_opcode == Op_If || initialized_last_value_opcode == Op_RangeCheck, "invalid opcode");
   init_class_id(Class_TemplateAssertionPredicate);
   init_flags(Flag_is_macro);
   C->add_macro_node(this);
@@ -2680,9 +2683,20 @@ TemplateAssertionPredicateNode::TemplateAssertionPredicateNode(Node* control, Bo
 
 IfNode* TemplateAssertionPredicateNode::create_initialized_assertion_predicate(
     Node* control, OpaqueAssertionPredicateNode* bol, AssertionPredicateType initialized_assertion_predicate_type) {
-  return _initialized_opcode == Op_If ?
-         IfNode::create_initialized_assertion_predicate(control, bol, initialized_assertion_predicate_type) :
-         RangeCheckNode::create_initialized_assertion_predicate(control, bol, initialized_assertion_predicate_type);
+  bool create_if_node = true;
+  switch (initialized_assertion_predicate_type) {
+    case AssertionPredicateType::Init_value:
+      create_if_node = _initialized_init_value_opcode == Op_If;
+      break;
+    case AssertionPredicateType::Last_value:
+      create_if_node = _initialized_last_value_opcode == Op_If;
+      break;
+    default:
+      assert(false, "should not reach");
+  }
+  return create_if_node ?
+         new IfNode(control, bol, PROB_MAX, COUNT_UNKNOWN NOT_PRODUCT(COMMA initialized_assertion_predicate_type)) :
+         new RangeCheckNode(control, bol, PROB_MAX, COUNT_UNKNOWN NOT_PRODUCT(COMMA initialized_assertion_predicate_type));
 }
 
 Node* TemplateAssertionPredicateNode::Identity(PhaseGVN* phase) {

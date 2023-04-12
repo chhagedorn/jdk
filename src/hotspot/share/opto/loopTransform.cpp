@@ -3005,6 +3005,8 @@ void PhaseIdealLoop::do_range_check(IdealLoopTree *loop, Node_List &old_new) {
           Node* opaque_init = new OpaqueLoopInitNode(C, init);
           register_new_node(opaque_init, loop_entry);
 
+//          AssertionPredicates assertion_predicates(cl, loop);
+//          assertion_predicates.create_at_source_loop()
           // Initialized Assertion Predicate for the value of the initial main-loop.
           loop_entry = add_range_check_elimination_assertion_predicate(loop, loop_entry, scale_con, int_offset,
                                                                        int_limit, stride_con, init);

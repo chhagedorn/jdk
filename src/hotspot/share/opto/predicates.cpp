@@ -272,10 +272,10 @@ bool TemplateAssertionPredicateBool::is_related_node(Node* n) {
   return false;
 }
 
-// Create a new Bool node from the provided Template Assertion Predicate.
+// Create a new Bool node from the provided Template Assertion Predicate Bool.
 // Replace found OpaqueLoop* nodes with new_init and new_stride, respectively, if non-null.
 // All newly cloned (non-CFG) nodes will get 'ctrl' as new ctrl.
-BoolNode* TemplateAssertionPredicateBool::create_from(Node* ctrl, ReplaceOpaqueLoopNodes* replace_opaque_loop_nodes) {
+BoolNode* TemplateAssertionPredicateBool::clone(Node* new_ctrl, ReplaceOpaqueLoopNodes* replace_opaque_loop_nodes) {
   Node_Stack to_clone(2);
   to_clone.push(_bol, 1);
   const uint idx_before_cloning = C->unique();
@@ -297,15 +297,15 @@ BoolNode* TemplateAssertionPredicateBool::create_from(Node* ctrl, ReplaceOpaqueL
     if (input->is_Opaque1()) {
       if (n->_idx < idx_before_cloning) {
         n = n->clone();
-        _phase->register_new_node(n, ctrl);
+        _phase->register_new_node(n, new_ctrl);
       }
       const int op = input->Opcode();
       if (op == Op_OpaqueLoopInit) {
-        Node* replacement = replace_opaque_loop_nodes->replace_init(input->as_OpaqueLoopInit(), ctrl);
+        Node* replacement = replace_opaque_loop_nodes->replace_init(input->as_OpaqueLoopInit(), new_ctrl);
         n->set_req(i, replacement);
         found_init = true;
       } else {
-        Node* replacement = replace_opaque_loop_nodes->replace_stride(input->as_OpaqueLoopStride(), ctrl);
+        Node* replacement = replace_opaque_loop_nodes->replace_stride(input->as_OpaqueLoopStride(), new_ctrl);
         n->set_req(i, replacement);
       }
       to_clone.set_node(n);
@@ -328,7 +328,7 @@ BoolNode* TemplateAssertionPredicateBool::create_from(Node* ctrl, ReplaceOpaqueL
         assert(cur->_idx >= idx_before_cloning || next->in(j)->Opcode() == Op_Opaque1, "new node or Opaque1 being replaced");
         if (next->_idx < idx_before_cloning) {
           next = next->clone();
-          _phase->register_new_node(next, ctrl);
+          _phase->register_new_node(next, new_ctrl);
           to_clone.set_node(next);
         }
         next->set_req(j, cur);
@@ -367,8 +367,8 @@ Node* ReplaceOpaqueLoopInitAndStride::replace_stride(OpaqueLoopStrideNode* strid
 
 TemplateAssertionPredicateNode* TemplateAssertionPredicate::clone_to(Node* new_entry,
                                                                      NodeInTargetLoop* node_in_target_loop) {
-  BoolNode* new_init_bool = _init_value_bool.create_from(new_entry, _replace_opaque_loop_nodes);
-  BoolNode* new_last_bool = _last_value_bool.create_from(new_entry, _replace_opaque_loop_nodes);
+  BoolNode* new_init_bool = _init_value_bool.clone(new_entry, _replace_opaque_loop_nodes);
+  BoolNode* new_last_bool = _last_value_bool.clone(new_entry, _replace_opaque_loop_nodes);
   TemplateAssertionPredicateNode* clone = _template_assertion_predicate->clone()->as_TemplateAssertionPredicate();
   _phase->igvn().replace_input_of(clone, TemplateAssertionPredicateNode::InitValue, new_init_bool);
   _phase->igvn().replace_input_of(clone, TemplateAssertionPredicateNode::LastValue, new_last_bool);
@@ -381,8 +381,8 @@ TemplateAssertionPredicateNode* TemplateAssertionPredicate::clone_to(Node* new_e
 
 void TemplateAssertionPredicate::update() {
   Node* current_ctrl = _template_assertion_predicate->in(0);
-  BoolNode* new_init_bool = _init_value_bool.create_from(current_ctrl, _replace_opaque_loop_nodes);
-  BoolNode* new_last_bool = _last_value_bool.create_from(current_ctrl, _replace_opaque_loop_nodes);
+  BoolNode* new_init_bool = _init_value_bool.clone(current_ctrl, _replace_opaque_loop_nodes);
+  BoolNode* new_last_bool = _last_value_bool.clone(current_ctrl, _replace_opaque_loop_nodes);
   _phase->igvn().replace_input_of(_template_assertion_predicate, TemplateAssertionPredicateNode::InitValue, new_init_bool);
   _phase->igvn().replace_input_of(_template_assertion_predicate, TemplateAssertionPredicateNode::LastValue, new_last_bool);
 }

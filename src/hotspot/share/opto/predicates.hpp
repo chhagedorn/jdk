@@ -661,7 +661,7 @@ class TemplateAssertionPredicateBool : public StackObj {
   // Create a new BoolNode from the Template Assertion Predicate bool by cloning all nodes on the input chain up to but
   // not including the OpaqueLoop* nodes. These are replaced depending on the strategy. Sets 'ctrl' as new ctrl for all
   // cloned (non-CFG) nodes.
-  BoolNode* create_from(Node* ctrl, ReplaceOpaqueLoopNodes* replace_opaque_loop_nodes);
+  BoolNode* clone(Node* new_ctrl, ReplaceOpaqueLoopNodes* replace_opaque_loop_nodes);
 };
 
 // Interface class to replace OpaqueLoop* nodes when creating new Template Assertion Predicates from existing ones.
@@ -909,7 +909,7 @@ class InitializedInitValueAssertionPredicate : public StackObj {
   IfTrueNode* create(TemplateAssertionPredicateNode* template_assertion_predicate) {
     BoolNode* template_init_value_bool = template_assertion_predicate->in(TemplateAssertionPredicateNode::InitValue)->as_Bool();
     TemplateAssertionPredicateBool template_assertion_predicate_bool(template_init_value_bool, _phase);
-    BoolNode* new_bool = template_assertion_predicate_bool.create_from(_new_ctrl, &_replace_opaque_loop_init);
+    BoolNode* new_bool = template_assertion_predicate_bool.clone(_new_ctrl, &_replace_opaque_loop_init);
     return _initialized_assertion_predicate.create(template_assertion_predicate, _new_ctrl, new_bool,
                                                    AssertionPredicateType::Init_value);
   }
@@ -933,7 +933,7 @@ class InitializedLastValueAssertionPredicate : public StackObj {
   IfTrueNode* create(TemplateAssertionPredicateNode* template_assertion_predicate) {
     BoolNode* template_last_value_bool = template_assertion_predicate->in(TemplateAssertionPredicateNode::LastValue)->as_Bool();
     TemplateAssertionPredicateBool template_assertion_predicate_bool(template_last_value_bool, _phase);
-    BoolNode* new_bool = template_assertion_predicate_bool.create_from(_new_ctrl, &_replace_opaque_loop_init_and_stride);
+    BoolNode* new_bool = template_assertion_predicate_bool.clone(_new_ctrl, &_replace_opaque_loop_init_and_stride);
     return _initialized_assertion_predicate.create(template_assertion_predicate, _new_ctrl, new_bool,
                                                    AssertionPredicateType::Last_value);
   }

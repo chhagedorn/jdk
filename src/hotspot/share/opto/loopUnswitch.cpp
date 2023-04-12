@@ -229,18 +229,17 @@ class NewSlowLoopParsePredicate : public NewParsePredicate {
 
 // Class to create the unswitch If that decides if the slow or fast loop must be executed.
 class UnswitchIf {
-  IdealLoopTree* _loop;
+  IdealLoopTree* _outer_loop;
   Node* _original_loop_entry;
   PhaseIdealLoop* _phase;
 
  public:
   UnswitchIf(IdealLoopTree* loop)
-      : _loop(loop),
+      : _outer_loop(loop->_head->as_Loop()->is_strip_mined() ? loop->_parent->_parent : loop->_parent),
         _original_loop_entry(loop->_head->as_Loop()->skip_strip_mined()->in(LoopNode::EntryControl)),
         _phase(loop->_phase) {}
 
   IfNode* create(IfNode* unswitching_candidate) {
-    IdealLoopTree* outer_loop = _loop->_parent;
     const uint dom_depth = _phase->dom_depth(_original_loop_entry);
     _phase->igvn().rehash_node_delayed(_original_loop_entry);
     Node* unswitching_candidate_bool = unswitching_candidate->in(1)->as_Bool();
@@ -250,11 +249,11 @@ class UnswitchIf {
                            unswitching_candidate->_fcnt) :
         new IfNode(_original_loop_entry, unswitching_candidate_bool, unswitching_candidate->_prob,
                    unswitching_candidate->_fcnt);
-    _phase->register_node(unswitch_if, outer_loop, _original_loop_entry, dom_depth);
+    _phase->register_node(unswitch_if, _outer_loop, _original_loop_entry, dom_depth);
     IfProjNode* if_fast = new IfTrueNode(unswitch_if);
-    _phase->register_node(if_fast, outer_loop, unswitch_if, dom_depth);
+    _phase->register_node(if_fast, _outer_loop, unswitch_if, dom_depth);
     IfProjNode* if_slow = new IfFalseNode(unswitch_if);
-    _phase->register_node(if_slow, outer_loop, unswitch_if, dom_depth);
+    _phase->register_node(if_slow, _outer_loop, unswitch_if, dom_depth);
     return unswitch_if;
   }
 };
@@ -451,7 +450,7 @@ class UnswitchedLoop {
 
   // Unswitch on the invariant unswitching candidate If. Return the new if which switches between the slow and fast loop.
   IfNode* unswitch(IfNode* unswitching_candidate) {
-    UnswitchIf unswitch_if(_fast_loop_head->is_strip_mined() ? _loop->_parent : _loop->_parent->_parent);
+    UnswitchIf unswitch_if(_loop);
     IfNode* unswitch_if_node = unswitch_if.create(unswitching_candidate);
     const uint first_slow_loop_node_index = _phase->C->unique();
     _phase->clone_loop(_loop, *_old_new, _phase->dom_depth(_fast_loop_head),
