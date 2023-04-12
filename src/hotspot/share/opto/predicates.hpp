@@ -606,17 +606,15 @@ class ParsePredicates : public StackObj {
   Node* clone(const RegularPredicateBlocks* regular_predicate_blocks);
 };
 
-// Class that represents either the BoolNode for the initial value or the last value of a Template Assertion Predicate.
-class TemplateAssertionPredicateBool : public StackObj {
-  BoolNode* _bol;
-  PhaseIdealLoop* _phase;
-  Compile* C;
-
-  // Is 'n' a node that can be found on the input chain of a Template Assertion Predicate bool (i.e. between a
-  // TemplateAssertionPredicate node (excluded) and the OpaqueLoop* nodes (excluded))?
-  static bool could_be_related_node(const Node* n) {
+class AssertionPredicateBoolOpcodes : public StackObj {
+ public:
+  // Is 'n' a node that could be part of an Assertion Predicate bool (i.e. could be found on the input chain of an
+  // Assertion Predicate bool up to and including the OpaqueLoop* nodes)?
+  static bool is_valid(const Node* n) {
     const int op = n->Opcode();
-    return (n->is_Bool() ||
+    return (op == Op_OpaqueLoopInit ||
+            op == Op_OpaqueLoopStride ||
+            n->is_Bool() ||
             n->is_Cmp() ||
             op == Op_AndL ||
             op == Op_OrL ||
@@ -632,31 +630,26 @@ class TemplateAssertionPredicateBool : public StackObj {
             op == Op_ConvI2L ||
             op == Op_CastII);
   }
+};
 
-  static void push_inputs_if_related_node(Unique_Node_List& list, const Node* n) {
-    if (could_be_related_node(n)) {
-      push_non_null_inputs(list, n);
-    }
-  }
+//class TemplateAssertionPredicate : public StackObj {
+// public:
+//  clone()
+//};
 
-  static void push_non_null_inputs(Unique_Node_List& list, const Node* n) {
-    for (uint i = 1; i < n->req(); i++) {
-      Node* input = n->in(i);
-      if (input != nullptr) {
-        list.push(input);
-      }
-    }
-  }
+// Class that represents either the BoolNode for the initial value or the last value of a Template Assertion Predicate.
+class CloneTemplateAssertionPredicateBool : public StackObj {
+  BoolNode* _source_bol;
+  PhaseIdealLoop* _phase;
+  Compile* C;
 
  public:
-  TemplateAssertionPredicateBool(BoolNode* bol, PhaseIdealLoop* phase)
-      : _bol(bol),
+  CloneTemplateAssertionPredicateBool(BoolNode* source_bol, PhaseIdealLoop* phase)
+      : _source_bol(source_bol),
         _phase(phase),
         C(phase->C) {
-    assert(bol->unique_out()->is_TemplateAssertionPredicate(), "must be TemplateAssertionPredicate Bool node");
+    assert(source_bol->unique_out()->is_TemplateAssertionPredicate(), "must be TemplateAssertionPredicate Bool node");
   }
-
-  static bool is_related_node(Node* n);
 
   // Create a new BoolNode from the Template Assertion Predicate bool by cloning all nodes on the input chain up to but
   // not including the OpaqueLoop* nodes. These are replaced depending on the strategy. Sets 'ctrl' as new ctrl for all
@@ -752,8 +745,8 @@ class OriginalTargetLoopNode : public NodeInTargetLoop {
 // dependencies are also updated when creating a new template from this node.
 class TemplateAssertionPredicate : public StackObj {
   TemplateAssertionPredicateNode* _template_assertion_predicate;
-  TemplateAssertionPredicateBool _init_value_bool;
-  TemplateAssertionPredicateBool _last_value_bool;
+  CloneTemplateAssertionPredicateBool _init_value_bool;
+  CloneTemplateAssertionPredicateBool _last_value_bool;
   ReplaceOpaqueLoopNodes* _replace_opaque_loop_nodes;
   PhaseIdealLoop* _phase;
 
@@ -763,10 +756,10 @@ class TemplateAssertionPredicate : public StackObj {
   TemplateAssertionPredicate(TemplateAssertionPredicateNode* template_assertion_predicate,
                              ReplaceOpaqueLoopNodes* replace_opaque_loop_nodes, PhaseIdealLoop* phase)
       : _template_assertion_predicate(template_assertion_predicate),
-        _init_value_bool(TemplateAssertionPredicateBool(template_assertion_predicate->in(TemplateAssertionPredicateNode::InitValue)->as_Bool(),
-                                                        phase)),
-        _last_value_bool(TemplateAssertionPredicateBool(template_assertion_predicate->in(TemplateAssertionPredicateNode::LastValue)->as_Bool(),
-                                                        phase)),
+        _init_value_bool(CloneTemplateAssertionPredicateBool(template_assertion_predicate->in(TemplateAssertionPredicateNode::InitValue)->as_Bool(),
+                                                             phase)),
+        _last_value_bool(CloneTemplateAssertionPredicateBool(template_assertion_predicate->in(TemplateAssertionPredicateNode::LastValue)->as_Bool(),
+                                                             phase)),
         _replace_opaque_loop_nodes(replace_opaque_loop_nodes),
         _phase(phase) {}
 
@@ -908,7 +901,7 @@ class InitializedInitValueAssertionPredicate : public StackObj {
 
   IfTrueNode* create(TemplateAssertionPredicateNode* template_assertion_predicate) {
     BoolNode* template_init_value_bool = template_assertion_predicate->in(TemplateAssertionPredicateNode::InitValue)->as_Bool();
-    TemplateAssertionPredicateBool template_assertion_predicate_bool(template_init_value_bool, _phase);
+    CloneTemplateAssertionPredicateBool template_assertion_predicate_bool(template_init_value_bool, _phase);
     BoolNode* new_bool = template_assertion_predicate_bool.clone(_new_ctrl, &_replace_opaque_loop_init);
     return _initialized_assertion_predicate.create(template_assertion_predicate, _new_ctrl, new_bool,
                                                    AssertionPredicateType::Init_value);
@@ -932,7 +925,7 @@ class InitializedLastValueAssertionPredicate : public StackObj {
 
   IfTrueNode* create(TemplateAssertionPredicateNode* template_assertion_predicate) {
     BoolNode* template_last_value_bool = template_assertion_predicate->in(TemplateAssertionPredicateNode::LastValue)->as_Bool();
-    TemplateAssertionPredicateBool template_assertion_predicate_bool(template_last_value_bool, _phase);
+    CloneTemplateAssertionPredicateBool template_assertion_predicate_bool(template_last_value_bool, _phase);
     BoolNode* new_bool = template_assertion_predicate_bool.clone(_new_ctrl, &_replace_opaque_loop_init_and_stride);
     return _initialized_assertion_predicate.create(template_assertion_predicate, _new_ctrl, new_bool,
                                                    AssertionPredicateType::Last_value);

@@ -255,61 +255,43 @@ void TemplateAssertionPredicates::update(CountedLoopNode* loop_head) {
   walk_templates(&update_template_assertion_predicate);
 }
 
-// Check if 'n' belongs to the init or last value Template Assertion Predicate bool, including the OpaqueLoop* nodes.
-bool TemplateAssertionPredicateBool::is_related_node(Node* n) {
-  ResourceMark rm;
-  Unique_Node_List list;
-  list.push(n);
-  for (uint i = 0; i < list.size(); i++) {
-    Node* next = list.at(i);
-    const int opcode = next->Opcode();
-    if (opcode == Op_OpaqueLoopInit || opcode == Op_OpaqueLoopStride) {
-      return true;
-    } else {
-      push_inputs_if_related_node(list, next);
-    }
-  }
-  return false;
-}
-
 // Create a new Bool node from the provided Template Assertion Predicate Bool.
 // Replace found OpaqueLoop* nodes with new_init and new_stride, respectively, if non-null.
 // All newly cloned (non-CFG) nodes will get 'ctrl' as new ctrl.
-BoolNode* TemplateAssertionPredicateBool::clone(Node* new_ctrl, ReplaceOpaqueLoopNodes* replace_opaque_loop_nodes) {
+BoolNode* CloneTemplateAssertionPredicateBool::clone(Node* new_ctrl, ReplaceOpaqueLoopNodes* replace_opaque_loop_nodes) {
   Node_Stack to_clone(2);
-  to_clone.push(_bol, 1);
+  to_clone.push(_source_bol, 1);
   const uint idx_before_cloning = C->unique();
   Node* result = nullptr;
   bool found_init = false;
-  // Look for the opaque node to replace with the new value
-  // and clone everything in between. We keep the Opaque4 node
-  // so the duplicated predicates are eliminated once loop
-  // opts are over: they are here only to keep the IR graph
-  // consistent.
+  // Look for the OpaqueLoop* nodes to replace with the strategy defined with 'replace_opaque_loop_nodes'. Clone all
+  // nodes in between.
   do {
     Node* n = to_clone.node();
     const uint i = to_clone.index();
     Node* input = n->in(i);
-    if (could_be_related_node(input)) {
-      to_clone.push(input, 1);
-      continue;
-    }
-    if (input->is_Opaque1()) {
-      if (n->_idx < idx_before_cloning) {
-        n = n->clone();
-        _phase->register_new_node(n, new_ctrl);
-      }
-      const int op = input->Opcode();
-      if (op == Op_OpaqueLoopInit) {
-        Node* replacement = replace_opaque_loop_nodes->replace_init(input->as_OpaqueLoopInit(), new_ctrl);
-        n->set_req(i, replacement);
-        found_init = true;
+    if (AssertionPredicateBoolOpcodes::is_valid(input)) {
+      if (input->is_Opaque1()) {
+        if (n->_idx < idx_before_cloning) {
+          n = n->clone();
+          _phase->register_new_node(n, new_ctrl);
+        }
+        const int op = input->Opcode();
+        if (op == Op_OpaqueLoopInit) {
+          Node* replacement = replace_opaque_loop_nodes->replace_init(input->as_OpaqueLoopInit(), new_ctrl);
+          n->set_req(i, replacement);
+          found_init = true;
+        } else {
+          Node* replacement = replace_opaque_loop_nodes->replace_stride(input->as_OpaqueLoopStride(), new_ctrl);
+          n->set_req(i, replacement);
+        }
+        to_clone.set_node(n);
       } else {
-        Node* replacement = replace_opaque_loop_nodes->replace_stride(input->as_OpaqueLoopStride(), new_ctrl);
-        n->set_req(i, replacement);
+        to_clone.push(input, 1);
+        continue;
       }
-      to_clone.set_node(n);
     }
+
     while (true) {
       Node* cur = to_clone.node();
       uint j = to_clone.index();
