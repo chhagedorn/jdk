@@ -22,6 +22,7 @@
  *
  */
 
+#include "compile.hpp"
 #include "precompiled.hpp"
 #include "compiler/compileLog.hpp"
 #include "memory/allocation.inline.hpp"
@@ -1596,10 +1597,6 @@ void PhaseIdealLoop::copy_assertion_predicates_to_main_loop(CountedLoopNode* pre
   }
 }
 
-class MainLoopAssertionPredicates : public StackObj {
-
-};
-
 //------------------------------insert_pre_post_loops--------------------------
 // Insert pre and post loops.  If peel_only is set, the pre-loop can not have
 // more iterations added.  It acts as a 'peel' only, no lower-bound RCE, no
@@ -2796,36 +2793,6 @@ bool PhaseIdealLoop::is_scaled_iv_plus_extra_offset(Node* exp1, Node* offset3, N
   return false;
 }
 
-// Same as PhaseIdealLoop::duplicate_predicates() but for range checks
-// eliminated by iteration splitting.
-Node* PhaseIdealLoop::add_range_check_elimination_assertion_predicate(IdealLoopTree* loop,
-                                                                      Node* ctrl, const int scale_con,
-                                                                      Node* offset, Node* limit, jint stride_con,
-                                                                      Node* value) {
-  bool overflow = false;
-  BoolNode* bol = rc_predicate(loop, ctrl, scale_con, offset, value, nullptr, stride_con,
-                               limit, (stride_con > 0) != (scale_con > 0), overflow, false);
-  Node* opaque_bol = new Opaque4Node(C, bol, _igvn.intcon(1));
-  register_new_node(opaque_bol, ctrl);
-  IfNode* new_iff = nullptr;
-  if (overflow) {
-    new_iff = new IfNode(ctrl, opaque_bol, PROB_MAX, COUNT_UNKNOWN);
-  } else {
-    new_iff = new RangeCheckNode(ctrl, opaque_bol, PROB_MAX, COUNT_UNKNOWN);
-  }
-  register_control(new_iff, loop->_parent, ctrl);
-  Node* iffalse = new IfFalseNode(new_iff);
-  register_control(iffalse, _ltree_root, new_iff);
-  ProjNode* iftrue = new IfTrueNode(new_iff);
-  register_control(iftrue, loop->_parent, new_iff);
-  Node *frame = new ParmNode(C->start(), TypeFunc::FramePtr);
-  register_new_node(frame, C->start());
-  Node* halt = new HaltNode(iffalse, frame, "range check predicate failed which is impossible");
-  register_control(halt, _ltree_root, iffalse);
-  _igvn.add_input_to(C->root(), halt);
-  return iftrue;
-}
-
 //------------------------------do_range_check---------------------------------
 // Eliminate range-checks and other trip-counter vs loop-invariant tests.
 void PhaseIdealLoop::do_range_check(IdealLoopTree *loop, Node_List &old_new) {
@@ -3001,35 +2968,10 @@ void PhaseIdealLoop::do_range_check(IdealLoopTree *loop, Node_List &old_new) {
         if (b_test._test == BoolTest::lt) { // Range checks always use lt
           // The underflow and overflow limits: 0 <= scale*I+offset < limit
           add_constraint(stride_con, lscale_con, offset, zero, limit, pre_ctrl, &pre_limit, &main_limit);
-          Node* init = cl->init_trip();
-          Node* opaque_init = new OpaqueLoopInitNode(C, init);
-          register_new_node(opaque_init, loop_entry);
-
-//          AssertionPredicates assertion_predicates(cl, loop);
-//          assertion_predicates.create_at_source_loop()
-          // Initialized Assertion Predicate for the value of the initial main-loop.
-          loop_entry = add_range_check_elimination_assertion_predicate(loop, loop_entry, scale_con, int_offset,
-                                                                       int_limit, stride_con, init);
-          assert(!assertion_predicate_has_loop_opaque_node(loop_entry->in(0)->as_If()), "unexpected");
+          loop_entry = add_range_check_elimination_assertion_predicates(loop, scale_con, int_offset, int_limit);
 
           // Add two Template Assertion Predicates to create new Initialized Assertion Predicates from when either
           // unrolling or splitting this main-loop further.
-          loop_entry = add_range_check_elimination_assertion_predicate(loop, loop_entry, scale_con, int_offset,
-                                                                       int_limit, stride_con, opaque_init);
-          assert(assertion_predicate_has_loop_opaque_node(loop_entry->in(0)->as_If()), "unexpected");
-
-          Node* opaque_stride = new OpaqueLoopStrideNode(C, cl->stride());
-          register_new_node(opaque_stride, loop_entry);
-          Node* max_value = new SubINode(opaque_stride, cl->stride());
-          register_new_node(max_value, loop_entry);
-          max_value = new AddINode(opaque_init, max_value);
-          register_new_node(max_value, loop_entry);
-          // init + (current stride - initial stride) is within the loop so narrow its type by leveraging the type of the iv Phi
-          max_value = new CastIINode(max_value, loop->_head->as_CountedLoop()->phi()->bottom_type());
-          register_new_node(max_value, loop_entry);
-          loop_entry = add_range_check_elimination_assertion_predicate(loop, loop_entry, scale_con, int_offset,
-                                                                       int_limit, stride_con, max_value);
-          assert(assertion_predicate_has_loop_opaque_node(loop_entry->in(0)->as_If()), "unexpected");
 
         } else {
           if (PrintOpto) {
@@ -3139,6 +3081,18 @@ void PhaseIdealLoop::do_range_check(IdealLoopTree *loop, Node_List &old_new) {
   _igvn.replace_input_of(opqzm, 1, main_limit);
 
   return;
+}
+
+TemplateAssertionPredicateNode* PhaseIdealLoop::add_range_check_elimination_assertion_predicates(
+    IdealLoopTree* loop, int scale, Node* offset, Node* range) {
+  CountedLoopNode* loop_head = loop->_head->as_CountedLoop();
+  const TemplateAssertionPredicateBools template_assertion_predicate_bools(loop, scale, offset, range,
+                                                                           false);
+  TemplateAssertionPredicateNode* template_assertion_predicate =
+      add_template_assertion_predicate(Op_RangeCheck, loop, scale, offset, range, false);
+  AssertionPredicates assertion_predicates(loop_head, loop);
+  assertion_predicates.create_at_source_loop(loop_head->stride_con());
+  return template_assertion_predicate;
 }
 
 bool IdealLoopTree::compute_has_range_checks() const {

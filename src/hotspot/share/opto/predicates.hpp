@@ -25,6 +25,7 @@
 #ifndef SHARE_OPTO_PREDICATES_HPP
 #define SHARE_OPTO_PREDICATES_HPP
 
+#include "opaquenode.hpp"
 #include "opto/cfgnode.hpp"
 #include "loopnode.hpp"
 
@@ -632,23 +633,26 @@ class AssertionPredicateBoolOpcodes : public StackObj {
   }
 };
 
-//class TemplateAssertionPredicate : public StackObj {
-// public:
-//  clone()
-//};
-
 // Class that represents either the BoolNode for the initial value or the last value of a Template Assertion Predicate.
-class CloneTemplateAssertionPredicateBool : public StackObj {
+class TemplateAssertionPredicateBool : public StackObj {
   BoolNode* _source_bol;
   PhaseIdealLoop* _phase;
   Compile* C;
 
  public:
-  CloneTemplateAssertionPredicateBool(BoolNode* source_bol, PhaseIdealLoop* phase)
+  TemplateAssertionPredicateBool(BoolNode* source_bol, PhaseIdealLoop* phase)
       : _source_bol(source_bol),
         _phase(phase),
         C(phase->C) {
-    assert(source_bol->unique_out()->is_TemplateAssertionPredicate(), "must be TemplateAssertionPredicate Bool node");
+#ifdef ASSERT
+    // We could have multiple Template Assertion Predicates as output if two range checks of the same array become the
+    // same at some point. This is okay, as we are always cloning the Template Assertion Predicate bools when creating a
+    // new Assertion Predicate from it.
+    for (DUIterator_Fast imax, i = source_bol->fast_outs(imax); i < imax; i++) {
+      Node* out = source_bol->fast_out(i);
+      assert(out->is_TemplateAssertionPredicate(), "must be template assertion predicate");
+    }
+#endif // ASSERT
   }
 
   // Create a new BoolNode from the Template Assertion Predicate bool by cloning all nodes on the input chain up to but
@@ -745,8 +749,8 @@ class OriginalTargetLoopNode : public NodeInTargetLoop {
 // dependencies are also updated when creating a new template from this node.
 class TemplateAssertionPredicate : public StackObj {
   TemplateAssertionPredicateNode* _template_assertion_predicate;
-  CloneTemplateAssertionPredicateBool _init_value_bool;
-  CloneTemplateAssertionPredicateBool _last_value_bool;
+  TemplateAssertionPredicateBool _init_value_bool;
+  TemplateAssertionPredicateBool _last_value_bool;
   ReplaceOpaqueLoopNodes* _replace_opaque_loop_nodes;
   PhaseIdealLoop* _phase;
 
@@ -756,10 +760,10 @@ class TemplateAssertionPredicate : public StackObj {
   TemplateAssertionPredicate(TemplateAssertionPredicateNode* template_assertion_predicate,
                              ReplaceOpaqueLoopNodes* replace_opaque_loop_nodes, PhaseIdealLoop* phase)
       : _template_assertion_predicate(template_assertion_predicate),
-        _init_value_bool(CloneTemplateAssertionPredicateBool(template_assertion_predicate->in(TemplateAssertionPredicateNode::InitValue)->as_Bool(),
-                                                             phase)),
-        _last_value_bool(CloneTemplateAssertionPredicateBool(template_assertion_predicate->in(TemplateAssertionPredicateNode::LastValue)->as_Bool(),
-                                                             phase)),
+        _init_value_bool(TemplateAssertionPredicateBool(template_assertion_predicate->in(TemplateAssertionPredicateNode::InitValue)->as_Bool(),
+                                                        phase)),
+        _last_value_bool(TemplateAssertionPredicateBool(template_assertion_predicate->in(TemplateAssertionPredicateNode::LastValue)->as_Bool(),
+                                                        phase)),
         _replace_opaque_loop_nodes(replace_opaque_loop_nodes),
         _phase(phase) {}
 
@@ -901,7 +905,7 @@ class InitializedInitValueAssertionPredicate : public StackObj {
 
   IfTrueNode* create(TemplateAssertionPredicateNode* template_assertion_predicate) {
     BoolNode* template_init_value_bool = template_assertion_predicate->in(TemplateAssertionPredicateNode::InitValue)->as_Bool();
-    CloneTemplateAssertionPredicateBool template_assertion_predicate_bool(template_init_value_bool, _phase);
+    TemplateAssertionPredicateBool template_assertion_predicate_bool(template_init_value_bool, _phase);
     BoolNode* new_bool = template_assertion_predicate_bool.clone(_new_ctrl, &_replace_opaque_loop_init);
     return _initialized_assertion_predicate.create(template_assertion_predicate, _new_ctrl, new_bool,
                                                    AssertionPredicateType::Init_value);
@@ -925,7 +929,7 @@ class InitializedLastValueAssertionPredicate : public StackObj {
 
   IfTrueNode* create(TemplateAssertionPredicateNode* template_assertion_predicate) {
     BoolNode* template_last_value_bool = template_assertion_predicate->in(TemplateAssertionPredicateNode::LastValue)->as_Bool();
-    CloneTemplateAssertionPredicateBool template_assertion_predicate_bool(template_last_value_bool, _phase);
+    TemplateAssertionPredicateBool template_assertion_predicate_bool(template_last_value_bool, _phase);
     BoolNode* new_bool = template_assertion_predicate_bool.clone(_new_ctrl, &_replace_opaque_loop_init_and_stride);
     return _initialized_assertion_predicate.create(template_assertion_predicate, _new_ctrl, new_bool,
                                                    AssertionPredicateType::Last_value);
@@ -971,6 +975,9 @@ class AssertionPredicates {
     }
   }
 
+  Node* create_stride(int stride_con);
+  void update_templates() const;
+
  public:
   AssertionPredicates(CountedLoopNode* source_loop_head, IdealLoopTree* loop)
       : _source_loop_head(source_loop_head),
@@ -985,7 +992,43 @@ class AssertionPredicates {
   void create_at(CountedLoopNode* target_loop_head, uint first_cloned_loop_node_index);
   void replace_to(CountedLoopNode* target_loop_head, uint first_cloned_loop_node_index);
   void create_at_source_loop(int new_stride_con);
+};
 
+// Class to create bool nodes for a new Template Assertion Predicate.
+class TemplateAssertionPredicateBools : public StackObj {
+  IdealLoopTree* _loop;
+  PhaseIdealLoop* _phase;
+  CountedLoopNode* _loop_head;
+  jint _stride;
+  int _scale;
+  Node* _offset;
+  Node* _range;
+  bool _upper;
+  bool _negate;
+
+  Node* create_last_value(Node* new_ctrl, OpaqueLoopInitNode* opaque_init);
+
+ public:
+  TemplateAssertionPredicateBools(IdealLoopTree* loop, int scale, Node* offset, Node* range, bool negate)
+      : _loop(loop),
+        _phase(loop->_phase),
+        _loop_head(loop->_head->as_CountedLoop()),
+        _stride(_loop_head->stride()->get_int()),
+        _scale(scale),
+        _offset(offset),
+        _range(range),
+        _upper((_stride > 0) != (_scale > 0)),  // Make sure, rc_predicate() chooses "scale*init + offset" case.
+        _negate(negate) {}
+
+  BoolNode* create_for_init_value(Node* new_ctrl, OpaqueLoopInitNode* opaque_loop_init, bool& overflow) {
+    return _phase->rc_predicate(_loop, new_ctrl, _scale, _offset, opaque_loop_init, nullptr, _stride, _range, _upper,
+                                overflow,_negate);
+  }
+
+  BoolNode* create_for_last_value(Node* new_ctrl, OpaqueLoopInitNode* opaque_init, bool& overflow) {
+    Node* last_value = create_last_value(new_ctrl, opaque_init);
+    return _phase->rc_predicate(_loop, new_ctrl, _scale, _offset, last_value, nullptr, _stride, _range, _upper, overflow, _negate);
+  }
 };
 
 #endif // SHARE_OPTO_PREDICATES_HPP

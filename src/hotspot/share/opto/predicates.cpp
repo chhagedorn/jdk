@@ -23,7 +23,9 @@
  */
 
 #include "precompiled.hpp"
+#include "opto/addnode.hpp"
 #include "opto/callnode.hpp"
+#include "opto/castnode.hpp"
 #include "opto/opaquenode.hpp"
 #include "opto/predicates.hpp"
 #include "opto/rootnode.hpp"
@@ -258,7 +260,7 @@ void TemplateAssertionPredicates::update(CountedLoopNode* loop_head) {
 // Create a new Bool node from the provided Template Assertion Predicate Bool.
 // Replace found OpaqueLoop* nodes with new_init and new_stride, respectively, if non-null.
 // All newly cloned (non-CFG) nodes will get 'ctrl' as new ctrl.
-BoolNode* CloneTemplateAssertionPredicateBool::clone(Node* new_ctrl, ReplaceOpaqueLoopNodes* replace_opaque_loop_nodes) {
+BoolNode* TemplateAssertionPredicateBool::clone(Node* new_ctrl, ReplaceOpaqueLoopNodes* replace_opaque_loop_nodes) {
   Node_Stack to_clone(2);
   to_clone.push(_source_bol, 1);
   const uint idx_before_cloning = C->unique();
@@ -518,14 +520,10 @@ void AssertionPredicates::replace_to(CountedLoopNode* target_loop_head, const ui
 // are inserted based on the updated templates. Existing Initialized Assertion Predicates are no longer needed and killed.
 void AssertionPredicates::create_at_source_loop(const int new_stride_con) {
   if (has_any()) {
+    update_templates();
     const InitializedAssertionPredicateBlock* initialized_assertion_predicate_block =
         _source_loop_predicates.initialized_assertion_predicate_block();
-    TemplateAssertionPredicates template_assertion_predicates(_source_loop_predicates.template_assertion_predicate_block(),
-                                                              _phase);
-    template_assertion_predicates.update(_source_loop_head);
-    Node* new_stride = _phase->igvn().intcon(new_stride_con);
-    _phase->set_ctrl(new_stride, _phase->C->root());
-
+    Node* new_stride = create_stride(new_stride_con);
     InitializedAssertionPredicates initialized_assertion_predicates(_source_loop_head->init_trip(), new_stride,
                                                                     initialized_assertion_predicate_block->entry(),
                                                                     _outer_target_loop);
@@ -533,4 +531,30 @@ void AssertionPredicates::create_at_source_loop(const int new_stride_con) {
         _source_loop_head->skip_strip_mined()->in(LoopNode::EntryControl)->as_TemplateAssertionPredicate());
     initialized_assertion_predicate_block->kill_dead(&_phase->igvn());
   }
+}
+
+void AssertionPredicates::update_templates() const {
+  TemplateAssertionPredicates template_assertion_predicates(_source_loop_predicates.template_assertion_predicate_block(),
+                                                            _phase);
+  template_assertion_predicates.update(this->_source_loop_head);
+}
+
+Node* AssertionPredicates::create_stride(const int stride_con) {
+  Node* new_stride = _phase->igvn().intcon(stride_con);
+  _phase->set_ctrl(new_stride, _phase->C->root());
+  return new_stride;
+}
+
+Node* TemplateAssertionPredicateBools::create_last_value(Node* new_ctrl, OpaqueLoopInitNode* opaque_init) {
+  Node* init_stride = _loop_head->stride();
+  Node* opaque_stride = new OpaqueLoopStrideNode(_phase->C, init_stride);
+  _phase->register_new_node(opaque_stride, new_ctrl);
+  Node* last_value = new SubINode(opaque_stride, init_stride);
+  _phase->register_new_node(last_value, new_ctrl);
+  last_value = new AddINode(opaque_init, last_value);
+  _phase->register_new_node(last_value, new_ctrl);
+  // init + (current stride - initial stride) is within the loop so narrow its type by leveraging the type of the iv Phi
+  last_value = new CastIINode(last_value, _loop_head->phi()->bottom_type());
+  _phase->register_new_node(last_value, new_ctrl);
+  return last_value;
 }

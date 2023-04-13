@@ -1066,7 +1066,7 @@ bool PhaseIdealLoop::loop_predication_impl_helper(IdealLoopTree* loop, IfProjNod
     // upper bound test. We always need to create skeleton predicates in order to properly remove dead loops when later
     // splitting the predicated loop into (unreachable) sub-loops (i.e. done by unrolling, peeling, pre/main/post etc.).
     TemplateAssertionPredicateNode* template_assertion_predicate_node =
-        add_template_assertion_predicate(if_opcode, loop, upper_bound_proj, scale, offset, rng, negate);
+        add_template_assertion_predicate(if_opcode, loop, scale, offset, rng, negate);
 
     rewire_safe_outputs_to_dominator(if_proj, template_assertion_predicate_node);
     new_predicate_proj = upper_bound_proj;
@@ -1096,34 +1096,25 @@ bool PhaseIdealLoop::loop_predication_impl_helper(IdealLoopTree* loop, IfProjNod
 // by making a copy of them when splitting a loop into sub loops. The Assertion Predicates ensure that dead sub loops
 // are removed properly.
 TemplateAssertionPredicateNode* PhaseIdealLoop::add_template_assertion_predicate(int if_opcode, IdealLoopTree* loop,
-                                                                                 IfProjNode* new_ctrl, int scale,
-                                                                                 Node* offset, Node* rng, bool negate) {
+                                                                                 int scale, Node* offset, Node* range,
+                                                                                 bool negate) {
+
   CountedLoopNode* loop_head = loop->_head->as_CountedLoop();
-  const jint stride = loop_head->stride()->get_int();
-
-  // First predicate for the initial value on first loop iteration
-  OpaqueLoopInitNode* opaque_init = new OpaqueLoopInitNode(C, loop_head->init_trip());
-  register_new_node(opaque_init, new_ctrl);
-  const bool upper = (stride > 0) != (scale > 0); // Make sure, rc_predicate chooses "scale*init + offset" case.
-  bool overflow_init_value;
-  BoolNode* bol_init = rc_predicate(loop, new_ctrl, scale, offset, opaque_init, nullptr, stride, rng, upper,
-                                    overflow_init_value, negate);
-  assert(opaque_init->outcnt() > 0, "should be used");
-
-  // Second predicate for init + (current stride - initial stride)
-  // This is identical to the previous predicate initially but as
-  // unrolling proceeds current stride is updated.
-  Node* last_value = create_last_value(loop, new_ctrl, opaque_init);
-
-  bool overflow_last_value;
-
-  BoolNode* bol_last = rc_predicate(loop, new_ctrl, scale, offset, last_value, nullptr, stride, rng, upper,
-                                    overflow_last_value, negate);
-  assert(last_value->outcnt() > 0, "should be used");
   LoopNode* outer_head = loop_head->skip_strip_mined();
   Node* outer_loop_entry = outer_head->in(LoopNode::EntryControl);
+  OpaqueLoopInitNode* opaque_init = new OpaqueLoopInitNode(C, loop_head->init_trip());
+  register_new_node(opaque_init, outer_loop_entry);
+
+  TemplateAssertionPredicateBools template_assertion_predicate_bools(loop, scale, offset, range, negate);
+  bool overflow_init_value;
+  BoolNode* bool_init_value = template_assertion_predicate_bools.create_for_init_value(outer_loop_entry, opaque_init,
+                                                                                       overflow_init_value);
+  bool overflow_last_value;
+  BoolNode* bool_last_value = template_assertion_predicate_bools.create_for_last_value(outer_loop_entry, opaque_init,
+                                                                                       overflow_last_value);
+
   TemplateAssertionPredicateNode* template_assertion_predicate_node
-      = new TemplateAssertionPredicateNode(outer_loop_entry, bol_init, bol_last,
+      = new TemplateAssertionPredicateNode(outer_loop_entry, bool_init_value, bool_last_value,
                                            overflow_init_value ? Op_If : if_opcode,
                                            overflow_last_value ? Op_If : if_opcode, C);
   register_control(template_assertion_predicate_node, get_loop(outer_loop_entry), outer_loop_entry);

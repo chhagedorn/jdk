@@ -1383,11 +1383,10 @@ public:
   void loop_predication_follow_branches(Node *c, IdealLoopTree *loop, float loop_trip_cnt,
                                         PathFrequency& pf, Node_Stack& stack, VectorSet& seen,
                                         Node_List& if_proj_list);
-  TemplateAssertionPredicateNode* add_template_assertion_predicate(int if_opcode, IdealLoopTree* loop,
-                                                                   IfProjNode* new_ctrl, int scale, Node* offset,
-                                                                   Node* rng, bool negate);
-  Node* add_range_check_elimination_assertion_predicate(IdealLoopTree* loop, Node* ctrl, int scale_con, Node* offset,
-                                                        Node* limit, jint stride_con, Node* value);
+  TemplateAssertionPredicateNode* add_template_assertion_predicate(int if_opcode, IdealLoopTree* loop, int scale,
+                                                                   Node* offset, Node* range, bool negate);
+  TemplateAssertionPredicateNode* add_range_check_elimination_assertion_predicates(IdealLoopTree* loop, int scale,
+                                                                                   Node* offset, Node* range);
 
   void eliminate_useless_predicates();
 
