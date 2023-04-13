@@ -2,3 +2,4 @@ theme: minima
 title: Christian's Blog
 author: Christian Hagedorn
 description: Blog about internals of the Hotspot JVM with a focus on the C2 JIT compiler
+exclude: *
