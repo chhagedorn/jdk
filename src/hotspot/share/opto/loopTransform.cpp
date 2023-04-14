@@ -1345,6 +1345,10 @@ void PhaseIdealLoop::insert_pre_post_loops(IdealLoopTree *loop, Node_List &old_n
   const uint idx_before_pre_post = Compile::current()->unique();
   CountedLoopNode *post_head = nullptr;
   Node* main_exit = insert_post_loop(loop, old_new, main_head, main_end, post_head);
+#ifdef ASSERT
+  AssertionPredicateBlock assertion_predicate_block(post_head->in(1));
+  assert(assertion_predicate_block.entry()->is_IfProj(), "must be zero-trip guard If node projection of the post loop");
+#endif // ASSERT
 
   //------------------------------
   // Step B: Create Pre-Loop.
@@ -1441,7 +1445,6 @@ void PhaseIdealLoop::insert_pre_post_loops(IdealLoopTree *loop, Node_List &old_n
   // CastII for the main loop:
   Node* castii = cast_incr_before_loop(pre_incr, min_taken, main_head);
   assert(castii != nullptr, "no castII inserted");
-//  assert(post_head->in(1)->is_IfProj(), "must be zero-trip guard If node projection of the post loop"); TODO with assertion predicate skip
   replace_assertion_predicates(pre_head, main_head, loop, first_pre_loop_node_index);
 
   // Step B4: Shorten the pre-loop to run only 1 iteration (for now).
