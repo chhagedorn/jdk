@@ -287,15 +287,20 @@ public:
   virtual const RegMask &out_RegMask() const;
 };
 
+// This node represents a Template Assertion Predicate with two bools as input which can be used to create and
+// Initialized Assertion Predicate from (more information can be found in the summary at predicates.hpp).
 class TemplateAssertionPredicateNode : public Node {
   int _initialized_init_value_opcode;
   int _initialized_last_value_opcode;
-  bool _useless; // If the associated loop dies, this template assertion predicate becomes useless and can be cleaned up by Identity().
+  bool _useless; // If this node becomes useless, it can be cleaned up by Identity().
 
-  virtual uint size_of() const { return sizeof(*this); }
+  virtual uint size_of() const {return sizeof(*this);}
  public:
-  // Named bool inputs.
-  enum { InitValue = 1, LastValue = 2 };
+  // Named bool inputs
+  enum {
+    InitValue = 1,
+    LastValue = 2
+  };
 
   TemplateAssertionPredicateNode(Node* control, BoolNode* bol_init_value, BoolNode* bol_last_value,
                                  int initialized_init_value_opcode, int initialized_last_value_opcode, Compile* C);
@@ -321,7 +326,6 @@ class TemplateAssertionPredicateNode : public Node {
   virtual uint hash() const { return NO_HASH; }  // CFG nodes do not hash
   virtual bool depends_only_on_test() const { return false; }
   virtual const Type* bottom_type() const { return Type::CONTROL; }
-//  virtual const Type* Value(PhaseGVN* phase) const;
   virtual Node* Identity(PhaseGVN* phase);
   virtual const Type* Value(PhaseGVN* phase) const;
 };
@@ -371,7 +375,6 @@ class IfNode : public MultiBranchNode {
   // Size is bigger to hold the probability field.  However, _prob does not
   // change the semantics so it does not appear in the hash & cmp functions.
   virtual uint size_of() const { return sizeof(*this); }
-
 
   // Helper methods for fold_compares
   bool cmpi_folds(PhaseIterGVN* igvn, bool fold_ne = false);
@@ -492,7 +495,7 @@ private:
   int is_range_check(Node* &range, Node* &index, jint &offset);
 public:
   RangeCheckNode(Node* control, Node* bol, float p, float fcnt)
-    : IfNode(control, bol, p, fcnt) {
+      : IfNode(control, bol, p, fcnt) {
     init_class_id(Class_RangeCheck);
   }
 
