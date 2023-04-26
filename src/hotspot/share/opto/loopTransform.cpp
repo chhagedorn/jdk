@@ -775,7 +775,7 @@ void PhaseIdealLoop::do_peeling(IdealLoopTree *loop, Node_List &old_new) {
 
   // Step 5: Assertion Predicates initialization
   if (counted_loop && UseLoopPredicate) {
-    replace_assertion_predicates(head->as_CountedLoop(), new_head->as_CountedLoop(), loop, first_peeled_loop_node_index);
+    replace_assertion_predicates(new_head->as_CountedLoop(), head->as_CountedLoop(), loop, first_peeled_loop_node_index);
   }
 
   // Now force out all loop-invariant dominating tests.  The optimizer
