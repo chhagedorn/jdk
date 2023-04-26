@@ -80,7 +80,6 @@ class relocInfo;
 class StartNode;
 class SafePointNode;
 class JVMState;
-class TemplateAssertionPredicateNode;
 class Type;
 class TypeInt;
 class TypeInteger;
@@ -354,7 +353,6 @@ class Compile : public Phase {
   GrowableArray<CallGenerator*> _intrinsics;    // List of intrinsics.
   GrowableArray<Node*>  _macro_nodes;           // List of nodes which need to be expanded before matching.
   GrowableArray<ParsePredicateNode*> _parse_predicates; // List of Parse Predicates.
-  GrowableArray<TemplateAssertionPredicateNode*> _template_assertion_predicates; // List of Template Assertion Predicates.
   GrowableArray<Node*>  _expensive_nodes;       // List of nodes that are expensive to compute and that we'd better not let the GVN freely common
   GrowableArray<Node*>  _for_post_loop_igvn;    // List of nodes for IGVN after loop opts are over
   GrowableArray<UnstableIfTrap*> _unstable_if_traps;        // List of ifnodes after IGVN
@@ -672,16 +670,12 @@ class Compile : public Phase {
 
   int           macro_count()             const { return _macro_nodes.length(); }
   int           parse_predicate_count()   const { return _parse_predicates.length(); }
-  int           template_assertion_predicate_count() const { return _template_assertion_predicates.length(); }
   int           expensive_count()         const { return _expensive_nodes.length(); }
   int           coarsened_count()         const { return _coarsened_locks.length(); }
 
   Node*         macro_node(int idx)       const { return _macro_nodes.at(idx); }
 
   const GrowableArray<ParsePredicateNode*>& parse_predicates() const { return _parse_predicates; }
-  const GrowableArray<TemplateAssertionPredicateNode*>& template_assertion_predicates() const {
-    return _template_assertion_predicates;
-  };
 
   Node*         expensive_node(int idx)   const { return _expensive_nodes.at(idx); }
 
@@ -717,17 +711,6 @@ class Compile : public Phase {
     }
   }
 
-  void add_template_assertion_predicate(TemplateAssertionPredicateNode* n) {
-    assert(!_template_assertion_predicates.contains(n),
-           "duplicate entry in Template Assertion Predicate list");
-    _template_assertion_predicates.append(n);
-  }
-
-  void remove_template_assertion_predicate(TemplateAssertionPredicateNode* n) {
-    if (template_assertion_predicate_count() > 0) {
-      _template_assertion_predicates.remove_if_existing(n);
-    }
-  }
   void add_coarsened_locks(GrowableArray<AbstractLockNode*>& locks);
   void remove_coarsened_lock(Node* n);
   bool coarsened_locks_consistent();

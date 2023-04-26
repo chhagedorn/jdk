@@ -4034,16 +4034,14 @@ void PhaseIdealLoop::log_loop_tree() {
   }
 }
 
-//------------------------eliminate_useless_predicates-----------------------------
-// Eliminate all inserted predicates if they could not be used by loop predication.
-// Note: it will also eliminates loop limits check predicate since it also uses
-// Opaque1 node (see Parse::add_predicate()).
-void PhaseIdealLoop::eliminate_useless_predicates() {
-  if (C->parse_predicate_count() == 0 && C->template_assertion_predicate_count() == 0) {
+// Eliminate all Parse Predicates which have no connection to a loop head. These cannot be used anymore at this point and
+// might block other optimizations.
+void PhaseIdealLoop::eliminate_useless_parse_predicates() {
+  if (C->parse_predicate_count() == 0) {
     return; // no predicates left
   }
 
-  EliminateUselessPredicates eliminator(C, &_igvn, _ltree_root);
+  EliminateUselessParsePredicates eliminator(C, &_igvn, _ltree_root);
   eliminator.eliminate();
 }
 
@@ -4350,7 +4348,7 @@ void PhaseIdealLoop::build_and_optimize() {
   // Some parser-inserted loop predicates could never be used by loop
   // predication or they were moved away from loop during some optimizations.
   // For example, peeling. Eliminate them before next loop optimizations.
-  eliminate_useless_predicates();
+  eliminate_useless_parse_predicates();
 
 #ifndef PRODUCT
   C->verify_graph_edges();

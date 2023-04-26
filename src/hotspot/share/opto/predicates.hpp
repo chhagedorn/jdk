@@ -518,61 +518,19 @@ class ParsePredicateIterator : public StackObj {
   ParsePredicateNode* next();
 };
 
-// This class walks over all sub-loops of the `_ltree_root` IdealLoopTree and executes a callback function on each loop.
-class LoopTreeIteratorLoopPredication : public StackObj {
-  Compile* C;
-  IdealLoopTree* _ltree_root;
-  void (*_callback)(IdealLoopTree*);
-
-  void walk(IdealLoopTree* loop);
-
- public:
-  LoopTreeIteratorLoopPredication(Compile* C, IdealLoopTree* ltree_root, void (*callback)(IdealLoopTree*))
-      : C(C),
-        _ltree_root(ltree_root),
-        _callback(callback) {}
-
-  void walk() {
-    if (C->has_loops()) {
-      walk(_ltree_root);
-    }
-  }
-};
-
-// This class marks predicates as useful.
-class UsefulPredicateMarker : public StackObj {
- private:
-  template<typename PredicateNode, typename Iterator> static void mark(const Predicates& predicates);
-
-  static void mark_parse_predicates(const Predicates& predicates) {
-    mark<ParsePredicateNode, ParsePredicateIterator>(predicates);
-  }
-
-  static void mark_template_assertion_predicates(const Predicates& predicates) {
-    mark<TemplateAssertionPredicateNode, TemplateAssertionPredicateIterator>(predicates);
-  }
-
- public:
-  static void mark_predicates(IdealLoopTree* loop) {
-    Node* entry = loop->_head->in(LoopNode::EntryControl);
-    const Predicates predicates(entry);
-    mark_parse_predicates(predicates);
-    mark_template_assertion_predicates(predicates);
-  }
-};
-
-// Eliminate all useless Parse and Template Assertion Predicates by marking them as useless and adding them to the IGVN
-// worklist.
-class EliminateUselessPredicates : public StackObj {
+// Eliminate all useless Parse Predicates by marking them as useless and adding them to the IGVN worklist. These are
+// then removed in the next IGVN round.
+class EliminateUselessParsePredicates : public StackObj {
   Compile* C;
   PhaseIterGVN* _igvn;
   IdealLoopTree* _ltree_root;
 
-  template<typename Predicate_List> static void mark_predicates_useless(Predicate_List predicate_list);
-  template<typename Predicate_List> void add_useless_predicates_to_igvn(Predicate_List predicate_list);
+  void mark_all_parse_predicates_useless();
+  static void mark_parse_predicates_useful(IdealLoopTree* loop);
+  void add_useless_predicates_to_igvn();
 
  public:
-  EliminateUselessPredicates(Compile* C, PhaseIterGVN* igvn, IdealLoopTree* ltree_root)
+  EliminateUselessParsePredicates(Compile* C, PhaseIterGVN* igvn, IdealLoopTree* ltree_root)
       : C(C),
         _igvn(igvn),
         _ltree_root(ltree_root) {}
@@ -1027,7 +985,8 @@ class TemplateAssertionPredicateBools : public StackObj {
 
   BoolNode* create_for_last_value(Node* new_ctrl, OpaqueLoopInitNode* opaque_init, bool& overflow) {
     Node* last_value = create_last_value(new_ctrl, opaque_init);
-    return _phase->rc_predicate(_loop, new_ctrl, _scale, _offset, last_value, nullptr, _stride, _range, _upper, overflow, _negate);
+    return _phase->rc_predicate(_loop, new_ctrl, _scale, _offset, last_value, nullptr, _stride, _range, _upper,
+                                overflow,_negate);
   }
 };
 

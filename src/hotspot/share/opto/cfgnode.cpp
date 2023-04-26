@@ -2678,7 +2678,6 @@ TemplateAssertionPredicateNode::TemplateAssertionPredicateNode(Node* control, Bo
   init_class_id(Class_TemplateAssertionPredicate);
   init_flags(Flag_is_macro);
   C->add_macro_node(this);
-  C->add_template_assertion_predicate(this);
 }
 
 IfNode* TemplateAssertionPredicateNode::create_initialized_assertion_predicate(

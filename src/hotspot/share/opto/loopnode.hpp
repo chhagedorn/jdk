@@ -1366,7 +1366,7 @@ public:
   TemplateAssertionPredicateNode* add_range_check_elimination_assertion_predicates(IdealLoopTree* loop, int scale,
                                                                                    Node* offset, Node* range);
 
-  void eliminate_useless_predicates();
+  void eliminate_useless_parse_predicates();
 
   void verify_fast_loop(LoopNode* head, const ProjNode* proj_true) const NOT_DEBUG_RETURN;
  public:

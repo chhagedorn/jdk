@@ -131,52 +131,42 @@ ParsePredicateNode* ParsePredicateIterator::next() {
   return _parse_predicates.at(_current_index++);
 }
 
-void LoopTreeIteratorLoopPredication::walk(IdealLoopTree* loop) {
-  if (loop->_child) { // child
-    walk(loop->_child);
+void EliminateUselessParsePredicates::eliminate() {
+  mark_all_parse_predicates_useless();
+
+  for (LoopTreeIterator iterator(_ltree_root); !iterator.done(); iterator.next()) {
+    IdealLoopTree* loop = iterator.current();
+    mark_parse_predicates_useful(loop);
   }
 
+  add_useless_predicates_to_igvn();
+}
+
+void EliminateUselessParsePredicates::mark_all_parse_predicates_useless() {
+  for (int i = 0; i < C->parse_predicates().length(); i++) {
+    C->parse_predicates().at(i)->mark_useless();
+  }
+}
+
+void EliminateUselessParsePredicates::mark_parse_predicates_useful(IdealLoopTree* loop) {
   if (loop->can_apply_loop_predication()) {
-    _callback(loop);
-  }
+    Node* entry = loop->_head->in(LoopNode::EntryControl);
+    const Predicates predicates(entry);
 
-  if (loop->_next) { // sibling
-    walk(loop->_next);
-  }
-}
-
-template<typename PredicateNode, typename Iterator> void UsefulPredicateMarker::mark(const Predicates& predicates) {
-  Iterator iterator(predicates);
-  while (iterator.has_next()) {
-    iterator.next()->mark_useful();
-  }
-}
-
-template<typename Predicate_List>
-void EliminateUselessPredicates::mark_predicates_useless(Predicate_List predicate_list) {
-  for (int i = 0; i < predicate_list.length(); i++) {
-    predicate_list.at(i)->mark_useless();
-  }
-}
-
-template<typename Predicate_List>
-void EliminateUselessPredicates::add_useless_predicates_to_igvn(Predicate_List predicate_list) {
-  for (int i = 0; i < predicate_list.length(); i++) {
-    auto predicate_node = predicate_list.at(i);
-    if (predicate_node->is_useless()) {
-      _igvn->_worklist.push(predicate_node);
+    ParsePredicateIterator iterator(predicates);
+    while (iterator.has_next()) {
+      iterator.next()->mark_useful();
     }
   }
 }
 
-void EliminateUselessPredicates::eliminate() {
-  mark_predicates_useless(C->parse_predicates());
-  mark_predicates_useless(C->template_assertion_predicates());
-
-  LoopTreeIteratorLoopPredication iterator(C, _ltree_root, UsefulPredicateMarker::mark_predicates);
-  iterator.walk();
-  add_useless_predicates_to_igvn(C->parse_predicates());
-  add_useless_predicates_to_igvn(C->template_assertion_predicates());
+void EliminateUselessParsePredicates::add_useless_predicates_to_igvn() {
+  for (int i = 0; i < C->parse_predicates().length(); i++) {
+    ParsePredicateNode* predicate_node = C->parse_predicates().at(i);
+    if (predicate_node->is_useless()) {
+      _igvn->_worklist.push(predicate_node);
+    }
+  }
 }
 
 void ParsePredicates::clone_parse_predicate(const RegularPredicateBlock* regular_predicate_block) {
