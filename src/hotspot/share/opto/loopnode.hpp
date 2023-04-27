@@ -37,6 +37,7 @@ class CountedLoopNode;
 class IdealLoopTree;
 class LoopNode;
 class Node;
+class NodeInTargetLoop;
 class OuterStripMinedLoopEndNode;
 class RegularPredicateBlock;
 class PathFrequency;
@@ -1268,9 +1269,9 @@ public:
   // old_new is a temp array.
   void do_peeling( IdealLoopTree *loop, Node_List &old_new );
   static void create_assertion_predicates(CountedLoopNode* source_loop_head, CountedLoopNode* target_loop_head,
-                                          IdealLoopTree* loop, uint first_cloned_loop_node_index);
+                                          IdealLoopTree* loop, NodeInTargetLoop* node_in_target_loop);
   static void replace_assertion_predicates(CountedLoopNode* source_loop_head, CountedLoopNode* target_loop_head,
-                                           IdealLoopTree* loop, uint first_cloned_loop_node_index);
+                                           IdealLoopTree* loop, NodeInTargetLoop* node_in_target_loop);
   static void update_assertion_predicates_during_unroll(CountedLoopNode* loop_head, IdealLoopTree* loop);
 
   // Add pre and post loops around the given loop.  These loops are used

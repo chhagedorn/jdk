@@ -775,7 +775,8 @@ void PhaseIdealLoop::do_peeling(IdealLoopTree *loop, Node_List &old_new) {
 
   // Step 5: Assertion Predicates initialization
   if (counted_loop && UseLoopPredicate) {
-    replace_assertion_predicates(new_head->as_CountedLoop(), head->as_CountedLoop(), loop, first_peeled_loop_node_index);
+    NodeInOriginalLoop node_in_original_loop(first_peeled_loop_node_index, &old_new);
+    replace_assertion_predicates(new_head->as_CountedLoop(), head->as_CountedLoop(), loop, &node_in_original_loop);
   }
 
   // Now force out all loop-invariant dominating tests.  The optimizer
@@ -785,16 +786,25 @@ void PhaseIdealLoop::do_peeling(IdealLoopTree *loop, Node_List &old_new) {
   loop->record_for_igvn();
 }
 
+// Creates new Assertion Predicates at the 'target_loop_head'. A new Template Assertion Predicate is inserted with the
+// new init and stride values of the target loop for each existing Template Assertion Predicate found at source loop.
+// Afterward, Initialized Assertion Predicates are created based on the newly created templates.
+// 'node_in_target_loop' decides if a node belongs to the target loop or not.
 void PhaseIdealLoop::create_assertion_predicates(CountedLoopNode* source_loop_head, CountedLoopNode* target_loop_head,
-                                                 IdealLoopTree* loop, const uint first_cloned_loop_node_index) {
+                                                 IdealLoopTree* loop, NodeInTargetLoop* node_in_target_loop) {
   AssertionPredicates assertion_predicates(source_loop_head, loop);
-  assertion_predicates.create_at(target_loop_head, first_cloned_loop_node_index);
+  assertion_predicates.create_at(target_loop_head, node_in_target_loop);
 }
 
+// Creates new Assertion Predicates at the 'target_loop_head'. A new Template Assertion Predicate is inserted with the
+// new init and stride values of the target loop for each existing Template Assertion Predicate found at source loop.
+// The existing Template Assertion Predicates at the source loop are removed.
+// Afterward, Initialized Assertion Predicates are created based on the newly created templates.
+// 'node_in_target_loop' decides if a node belongs to the target loop or not.
 void PhaseIdealLoop::replace_assertion_predicates(CountedLoopNode* source_loop_head, CountedLoopNode* target_loop_head,
-                                                 IdealLoopTree* loop, const uint first_cloned_loop_node_index) {
+                                                 IdealLoopTree* loop, NodeInTargetLoop* node_in_target_loop) {
   AssertionPredicates assertion_predicates(source_loop_head, loop);
-  assertion_predicates.replace_to(target_loop_head, first_cloned_loop_node_index);
+  assertion_predicates.replace_to(target_loop_head, node_in_target_loop);
 }
 
 void PhaseIdealLoop::update_assertion_predicates_during_unroll(CountedLoopNode* loop_head, IdealLoopTree* loop) {
@@ -1445,7 +1455,8 @@ void PhaseIdealLoop::insert_pre_post_loops(IdealLoopTree *loop, Node_List &old_n
   // CastII for the main loop:
   Node* castii = cast_incr_before_loop(pre_incr, min_taken, main_head);
   assert(castii != nullptr, "no castII inserted");
-  replace_assertion_predicates(pre_head, main_head, loop, first_pre_loop_node_index);
+  NodeInOriginalLoop node_in_original_loop(first_pre_loop_node_index, &old_new);
+  replace_assertion_predicates(pre_head, main_head, loop, &node_in_original_loop);
 
   // Step B4: Shorten the pre-loop to run only 1 iteration (for now).
   // RCE and alignment may change this later.
@@ -1715,7 +1726,8 @@ Node *PhaseIdealLoop::insert_post_loop(IdealLoopTree* loop, Node_List& old_new, 
   incr = cast_incr_before_loop(zer_opaq->in(1), zer_taken, post_head);
   assert(incr != nullptr, "no castII inserted");
 
-  create_assertion_predicates(main_head, post_head, loop, first_post_loop_node_index);
+  NodeInClonedLoop node_in_cloned_loop(first_post_loop_node_index);
+  create_assertion_predicates(main_head, post_head, loop, &node_in_cloned_loop);
   return new_main_exit;
 }
 

@@ -352,7 +352,6 @@ class TemplateAssertionPredicateIterator : public StackObj {
   Node* _current;
 
  public:
-  TemplateAssertionPredicateIterator(const Predicates& predicates);
   TemplateAssertionPredicateIterator(const TemplateAssertionPredicateBlock* template_assertion_predicate_block);
   TemplateAssertionPredicateIterator(Node* maybe_template_assertion_predicate)
       : _current(maybe_template_assertion_predicate) {}
@@ -670,18 +669,19 @@ class ReplaceOpaqueLoopInitAndStride : public ReplaceOpaqueLoopNodes {
 
 // Interface to check if an output node of a Template Assertion Predicate node, from which we created a new Template
 // Assertion Predicate, belongs to the target loop or not. Based on whether the target loop is the cloned or the original
-// loop, the answer can vary and is determined by checking the first node index of the cloned loop.
-class NodeInTargetLoop : public ResourceObj {
+// loop, the answer can vary and is determined by checking the first node index of the cloned loop and/or the mapping
+// of old nodes to cloned nodes.
+class NodeInTargetLoop : public StackObj {
  public:
   virtual bool check(Node* node) = 0;
 };
 
 // Strategy to check if a node belongs to the cloned loop which is the target loop.
-class ClonedTargetLoopNode : public NodeInTargetLoop {
+class NodeInClonedLoop : public NodeInTargetLoop {
   uint _first_node_index_in_cloned_loop;
 
  public:
-  explicit ClonedTargetLoopNode(uint first_node_index_in_cloned_loop)
+  explicit NodeInClonedLoop(uint first_node_index_in_cloned_loop)
       : _first_node_index_in_cloned_loop(first_node_index_in_cloned_loop) {}
 
   bool check(Node* node) override {
@@ -690,15 +690,24 @@ class ClonedTargetLoopNode : public NodeInTargetLoop {
 };
 
 // Strategy to check if a node belongs to the original loop which is the target loop.
-class OriginalTargetLoopNode : public NodeInTargetLoop {
+class NodeInOriginalLoop : public NodeInTargetLoop {
   uint _first_node_index_in_cloned_loop;
+  Node_List* _old_new;
 
  public:
-  explicit OriginalTargetLoopNode(uint first_node_index_in_cloned_loop)
-       : _first_node_index_in_cloned_loop(first_node_index_in_cloned_loop) {}
+  explicit NodeInOriginalLoop(uint first_node_index_in_cloned_loop, Node_List* old_new)
+       : _first_node_index_in_cloned_loop(first_node_index_in_cloned_loop),
+         _old_new(old_new) {}
 
+  // Check if 'node' is not a cloned node (i.e. < _first_node_index_in_cloned_loop) and if we've created a clone from
+  // it (with _old_new). If there is a clone, we know that 'node' belongs to the original loop.
   bool check(Node* node) override {
-    return node->_idx < _first_node_index_in_cloned_loop;
+    if (node->_idx < _first_node_index_in_cloned_loop) {
+      Node* cloned_node = _old_new->at(node->_idx);
+      return cloned_node != nullptr && cloned_node->_idx >= _first_node_index_in_cloned_loop;
+    } else {
+      return false;
+    }
   }
 };
 
@@ -923,15 +932,7 @@ class AssertionPredicates {
   IdealLoopTree* _outer_target_loop;
   PhaseIdealLoop* _phase;
 
-  void create_template_predicates(CountedLoopNode* target_loop_head, uint first_cloned_loop_node_index);
-
-  NodeInTargetLoop* create_node_in_target_loop(CountedLoopNode* target_loop_head, const uint first_cloned_loop_node_index) {
-    if (_source_loop_head->_idx < target_loop_head->_idx) {
-      return new ClonedTargetLoopNode(first_cloned_loop_node_index);
-    } else {
-      return new OriginalTargetLoopNode(first_cloned_loop_node_index);
-    }
-  }
+  void create_template_predicates(CountedLoopNode* target_loop_head, NodeInTargetLoop* node_in_target_loop);
 
   Node* create_stride(int stride_con);
   void update_templates() const;
@@ -947,8 +948,8 @@ class AssertionPredicates {
     return _source_loop_predicates.template_assertion_predicate_block()->has_any();
   }
 
-  void create_at(CountedLoopNode* target_loop_head, uint first_cloned_loop_node_index);
-  void replace_to(CountedLoopNode* target_loop_head, uint first_cloned_loop_node_index);
+  void create_at(CountedLoopNode* target_loop_head, NodeInTargetLoop* node_in_target_loop);
+  void replace_to(CountedLoopNode* target_loop_head, NodeInTargetLoop* node_in_target_loop);
   void create_at_source_loop(int new_stride_con);
 };
 

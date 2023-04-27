@@ -58,9 +58,6 @@ bool RuntimePredicate::is_success_proj(Node* node, Deoptimization::DeoptReason d
   }
 }
 
-TemplateAssertionPredicateIterator::TemplateAssertionPredicateIterator(const Predicates& predicates)
-    : _current(predicates.template_assertion_predicate_block()->last()) {}
-
 TemplateAssertionPredicateIterator::TemplateAssertionPredicateIterator(
     const TemplateAssertionPredicateBlock* template_assertion_predicate_block)
     : _current(template_assertion_predicate_block->last()) {}
@@ -468,11 +465,10 @@ IfNode* InitializedAssertionPredicates::create_last_value_assertion_predicate(
 // Creates new Assertion Predicates at the 'target_loop_head'. A new Template Assertion Predicate is inserted with the
 // new init and stride values of the target loop for each existing Template Assertion Predicate found at source loop.
 // Afterward, Initialized Assertion Predicates are created based on the newly created templates.
-// 'first_cloned_loop_index' is the first (i.e. smallest) node index found in the cloned loop of the current loop optimization.
-void AssertionPredicates::create_at(CountedLoopNode* target_loop_head, const uint first_cloned_loop_node_index) {
+void AssertionPredicates::create_at(CountedLoopNode* target_loop_head, NodeInTargetLoop* node_in_target_loop) {
   if (has_any()) {
     Node* initial_target_loop_entry = target_loop_head->skip_strip_mined()->in(LoopNode::EntryControl);
-    create_template_predicates(target_loop_head, first_cloned_loop_node_index);
+    create_template_predicates(target_loop_head, node_in_target_loop);
     InitializedAssertionPredicates initialized_assertion_predicates(target_loop_head->init_trip(),
                                                                     target_loop_head->stride(),
                                                                     initial_target_loop_entry,_outer_target_loop);
@@ -485,10 +481,9 @@ void AssertionPredicates::create_at(CountedLoopNode* target_loop_head, const uin
 // with the  new init and stride values of the target loop for each existing Template Assertion Predicate found at source
 // loop.
 void AssertionPredicates::create_template_predicates(CountedLoopNode* target_loop_head,
-                                                     const uint first_cloned_loop_node_index) {
+                                                     NodeInTargetLoop* node_in_target_loop) {
   TemplateAssertionPredicates template_assertion_predicates(_source_loop_predicates.template_assertion_predicate_block(),
                                                             _phase);
-  NodeInTargetLoop* node_in_target_loop = create_node_in_target_loop(target_loop_head, first_cloned_loop_node_index);
   TemplateAssertionPredicateNode* new_target_loop_entry =
       template_assertion_predicates.clone_and_update_to(target_loop_head, node_in_target_loop);
   _phase->replace_loop_entry(target_loop_head->skip_strip_mined(), new_target_loop_entry);
@@ -498,10 +493,9 @@ void AssertionPredicates::create_template_predicates(CountedLoopNode* target_loo
 // new init and stride values of the target loop for each existing Template Assertion Predicate found at source loop.
 // The existing Template Assertion Predicates at the source loop are removed.
 // Afterward, Initialized Assertion Predicates are created based on the newly created templates.
-// 'first_cloned_loop_index' is the first (i.e. smallest) node index found in the cloned loop of the current loop optimization.
-void AssertionPredicates::replace_to(CountedLoopNode* target_loop_head, const uint first_cloned_loop_node_index) {
+void AssertionPredicates::replace_to(CountedLoopNode* target_loop_head, NodeInTargetLoop* node_in_target_loop) {
   if (has_any()) {
-    create_at(target_loop_head, first_cloned_loop_node_index);
+    create_at(target_loop_head, node_in_target_loop);
     _source_loop_predicates.template_assertion_predicate_block()->mark_useless(&_phase->igvn());
   }
 }
