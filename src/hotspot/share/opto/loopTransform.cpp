@@ -2963,7 +2963,8 @@ void PhaseIdealLoop::do_range_check(IdealLoopTree *loop, Node_List &old_new) {
   set_ctrl(mini, C->root());
 
   Node* loop_entry = cl->skip_strip_mined()->in(LoopNode::EntryControl);
-  assert(loop_entry->is_Proj() && loop_entry->in(0)->is_If(), "if projection only");
+  assert((loop_entry->is_Proj() && loop_entry->in(0)->is_If()) || loop_entry->is_TemplateAssertionPredicate(),
+         "if projection or Template Assertion Predicate");
 
   // Check loop body for tests of trip-counter plus loop-invariant vs loop-variant.
   for (uint i = 0; i < loop->_body.size(); i++) {

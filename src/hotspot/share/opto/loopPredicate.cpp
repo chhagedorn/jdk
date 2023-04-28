@@ -98,44 +98,42 @@ void PhaseIdealLoop::register_control(Node* n, IdealLoopTree *loop, Node* pred, 
 //
 // We will create a region to guard the uct call if there is no one there.
 // The continuation projection (if_cont) of the new_iff is returned which
-// is an IfTrue projection. This code is also used to clone predicates to cloned loops.
-IfProjNode* PhaseIdealLoop::create_new_if_for_predicate(IfProjNode* cont_proj, Node* new_entry,
-                                                        Deoptimization::DeoptReason reason,
+// is an IfTrue projection.
+IfTrueNode* PhaseIdealLoop::create_new_if_for_predicate(ParsePredicateSuccessProj* parse_predicate_success_proj,
+                                                        Node* new_entry, Deoptimization::DeoptReason reason,
                                                         const int opcode, const bool rewire_uncommon_proj_phi_inputs) {
-  assert(cont_proj->is_uncommon_trap_if_pattern(reason), "must be a uct if pattern!");
-  IfNode* iff = cont_proj->in(0)->as_If();
-
-  ProjNode *uncommon_proj = iff->proj_out(1 - cont_proj->_con);
-  Node     *rgn   = uncommon_proj->unique_ctrl_out();
-  assert(rgn->is_Region() || rgn->is_Call(), "must be a region or call uct");
+  assert(parse_predicate_success_proj->is_uncommon_trap_if_pattern(reason), "must be a uct if pattern!");
+  ParsePredicateNode* parse_predicate = parse_predicate_success_proj->in(0)->as_ParsePredicate();
+  ParsePredicateUncommonProj* uncommon_proj = parse_predicate->uncommon_proj();
+  Node* uncommon_trap = parse_predicate->uncommon_trap();
 
   uint proj_index = 1; // region's edge corresponding to uncommon_proj
-  if (!rgn->is_Region()) { // create a region to guard the call
-    assert(rgn->is_Call(), "must be call uct");
-    CallNode* call = rgn->as_Call();
+  if (!uncommon_trap->is_Region()) { // create a region to guard the call
+    assert(uncommon_trap->is_Call(), "must be call uct");
+    CallNode* call = uncommon_trap->as_Call();
     IdealLoopTree* loop = get_loop(call);
-    rgn = new RegionNode(1);
+    uncommon_trap = new RegionNode(1);
     Node* uncommon_proj_orig = uncommon_proj;
-    uncommon_proj = uncommon_proj->clone()->as_Proj();
-    register_control(uncommon_proj, loop, iff);
-    rgn->add_req(uncommon_proj);
-    register_control(rgn, loop, uncommon_proj);
-    _igvn.replace_input_of(call, 0, rgn);
+    uncommon_proj = uncommon_proj->clone()->as_IfFalse();
+    register_control(uncommon_proj, loop, parse_predicate);
+    uncommon_trap->add_req(uncommon_proj);
+    register_control(uncommon_trap, loop, uncommon_proj);
+    _igvn.replace_input_of(call, 0, uncommon_trap);
     // When called from beautify_loops() idom is not constructed yet.
     if (_idom != nullptr) {
-      set_idom(call, rgn, dom_depth(rgn));
+      set_idom(call, uncommon_trap, dom_depth(uncommon_trap));
     }
     // Move nodes pinned on the projection or whose control is set to
     // the projection to the region.
-    lazy_replace(uncommon_proj_orig, rgn);
+    lazy_replace(uncommon_proj_orig, uncommon_trap);
   } else {
     // Find region's edge corresponding to uncommon_proj
-    for (; proj_index < rgn->req(); proj_index++)
-      if (rgn->in(proj_index) == uncommon_proj) break;
-    assert(proj_index < rgn->req(), "sanity");
+    for (; proj_index < uncommon_trap->req(); proj_index++)
+      if (uncommon_trap->in(proj_index) == uncommon_proj) break;
+    assert(proj_index < uncommon_trap->req(), "sanity");
   }
 
-  Node* entry = iff->in(0);
+  Node* entry = parse_predicate->in(0);
   if (new_entry != nullptr) {
     // Cloning the predicate to new location.
     entry = new_entry;
@@ -145,10 +143,10 @@ IfProjNode* PhaseIdealLoop::create_new_if_for_predicate(IfProjNode* cont_proj, N
   IfNode* new_iff = nullptr;
   switch (opcode) {
     case Op_If:
-      new_iff = new IfNode(entry, iff->in(1), iff->_prob, iff->_fcnt);
+      new_iff = new IfNode(entry, parse_predicate->in(1), parse_predicate->_prob, parse_predicate->_fcnt);
       break;
     case Op_RangeCheck:
-      new_iff = new RangeCheckNode(entry, iff->in(1), iff->_prob, iff->_fcnt);
+      new_iff = new RangeCheckNode(entry, parse_predicate->in(1), parse_predicate->_prob, parse_predicate->_fcnt);
       break;
     case Op_ParsePredicate:
       new_iff = new ParsePredicateNode(entry, reason, &_igvn);
@@ -157,33 +155,30 @@ IfProjNode* PhaseIdealLoop::create_new_if_for_predicate(IfProjNode* cont_proj, N
       fatal("no other If variant here");
   }
   register_control(new_iff, lp, entry);
-  IfProjNode* if_cont = new IfTrueNode(new_iff);
-  IfProjNode* if_uct  = new IfFalseNode(new_iff);
 
-  if (cont_proj->is_IfFalse()) {
-    // Swap
-    IfProjNode* tmp = if_uct; if_uct = if_cont; if_cont = tmp;
-  }
+  IfTrueNode* if_cont = new IfTrueNode(new_iff);
+  IfFalseNode* if_uct = new IfFalseNode(new_iff);
+
   register_control(if_cont, lp, new_iff);
-  register_control(if_uct, get_loop(rgn), new_iff);
+  register_control(if_uct, get_loop(uncommon_trap), new_iff);
 
-  _igvn.add_input_to(rgn, if_uct);
+  _igvn.add_input_to(uncommon_trap, if_uct);
 
   // When called from beautify_loops() idom is not constructed yet.
   if (_idom != nullptr) {
-    Node* ridom = idom(rgn);
+    Node* ridom = idom(uncommon_trap);
     Node* nrdom = dom_lca_internal(ridom, new_iff);
-    set_idom(rgn, nrdom, dom_depth(rgn));
+    set_idom(uncommon_trap, nrdom, dom_depth(uncommon_trap));
   }
 
   // If rgn has phis add new edges which has the same
   // value as on original uncommon_proj pass.
-  assert(rgn->in(rgn->req() -1) == if_uct, "new edge should be last");
+  assert(uncommon_trap->in(uncommon_trap->req() - 1) == if_uct, "new edge should be last");
   bool has_phi = false;
-  for (DUIterator_Fast imax, i = rgn->fast_outs(imax); i < imax; i++) {
-    Node* use = rgn->fast_out(i);
+  for (DUIterator_Fast imax, i = uncommon_trap->fast_outs(imax); i < imax; i++) {
+    Node* use = uncommon_trap->fast_out(i);
     if (use->is_Phi() && use->outcnt() > 0) {
-      assert(use->in(0) == rgn, "");
+      assert(use->in(0) == uncommon_trap, "");
       _igvn.rehash_node_delayed(use);
       Node* phi_input = use->in(proj_index);
 
@@ -204,16 +199,16 @@ IfProjNode* PhaseIdealLoop::create_new_if_for_predicate(IfProjNode* cont_proj, N
       has_phi = true;
     }
   }
-  assert(!has_phi || rgn->req() > 3, "no phis when region is created");
+  assert(!has_phi || uncommon_trap->req() > 3, "no phis when region is created");
 
   if (new_entry == nullptr) {
     // Attach if_cont to iff
-    _igvn.replace_input_of(iff, 0, if_cont);
+    _igvn.replace_input_of(parse_predicate, 0, if_cont);
     if (_idom != nullptr) {
-      set_idom(iff, if_cont, dom_depth(iff));
+      set_idom(parse_predicate, if_cont, dom_depth(parse_predicate));
     }
   }
-  return if_cont->as_IfProj();
+  return if_cont;
 }
 
 // Update ctrl and control inputs of all data nodes starting from 'node' to 'new_ctrl' which have 'old_ctrl' as
