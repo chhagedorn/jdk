@@ -1234,9 +1234,8 @@ bool PhaseIdealLoop::loop_predication_impl_helper(IdealLoopTree* loop, IfProjNod
     // Fall through into rest of the cleanup code which will move any dependent nodes to the skeleton predicates of the
     // upper bound test. We always need to create skeleton predicates in order to properly remove dead loops when later
     // splitting the predicated loop into (unreachable) sub-loops (i.e. done by unrolling, peeling, pre/main/post etc.).
-      TemplateAssertionPredicateNode* template_assertion_predicate_node =
-          add_template_assertion_predicate(iff->Opcode(), loop, if_proj, parse_predicate_proj, upper_bound_proj,
-                                           scale, offset, init, limit, stride, rng, overflow);
+    TemplateAssertionPredicateNode* template_assertion_predicate_node =
+        add_template_assertion_predicate(if_opcode, loop, upper_bound_proj, scale, offset, rng, negate);
 
     rewire_safe_outputs_to_dominator(if_proj, template_assertion_predicate_node);
     new_predicate_proj = upper_bound_proj;
@@ -1266,19 +1265,18 @@ bool PhaseIdealLoop::loop_predication_impl_helper(IdealLoopTree* loop, IfProjNod
 // by making a copy of them when splitting a loop into sub loops. The Assertion Predicates ensure that dead sub loops
 // are removed properly.
 TemplateAssertionPredicateNode* PhaseIdealLoop::add_template_assertion_predicate(int if_opcode, IdealLoopTree* loop,
-                                                                                 IfProjNode* if_proj,
-                                                                                 IfProjNode* predicate_proj,
-                                                                                 IfProjNode* upper_bound_proj, int scale,
-                                                                                 Node* offset, Node* init, Node* limit,
-                                                                                 jint stride, Node* rng,
-                                                                                 bool& overflow) {
-  // First predicate for the initial value on first loop iteration
-  Node* opaque_init = new OpaqueLoopInitNode(C, init);
-  register_new_node(opaque_init, upper_bound_proj);
-  bool negate = (if_proj->_con != predicate_proj->_con);
-  BoolNode* bol_init = rc_predicate(loop, upper_bound_proj, scale, offset, opaque_init, limit, stride, rng,
-                                    (stride > 0) != (scale > 0), overflow, negate);
+                                                                                 IfProjNode* new_ctrl, int scale,
+                                                                                 Node* offset, Node* rng, bool negate) {
+  CountedLoopNode* loop_head = loop->_head->as_CountedLoop();
+  const jint stride = loop_head->stride()->get_int();
 
+  // First predicate for the initial value on first loop iteration
+  OpaqueLoopInitNode* opaque_init = new OpaqueLoopInitNode(C, loop_head->init_trip());
+  register_new_node(opaque_init, new_ctrl);
+  const bool upper = (stride > 0) != (scale > 0); // Make sure, rc_predicate chooses "scale*init + offset" case.
+  bool overflow;
+  BoolNode* bol_init = rc_predicate(loop, new_ctrl, scale, offset, opaque_init, nullptr, stride, rng, upper,
+                                    overflow, negate);
   assert(opaque_init->outcnt() > 0, "should be used");
 
   // Second predicate for init + (current stride - initial stride)
@@ -1286,18 +1284,18 @@ TemplateAssertionPredicateNode* PhaseIdealLoop::add_template_assertion_predicate
   // unrolling proceeds current stride is updated.
   Node* init_stride = loop->_head->as_CountedLoop()->stride();
   Node* opaque_stride = new OpaqueLoopStrideNode(C, init_stride);
-  register_new_node(opaque_stride, predicate_proj);
-  Node* max_value = new SubINode(opaque_stride, init_stride);
-  register_new_node(max_value, predicate_proj);
-  max_value = new AddINode(opaque_init, max_value);
-  register_new_node(max_value, predicate_proj);
-  CountedLoopNode* loop_head = loop->_head->as_CountedLoop();
+  register_new_node(opaque_stride, new_ctrl);
+  Node* last_value = new SubINode(opaque_stride, init_stride);
+  register_new_node(last_value, new_ctrl);
+  last_value = new AddINode(opaque_init, last_value);
+  register_new_node(last_value, new_ctrl);
   // init + (current stride - initial stride) is within the loop so narrow its type by leveraging the type of the iv Phi
-  max_value = new CastIINode(max_value, loop_head->phi()->bottom_type());
-  register_new_node(max_value, predicate_proj);
+  last_value = new CastIINode(last_value, loop_head->phi()->bottom_type());
+  register_new_node(last_value, new_ctrl);
+  BoolNode* bol_last = rc_predicate(loop, new_ctrl, scale, offset, last_value, nullptr, stride, rng,
+                                    upper, overflow, negate);
 
-  BoolNode* bol_last = rc_predicate(loop, predicate_proj, scale, offset, max_value, limit, stride, rng, (stride > 0) != (scale > 0), overflow, negate);
-  assert(max_value->outcnt() > 0, "should be used");
+  assert(last_value->outcnt() > 0, "should be used");
   LoopNode* outer_head = loop_head->skip_strip_mined();
   Node* outer_loop_entry = outer_head->in(LoopNode::EntryControl);
   TemplateAssertionPredicateNode* template_assertion_predicate_node
