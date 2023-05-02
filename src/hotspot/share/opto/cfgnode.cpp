@@ -2664,6 +2664,31 @@ const RegMask &GotoNode::out_RegMask() const {
   return RegMask::Empty;
 }
 
+
+TemplateAssertionPredicateNode::TemplateAssertionPredicateNode(Node* control, BoolNode* bol_init_value,
+                                                               BoolNode* bol_last_value,
+                                                               int initialized_opcode, Compile* C)
+    : Node(control, bol_init_value, bol_last_value),
+      _initialized_opcode(initialized_opcode),
+      _useless(false) {
+  assert(initialized_opcode == Op_If || initialized_opcode == Op_RangeCheck, "invalid opcode");
+  init_class_id(Class_TemplateAssertionPredicate);
+  init_flags(Flag_is_macro);
+  C->add_macro_node(this);
+}
+
+Node* TemplateAssertionPredicateNode::Identity(PhaseGVN* phase) {
+  if (_useless) {
+    return in(0);
+  } else {
+    return this;
+  }
+}
+
+const Type* TemplateAssertionPredicateNode::Value(PhaseGVN* phase) const {
+  return phase->type(in(0));
+}
+
 //=============================================================================
 const RegMask &JumpNode::out_RegMask() const {
   return RegMask::Empty;

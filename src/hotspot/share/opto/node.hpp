@@ -162,6 +162,7 @@ class State;
 class StoreNode;
 class SubNode;
 class SubTypeCheckNode;
+class TemplateAssertionPredicateNode;
 class Type;
 class TypeNode;
 class UnlockNode;
@@ -774,6 +775,7 @@ public:
     DEFINE_CLASS_ID(Opaque1,  Node, 16)
     DEFINE_CLASS_ID(Move,     Node, 17)
     DEFINE_CLASS_ID(LShift,   Node, 18)
+    DEFINE_CLASS_ID(TemplateAssertionPredicate, Node, 19)
 
     _max_classes  = ClassMask_LShift
   };
@@ -965,6 +967,7 @@ public:
   DEFINE_CLASS_QUERY(StoreVector)
   DEFINE_CLASS_QUERY(StoreVectorScatter)
   DEFINE_CLASS_QUERY(ShiftV)
+  DEFINE_CLASS_QUERY(TemplateAssertionPredicate)
   DEFINE_CLASS_QUERY(Unlock)
 
   #undef DEFINE_CLASS_QUERY

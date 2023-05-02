@@ -285,6 +285,29 @@ public:
   virtual const RegMask &out_RegMask() const;
 };
 
+class TemplateAssertionPredicateNode : public Node {
+  int _initialized_opcode;
+  bool _useless; // If the associated loop dies, this template assertion predicate becomes useless and can be cleaned up by Identity().
+
+  virtual uint size_of() const { return sizeof(*this); }
+ public:
+  // Named bool inputs.
+  enum { InitValue = 1, LastValue = 2 };
+
+  TemplateAssertionPredicateNode(Node* control, BoolNode* bol_init_value, BoolNode* bol_last_value,
+                                 int initialized_opcode, Compile* C);
+
+  virtual int Opcode() const;
+  virtual bool pinned() const { return true; }
+  virtual bool is_CFG() const { return true; }
+  virtual uint hash() const { return NO_HASH; }  // CFG nodes do not hash
+  virtual bool depends_only_on_test() const { return false; }
+  virtual const Type* bottom_type() const { return Type::CONTROL; }
+//  virtual const Type* Value(PhaseGVN* phase) const;
+  virtual Node* Identity(PhaseGVN* phase);
+  virtual const Type* Value(PhaseGVN* phase) const;
+};
+
 //------------------------------CProjNode--------------------------------------
 // control projection for node that produces multiple control-flow paths
 class CProjNode : public ProjNode {

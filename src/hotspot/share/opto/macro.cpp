@@ -2375,6 +2375,7 @@ void PhaseMacroExpand::eliminate_macro_nodes() {
                n->Opcode() == Op_Opaque4   ||
                n->Opcode() == Op_MaxL      ||
                n->Opcode() == Op_MinL      ||
+               n->is_TemplateAssertionPredicate() ||
                BarrierSet::barrier_set()->barrier_set_c2()->is_gc_barrier_node(n),
                "unknown node type in macro list");
       }
@@ -2454,6 +2455,9 @@ bool PhaseMacroExpand::expand_macro_nodes() {
 #else
         _igvn.replace_node(n, n->in(2));
 #endif
+        success = true;
+      } else if (n->is_TemplateAssertionPredicate()) {
+        _igvn.replace_node(n, n->in(0));
         success = true;
       } else if (n->Opcode() == Op_OuterStripMinedLoop) {
         n->as_OuterStripMinedLoop()->adjust_strip_mined_loop(&_igvn);
