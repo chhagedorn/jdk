@@ -404,6 +404,7 @@ if (i > limit) {
 
 ---
 
-**Disclaimer**: I provide this information as a guidance and learning opportunity - for you and me. Use this 
-information with care as it could potentially be subject to change or contain errors (which I do not hope).
+**Disclaimer**: All the information provided in my blog posts aims to give introductions, overviews, guidances, and/or learning opportunities - 
+for you and me. Use everything with care as I could have omitted some implementation specific details to keep things simple. Note that, 
+generally, anything mentioned in my blog posts could potentially be subject to change at any point.
 
