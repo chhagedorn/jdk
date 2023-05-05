@@ -356,7 +356,7 @@ reason to peel (see [IdealLoopTree::estimate_peeling()](
 https://github.com/chhagedorn/jdk/blob/1be80a4445cf74adc9b2cd5bf262a897f9ede74f/src/hotspot/share/opto/loopTransform.cpp#L452-L504)).
 But for the sake of simplicity, let's assume that C2 actually applies Loop Peeling for this example.
 
-<a name="footnote4"><sup>4</sup></a>The careful reader will now ask how we can prevent to accidentally remove the 
+<a name="footnote4"><sup>4</sup></a>The careful reader might ask now how we can prevent to accidentally remove the 
 entire remaining graph when folding an Assertion Predicate away? C2 actually establishes a dedicated 
 _zero-trip guard_ which checks beforehand if the remaining loop should be entered depending on the induction 
 variable and the limit. We put the Assertion Predicates right into the "enter the loop"-path of the zero-trip guard 
