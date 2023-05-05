@@ -115,7 +115,7 @@ for (int i = 1; i > limit; i -= 2) {
 ```
 C2 emits a `RangeCheckNode` for the array access `a[i]`:
 
-![RangeCheckNode inside loop](/jdk/assets/img/2023-05-04-assertion-predicates/range_check.png)
+![RangeCheckNode inside loop](/jdk/assets/img/2023-05-05-assertion-predicates/range_check.png)
 
 `83 Phi` is the induction variable `i` and `108 LoadRange` the size of the array. C2 knows that the type of `83 Phi`
 is `[min+1..1]` because we start at the initial value `i = 1`, the stride is `-2`, and `limit` could be anything (i.e.
