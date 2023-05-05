@@ -357,13 +357,13 @@ https://github.com/chhagedorn/jdk/blob/1be80a4445cf74adc9b2cd5bf262a897f9ede74f/
 But for the sake of simplicity, let's assume that C2 actually applies Loop Peeling for this example.
 
 <a name="footnote4"><sup>4</sup></a>The careful reader will now ask how we can prevent to accidentally remove the 
-entire remaining graph when folding the Assertion Predicate `AU` away? C2 actually establishes a dedicated 
+entire remaining graph when folding an Assertion Predicate away? C2 actually establishes a dedicated 
 _zero-trip guard_ which checks beforehand if the remaining loop should be entered depending on the induction 
-variable and the limit. We put the Assertion Predicates right into "enter the loop"-path of the zero-trip guard. 
-Since we would never enter the dead-sub loop, Assertion Predicates will only kill the dead sub-loop inside the 
-"enter the loop"-path. Note that a zero-trip guard and an Assertion Predicate are not the same. The former checks 
-the induction variable against the loop limit while the latter compares it against the array length. Let's see how 
-the IR looks like together with ther zero-trip guard after peeling the loop:
+variable and the limit. We put the Assertion Predicates right into the "enter the loop"-path of the zero-trip guard 
+check. Since we would never enter the dead-sub loop, Assertion Predicates will only kill the dead sub-loop inside the
+"enter the loop"-path. Note that a zero-trip guard and an Assertion Predicate are not the same. The former checks the
+induction variable against the loop limit while the latter compares it against the array length. Let's see how the IR
+actually looks like in our example with the dedicated zero-trip guard after peeling the loop:
 ```java
 // Check: init*scale + offset <u array_length`
 // <=> 1*1 + 0 <u a.length 
