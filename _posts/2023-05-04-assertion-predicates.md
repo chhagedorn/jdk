@@ -1,9 +1,8 @@
 ---
 title: "Assertion Predicates (previously known as \"Skeleton Predicates\")"
-date: 2023-05-03
+date: 2023-05-05
 ---
 
-# Introduction
 _Assertion Predicates_ are a specific kind of predicates found in the C2 compiler that accompany _Hoisted Predicates_ 
 created during Loop Predication. Their only purpose is to make sure that the C2 IR is in a consistent state. Compared
 to Hoisted Predicates, they do not represent a required check that needs to be executed during runtime to ensure 
@@ -40,7 +39,7 @@ following category:
 - The check is loop-invariant (e.g. null checks of objects created outside the loop).
 - The check is a range check (i.e. either a `RangeCheckNode` or an `IfNode`<sup>[2](#footnote2)</sup>) of the
   form `i*scale + offset <u array_length`, where `i` is the induction variable, `scale` and `offset` are 
-  loop-invariant, `array_length` is the length of an array (i.e.  a `LoadRange` node) and the loop is a _counted_ 
+  loop-invariant, `array_length` is the length of an array (i.e.  a `LoadRangeNode`) and the loop is a _counted_ 
   loop (i.e. represented by a `CountedLoopNode` inside the IR).
 
 #### Why Do Array Range Checks Have a Single Unsigned Comparison?
@@ -116,7 +115,7 @@ for (int i = 1; i > limit; i -= 2) {
 ```
 C2 emits a `RangeCheckNode` for the array access `a[i]`:
 
-![RangeCheckNode inside loop](/jdk/assets/img/2023-05-04-assertion-predicates/range_check.png)
+![RangeCheckNode inside loop](/jdk/assets/img/2023-05-05-assertion-predicates/range_check.png)
 
 `83 Phi` is the induction variable `i` and `108 LoadRange` the size of the array. C2 knows that the type of `83 Phi`
 is `[min+1..1]` because we start at the initial value `i = 1`, the stride is `-2`, and `limit` could be anything (i.e.
@@ -311,7 +310,7 @@ how they are used within C2.
 https://www.oracle.com/technetwork/java/javase/tech/c2-ir95-150110.pdf).
 
 <a name="footnote2"><sup>2</sup></a>Almost always, a range check will be a `RangeCheckNode` as it is unusual to write
-code that would emit an `IfNode` with an unsigned comparison with a `LoadRange` node, a trap on the uncommon path,
+code that would emit an `IfNode` with an unsigned comparison with a `LoadRangeNode`, a trap on the uncommon path,
 and satisfying all other conditions to qualify for being hoisted as a range check out of a counted loop.
 
 <a name="footnote3"><sup>3</sup></a>Loop Peeling would not actually be triggered for this example as there is no 
