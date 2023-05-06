@@ -17,6 +17,7 @@ Assertion Predicates have been known as _Skeleton Predicates_.
 # Background
 
 ## Sea of Nodes
+
 The IR combines data and control flow into a single representation which is known as sea of nodes<sup>[1](#footnote1)
 </sup>. This has a couple of implications - one of them is that data and control always need to be in sync.
 
@@ -35,10 +36,12 @@ wrong code, resulting in a crash or wrong execution at runtime.
 With that in mind, let us quickly remind us what Loop Predication is doing.
 
 ## Loop Predication
+
 The goal of Loop Predication is to hoist certain checks out of a loop. As a result, we only need to execute these checks
 once before the start of the loop instead of during each iteration which has a positive impact on performance.
 
 ### Conditions
+
 Loop Predication can only remove checks (i.e. a `IfNode/RangeCheckNode`) out of a loop if they belong to one of the 
 following category:
 - The check is loop-invariant (e.g. null checks of objects created outside the loop).
@@ -48,6 +51,7 @@ following category:
   loop (i.e. represented by a `CountedLoopNode` inside the IR).
 
 #### Why Do Array Range Checks Have a Single Unsigned Comparison?
+
 For an array, we need to check that the index is zero or positive _and_ strictly less than the size of the array:
 - `i*scale + offset >= 0`
 - `i*scale + offset < array_length` 
@@ -69,6 +73,7 @@ Let's see what happens when we convert `i*scale + offset` to unsigned:
 - If `i*scale + offset >= array_size`: The check just fails as it would have if it had been a signed comparison.
 
 ### Hoisting Invariant Checks
+
 Once we find a check that qualifies to be hoisted out of a loop, we move it right before the loop. This is straight
 forward for invariant checks, where we can simply re-use the condition inside the loop as a condition for the check 
 outside the loop.
@@ -90,6 +95,7 @@ loop, we actually only need to perform the index check for the initial value of 
 - `last*scale + offset = (limit-stride)*scale + offset <u array_length` 
 
 #### Two Hoisted Predicates
+
 We therefore create two Hoisted Predicates for a range check before the counted loop: One with inserting the initial 
 value of the induction variable and one with inserting the value of the induction variable in the last iteration 
 for the index check `i*scale + offset <u array_length`. The old range check inside the loop is killed.
@@ -112,7 +118,8 @@ Predicates created for range checks due to the mixture of control and data in th
 
 Let's work through an example to illustrate why.
 
-## Initial Setup With a Hoisted Predicate for a Range Check
+## Loop Predication Example to Hoist a Range Check
+
 Let's have a look at the following example, assuming that `limit` is a field from which C2 does not know anything 
 about (i.e. its type is just `#int`):
 ```java
@@ -150,7 +157,7 @@ for (int i = 1; i > limit; i -= 2) {
 
 So far, so good.
 
-## Splitting the Loop into Sub-Loops where one of them is Dead
+## Splitting the Loop into Sub-Loops where One of Them Is Dead
 
 Now let's assume that we apply _Loop Peeling_ for the loop in our example<sup>[3](#footnote3)</sup>. Loop Peeling splits
 the first iteration from the loop to execute it before the remainder of the loop. We can do that by cloning the loop and
@@ -207,19 +214,20 @@ by taking this input type and joining it with its already stored type `[0.. 1]`.
 overlap! In such a case, we set `top` as type - meaning an empty set of possible values. IGVN will then replace the 
 entire `CastII` node with the dedicated `top` node.
 
-### Propagating Top to All Uses of the CastII node
+### Propagating Top to All Uses of the CastII Node
+
 IGVN will do its work and propagate `top` to all uses of the `CastII` node - possibly converting these nodes to 
 `top` as well. This triggers a cascade of removals which is only stopped at nodes which can handle `top` in such a 
 way that the node itself does not die (e.g. a `PhiNode`).
 
-### The Remaining Loop is Dead Anyway - Where is the Problem now?
+### The Remaining Loop Is Dead Anyway - Where Is the Problem Now?
 
 You might argue now while looking at the code after Loop Peeling that the remaining loop, starting at `-1`, will never
 be executed. This is true because if `limit < 0`, then the Hoisted Predicate will fail at runtime and we trap. If 
 `limit >= 0`, then the loop will not be entered. Either way, the loop is never executed and evidently dead. So why 
 don't we just remove it and go home? Well, yes, but how?
 
-### Won't the Replacement of the `CastII` Node with Top Kill The Dead Sub-Loop?
+### Won't the Replacement of the CastII Node with Top Kill the Dead Sub-Loop?
 
 Unfortunately, no, it will not. Let us remind us of the fundamental IR graph property that data and control always need
 to be in sync. If data in one path dies, this control path needs to be removed as well - but that is not automatically
@@ -229,7 +237,7 @@ state: Some data/control/memory nodes could have been removed while others still
 _could_ lead to assertion failures even though any of the not yet cleared nodes inside this dead sub-loop will never be 
 executed at runtime.
 
-### CastII Node Updates Are Updated - Hoisted Predicates Are Not
+### CastII Nodes Are Updated - Hoisted Predicates Are Not
 
 How did we end up in this situation? The problem is that each time we are updating the initial value of the induction
 variable, the stride and/or the limit of the loop, the involved `CastII` node for the array index (and potentially
@@ -249,6 +257,7 @@ special version of each Hoisted Predicate for each sub-loop such that it reflect
 variable, new stride, and new limit. We call these versions _Assertion Predicates_.
 
 ## Fold Dead Sub-Loop Away
+
 Having these additional Assertion Predicates in place will now take care of folding dead sub-loops away. Let's revisit 
 our example from the last section and see how we can create Assertion Predicates `AU` and `AL` as special versions 
 of the Hoisted Predicates `PU` and `PL` when peeling a loop:
@@ -286,13 +295,15 @@ enter the loop. Accordingly, IGVN is now able to safely remove the created dead 
 graph is consistent again.<sup>[4](#footnote4)</sup>
 
 ## Always True at Runtime
+
 An Assertion Predicate will always be true during runtime because it re-checks something we've already covered with 
 a Hoisted Predicate. We can therefore completely remove an Assertion Predicate once loop optimizations are over. But for
 debugging purpose, it helps to keep these Assertion Predicates alive to ensure that none of these will ever fail. To do 
 that, we implement the failing path with a `HaltNode` instead of a trap. Executing the `HaltNode` at runtime will 
 result in a crash.
 
-## Always Added/Updated when Modifying the Initial Value of an Induction variable, the Stride or the Limit of a Loop
+## Always Added/Updated when Modifying the Initial Value of an Induction Variable, the Stride or the Limit of a Loop
+
 We always insert Assertion Predicates when changing a loop, for which we created Hoisted Predicates, in such a way 
 that either the initial value of the induction variable, the stride, or the limit is updated. This happens when:
 - Peeling a Loop: 
@@ -321,6 +332,7 @@ combining different loop optimizations together. The code became very complex an
 and fixing these cases nearly impossible.
 
 ## Cleaning up Predicates and Fixing Assertion Predicates
+
 On top of these problems with Assertion Predicates, we have other kinds of predicates in the C2 code which we did not 
 properly name. This made talking about "predicates" even more confusing as we've lacked a clear naming scheme. All of 
 that led us to come to the conclusion that it's time to bring order into the C2 predicates. We wanted:
