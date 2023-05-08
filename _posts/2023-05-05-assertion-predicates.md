@@ -3,22 +3,20 @@ title: "Assertion Predicates (previously known as \"Skeleton Predicates\")"
 date: 2023-05-05
 ---
 
-_Assertion Predicates_ are a specific kind of predicates found in the C2 compiler that accompany _Hoisted Predicates_ 
-created during _Loop Predication_. Their only purpose is to make sure that the C2 IR is in a consistent state. Compared
-to Hoisted Predicates, they do not represent a required check that needs to be executed during runtime to ensure 
-correctness. They could be removed after the loop optimization phases - hence the name "Assertion Predicates". But if 
-Assertion Predicates are not required at runtime, why do we need them anyway? The reason is found in the very nature
-of the C2 IR.
+_Assertion Predicates_<sup>[1](#footnote1)</sup> are a specific kind of predicates found in the C2 compiler that
+accompany _Hoisted Predicates_ created during _Loop Predication_. Their only purpose is to make sure that the C2 IR 
+is in a consistent state. Compared to Hoisted Predicates, they do not represent a required check that needs to be 
+executed during runtime to ensure correctness. They could be removed after the loop optimization phases - hence the 
+name "Assertion Predicates". But if Assertion Predicates are not required at runtime, why do we need them anyway? 
+The reason is found in the very nature of the C2 IR.
 
-There are other kinds of predicate which I will not cover in this blog article but possibly in a future one. 
-Important to note here is that before [the overall predicate renaming](https://bugs.openjdk.org/browse/JDK-8305634), 
-Assertion Predicates have been known as _Skeleton Predicates_.
+There are other kinds of predicates which I will not cover in this blog article but possibly in a future one. 
 
 # Background
 
 ## Sea of Nodes
 
-The IR combines data and control flow into a single representation which is known as sea of nodes<sup>[1](#footnote1)
+The IR combines data and control flow into a single representation which is known as sea of nodes<sup>[2](#footnote2)
 </sup>. This has a couple of implications - one of them is that data and control always need to be in sync.
 
 ### Control and Data Are Always in Sync
@@ -45,7 +43,7 @@ once before the start of the loop instead of during each iteration which has a p
 Loop Predication can only remove checks (i.e. a `IfNode/RangeCheckNode`) out of a loop if they belong to one of the 
 following category:
 - The check is loop-invariant (e.g. null checks of objects created outside the loop).
-- The check is a range check (i.e. either a `RangeCheckNode` or an `IfNode`<sup>[2](#footnote2)</sup>) of the
+- The check is a range check (i.e. either a `RangeCheckNode` or an `IfNode`<sup>[3](#footnote3)</sup>) of the
   form `i*scale + offset <u array_length`, where `i` is the induction variable, `scale` and `offset` are 
   loop-invariant, `array_length` is the length of an array (i.e.  a `LoadRangeNode`), and the loop is a _counted_ 
   loop (i.e. represented by a `CountedLoopNode` inside the IR).
@@ -159,7 +157,7 @@ So far, so good.
 
 ## Splitting the Loop into Sub-Loops where One of Them Is Dead
 
-Now let's assume that we apply _Loop Peeling_ for the loop in our example<sup>[3](#footnote3)</sup>. Loop Peeling splits
+Now let's assume that we apply _Loop Peeling_ for the loop in our example<sup>[4](#footnote4)</sup>. Loop Peeling splits
 the first iteration from the loop to execute it before the remainder of the loop. We can do that by cloning the loop and
 changing the bounds in such a way that it only runs for one iteration. We are therefore left with two sub-loops: The
 first runs for a single iteration and the second runs the remaining iterations:
@@ -292,7 +290,7 @@ for (int i = -1; i > -1; i -= 2) {
 
 We can immediately see that `AU` compares `-1 <u a.length` which, obviously, always fails. We would therefore never 
 enter the loop. Accordingly, IGVN is now able to safely remove the created dead sub-loop and its involved data. The 
-graph is consistent again.<sup>[4](#footnote4)</sup>
+graph is consistent again.<sup>[5](#footnote5)</sup>
 
 ## Always True at Runtime
 
@@ -318,7 +316,7 @@ Furthermore, we need to update existing Assertion Predicates when:
   - The fast and the slow loop need a version of the Assertion Predicate (we could split these loops further).
 
 ## Implementation Attempts
-Even though Loop Predication has been around for quite a while<sup>[5](#footnote5)</sup>, this problem was only 
+Even though Loop Predication has been around for quite a while<sup>[6](#footnote6)</sup>, this problem was only 
 detected years later. At that time, the scope of the problem was not yet entirely clear. We've started adding 
 Assertion Predicates (back then known as _Skeleton Predicates_) for different loop optimizations as new 
 failing testcases emerged. Over the time, more and more `CastConstraint` nodes were added which made the still 
@@ -326,7 +324,7 @@ very uncommon case more likely - especially with more enhanced fuzzer testing.
 
 What had started out as a simple, clean fix (relatively speaking), when Skeleton Predicates were first introduced in
 [JDK-8193130](https://bugs.openjdk.org/browse/JDK-8193130), became much more complex with each new fix. The latest
-bigger fix, at the time of this writing, was to add Assertion Predicates at Loop Peeling<sup>[6](#footnote6)</sup>. And
+bigger fix, at the time of this writing, was to add Assertion Predicates at Loop Peeling<sup>[7](#footnote7)</sup>. And
 yet, even though we now cover all loop optimizations, there are still cases which we do not cover properly when 
 combining different loop optimizations together. The code became very complex and difficult to maintain over the years
 and fixing these cases nearly impossible.
@@ -356,19 +354,23 @@ process of my patches - at least on a high level. A potential follow-up blog pos
 and how they are used within C2.
 
 ---
-<a name="footnote1"><sup>1</sup></a>Also see [A Simple Graph-Based Intermediate Representation](
+
+<a name="footnote1"><sup>1</sup></a>Before [the overall predicate renaming](https://bugs.openjdk.org/browse/JDK-8305634), 
+Assertion Predicates have been known as _Skeleton Predicates_.
+
+<a name="footnote2"><sup>2</sup></a>Also see [A Simple Graph-Based Intermediate Representation](
 https://www.oracle.com/technetwork/java/javase/tech/c2-ir95-150110.pdf).
 
-<a name="footnote2"><sup>2</sup></a>Almost always, a range check will be a `RangeCheckNode` as it is unusual to write
+<a name="footnote3"><sup>3</sup></a>Almost always, a range check will be a `RangeCheckNode` as it is unusual to write
 code that would emit an `IfNode` with an unsigned comparison with a `LoadRangeNode`, a trap on the uncommon path,
 and satisfying all other conditions to qualify for being hoisted as a range check out of a counted loop.
 
-<a name="footnote3"><sup>3</sup></a>Loop Peeling would not actually be triggered for this example as there is no 
+<a name="footnote4"><sup>4</sup></a>Loop Peeling would not actually be triggered for this example as there is no 
 reason to peel (see [IdealLoopTree::estimate_peeling()](
 https://github.com/chhagedorn/jdk/blob/1be80a4445cf74adc9b2cd5bf262a897f9ede74f/src/hotspot/share/opto/loopTransform.cpp#L452-L504)).
 But for the sake of simplicity, let's assume that C2 actually applies Loop Peeling for this example.
 
-<a name="footnote4"><sup>4</sup></a>The careful reader might ask now how we can prevent to accidentally remove the 
+<a name="footnote5"><sup>5</sup></a>The careful reader might ask now how we can prevent to accidentally remove the 
 entire remaining graph when folding an Assertion Predicate away? C2 actually establishes a dedicated 
 _zero-trip guard_ which checks beforehand if the remaining loop should be entered depending on the induction 
 variable and the limit. We put the Assertion Predicates right into the "enter the loop"-path of the zero-trip guard 
@@ -410,9 +412,9 @@ if (i > limit) {
 }
 ```
 
-<a name="footnote5"><sup>5</sup></a>First version added with [JDK-6894778](https://bugs.openjdk.org/browse/JDK-6894778).
+<a name="footnote6"><sup>6</sup></a>First version added with [JDK-6894778](https://bugs.openjdk.org/browse/JDK-6894778).
 
-<a name="footnote6"><sup>6</sup></a>See [JDK-8283466](https://bugs.openjdk.org/browse/JDK-8283466).
+<a name="footnote7"><sup>7</sup></a>See [JDK-8283466](https://bugs.openjdk.org/browse/JDK-8283466).
 
 ---
 
