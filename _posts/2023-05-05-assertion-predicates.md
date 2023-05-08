@@ -419,7 +419,7 @@ if (i > limit) {
 **Disclaimer**: All the information provided in my blog posts reflects my point of view - use everything with care. 
 My goal is to give easily understandable introductions, overviews, guidances, and/or learning opportunities - for 
 you and me. To achieve that, I aim for simplicity and focus on ideas, rather than getting lost in details to get 
-absolute completeness. This means that I sometimes omitted implementation specific details to keep things simpler 
+absolute completeness. This means that I sometimes omit implementation specific details to keep things simple 
 and more general. The truth will always be found in the actual code. Keep in mind that, generally, anything mentioned
 in my blog posts could potentially be subject to change at any point.
 
