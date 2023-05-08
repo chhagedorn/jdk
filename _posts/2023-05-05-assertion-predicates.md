@@ -315,6 +315,14 @@ Furthermore, we need to update existing Assertion Predicates when:
 - Unswitching a Loop:
   - The fast and the slow loop need a version of the Assertion Predicate (we could split these loops further).
 
+There is one more case where we need to insert Assertion Predicates even though we have not created any Hoisted
+Predicate:
+- Range Check Elimination:
+  - The pre and main loop bounds are updated such that a range check inside the main loop can be removed. This is
+    similar to Loop Predication but instead of creating a Hoisted Predicate, we change the iterations of the pre and
+    the main loop. The consequence, however, is the same: We need Assertion Predicates for the main loop to keep the
+    graph in a consistent state if the main loop becomes dead.
+
 ## Implementation Attempts
 Even though Loop Predication has been around for quite a while<sup>[6](#footnote6)</sup>, this problem was only 
 detected years later. At that time, the scope of the problem was not yet entirely clear. We've started adding 
