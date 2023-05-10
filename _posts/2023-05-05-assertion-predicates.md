@@ -22,14 +22,55 @@ The IR combines data and control flow into a single representation which is know
 ### Control and Data Are Always in Sync
 
 If at some point a control path is proven to be never taken, we not only need to remove the control nodes but also the
-data nodes specific to that path. The same principle is also true when data nodes die: All control nodes on the path
-that use the dead data nodes also need to be removed. While the first property is not that difficult to maintain
-(data nodes without uses are just removed), the latter is not that straight forward. Sure, control nodes without uses
-are also just removed, but we need to be more careful. We are required to _completely_ remove all control nodes leading
-up to the dead data node uses (i.e. all control paths). These could be inside a nested loop which we need to kill
-entirely. Failing to do so, could leave the graph in an inconsistent state. This will have unpredictable consequences in
-further optimizations and code emission. We could end up hitting an assertion failure further down the road or emitting 
-wrong code, resulting in a crash or wrong execution at runtime.
+data nodes specific to that path. The same principle is also true when data nodes die: If a data node dies within a 
+specific path, then all control nodes using this data node directly or indirectly must become unreachable. The path 
+containing these nodes to be removed. While the first
+property is not that difficult to maintain (data nodes without uses are just removed), the latter is not that straight
+forward. We need to _completely_ remove all control nodes on the current path with the same or higher nesting level as 
+the dead data. Let's illustrate this with a simple example:
+
+```java
+// Level 0
+if (cond)
+    // Level 1
+    statement 1;
+    if (cond2) {
+        // Level 2
+        statement 2;
+        statement 3;
+        if (cond3) {
+            // Level 3
+            statement 4;
+        }
+        statement 5; // Uses dead data node!
+        statement 6;
+        while (cond3) {
+             // Level 3
+             ... 
+        }
+    }
+    statement 7;
+}
+```
+
+`statement 5` uses a dead data node. We need to remove all control nodes on the current path with the same and higher
+nesting level which is level 2 and 3. On top of that, we need to ensure that the splitting point to the path with the
+same nesting level as the dead data use is aware of this dead data use. In this example, `if (cond2)`is the splitting
+point to the nesting level 2 which uses the dead data node. As a consequence, `cond2` must become false such that the
+graph can be cleaned up correctly to:
+
+```java
+// Level 0
+if (cond)
+    // Level 1
+    statement 1;
+    statement 7;
+}
+```
+
+Failing to keep control and data in sync can have unpredictable consequences in further optimizations and code emission.
+We could end up hitting an assertion failure further down the road or emitting wrong code, resulting in a crash or wrong 
+execution at runtime.
 
 With that in mind, let us quickly remind us what Loop Predication is doing.
 
@@ -321,10 +362,10 @@ Predicate:
   - The pre and main loop bounds are updated such that a range check inside the main loop can be removed. This is
     similar to Loop Predication but instead of creating a Hoisted Predicate, we change the iterations of the pre and
     the main loop. The consequence, however, is the same: We need Assertion Predicates for the main loop to keep the
-    graph in a consistent state if the main loop becomes dead.
+    graph in a consistent state if the main loop becomes dead<sup>[6](#footnote6)</sup>.
 
 ## Implementation Attempts
-Even though Loop Predication has been around for quite a while<sup>[6](#footnote6)</sup>, this problem was only 
+Even though Loop Predication has been around for quite a while<sup>[7](#footnote7)</sup>, this problem was only 
 detected years later. At that time, the scope of the problem was not yet entirely clear. We've started adding 
 Assertion Predicates (back then known as _Skeleton Predicates_) for different loop optimizations as new 
 failing testcases emerged. Over the time, more and more `CastConstraint` nodes were added which made the still 
@@ -332,7 +373,7 @@ very uncommon case more likely - especially with more enhanced fuzzer testing.
 
 What had started out as a simple, clean fix (relatively speaking), when Skeleton Predicates were first introduced in
 [JDK-8193130](https://bugs.openjdk.org/browse/JDK-8193130), became much more complex with each new fix. The latest
-bigger fix, at the time of this writing, was to add Assertion Predicates at Loop Peeling<sup>[7](#footnote7)</sup>. And
+bigger fix, at the time of this writing, was to add Assertion Predicates at Loop Peeling<sup>[8](#footnote8)</sup>. And
 yet, even though we now cover all loop optimizations, there are still cases which we do not cover properly when 
 combining different loop optimizations together. The code became very complex and difficult to maintain over the years
 and fixing these cases nearly impossible.
@@ -420,9 +461,15 @@ if (i > limit) {
 }
 ```
 
-<a name="footnote6"><sup>6</sup></a>First version added with [JDK-6894778](https://bugs.openjdk.org/browse/JDK-6894778).
+<a name="footnote6"><sup>6</sup></a>Loop Predication and Range Check Elimination achieve the same goal to remove range
+checks from loops. Most of them can be removed with Loop Predication. But there are some cases where we cannot apply
+Loop Predication anymore (e.g. we've lost the Parse Predicates which provide the required safepoint for the Hoisted
+Predicate trap) while Range Check Elimination is still possible. More information about Range Check Elimination can 
+be found [here](https://wiki.openjdk.org/display/HotSpot/RangeCheckElimination).
 
-<a name="footnote7"><sup>7</sup></a>See [JDK-8283466](https://bugs.openjdk.org/browse/JDK-8283466).
+<a name="footnote7"><sup>7</sup></a>First version added with [JDK-6894778](https://bugs.openjdk.org/browse/JDK-6894778).
+
+<a name="footnote8"><sup>8</sup></a>See [JDK-8283466](https://bugs.openjdk.org/browse/JDK-8283466).
 
 ---
 
