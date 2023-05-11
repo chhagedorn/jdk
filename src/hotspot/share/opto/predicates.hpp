@@ -190,6 +190,8 @@
  * Main Loop Head
  */
 
+class Predicates;
+
 // Class to represent the Assertion Predicates with a HaltNode instead of an UCT (i.e. either an initialized predicate
 // or a template copied to the main-loop.
 class AssertionPredicatesWithHalt : public StackObj {
@@ -388,11 +390,46 @@ class Predicates : public StackObj {
   const RegularPredicateBlock* loop_limit_check_predicate_block() const {
     return &_loop_limit_check_predicate_block;
   }
+};
+
+
+// This class iterates over the Template Assertion Predicates which are all in the same block below the Predicate Blocks.
+class TemplateAssertionPredicateIterator : public StackObj {
+  Node* _current;
+
+ public:
+  TemplateAssertionPredicateIterator(const Predicates& predicates);
+  TemplateAssertionPredicateIterator(Node* maybe_template_assertion_predicate)
+      : _current(maybe_template_assertion_predicate) {}
+
+  bool has_next() const {
+    return _current != nullptr && _current->in(0)->is_TemplateAssertionPredicate();
+  }
+
+  TemplateAssertionPredicateNode* next();
+};
+
+
+class TemplateAssertionPredicateBlock : public StackObj {
+  Node* _entry;
+  TemplateAssertionPredicateNode* _last; // The last Template Assertion Predicate node of the block.
+
+ public:
+  TemplateAssertionPredicateBlock(Node* loop_entry);
+
+  Node* entry() const {
+    return _entry;
+  }
 
   bool has_any() const {
-    return _entry != _loop_entry;
+    return _last != nullptr;
+  }
+
+  TemplateAssertionPredicateNode* last() const {
+    return _last;
   }
 };
+
 
 // This class iterates over the regular predicates within a predicate block
 class ParsePredicateIterator : public StackObj {

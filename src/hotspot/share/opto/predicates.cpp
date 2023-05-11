@@ -83,6 +83,29 @@ bool RuntimePredicate::is_success_proj(Node* node, Deoptimization::DeoptReason d
   }
 }
 
+TemplateAssertionPredicateIterator::TemplateAssertionPredicateIterator(const Predicates& predicates)
+    : _current(predicates.template_assertion_predicate_block()->last()) {}
+
+
+TemplateAssertionPredicateNode* TemplateAssertionPredicateIterator::next() {
+  assert(has_next(), "always check has_next() first");
+  TemplateAssertionPredicateNode* current = _current->as_TemplateAssertionPredicate();
+  _current = _current->in(0);
+  return current;
+}
+
+TemplateAssertionPredicateBlock::TemplateAssertionPredicateBlock(Node* loop_entry) : _entry(loop_entry), _last(nullptr) {
+  if (loop_entry->is_TemplateAssertionPredicate()) {
+    _last = loop_entry->as_TemplateAssertionPredicate();
+    TemplateAssertionPredicateIterator iterator(loop_entry);
+    Node* next = loop_entry;
+    while (iterator.has_next()) {
+      next = iterator.next();
+    }
+    _entry = next->in(0);
+  }
+}
+
 ParsePredicateIterator::ParsePredicateIterator(const Predicates& predicates) : _current_index(0) {
   const RegularPredicateBlock* loop_limit_check_predicate_block = predicates.loop_limit_check_predicate_block();
   if (loop_limit_check_predicate_block->has_parse_predicate()) {

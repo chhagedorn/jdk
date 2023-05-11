@@ -1025,9 +1025,11 @@ public:
 
   bool for_post_loop_opts_igvn() const { return (_flags & Flag_for_post_loop_opts_igvn) != 0; }
 
-  // Is 'n' possibly a loop entry (i.e. a Parse Predicate projection).
+  // Is 'n' possibly a loop entry (i.e. a Parse Predicate projection or a Template Assertion Predicate which could be the
+  // last nodes in the predicate block).
   static bool is_maybe_loop_entry(Node* n) {
-    return n != nullptr && n->is_IfProj() && n->in(0)->is_ParsePredicate();
+    return (n != nullptr) &&
+           (n->is_TemplateAssertionPredicate() || n->is_IfProj() && n->in(0)->is_ParsePredicate());
   }
 
 //----------------- Optimization
