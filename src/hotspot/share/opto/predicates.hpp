@@ -464,7 +464,7 @@ class Predicates : public StackObj {
   Predicates(Node* loop_entry)
       : _loop_entry(loop_entry),
         _assertion_predicate_block(loop_entry),
-        _loop_limit_check_predicate_block(loop_entry, Deoptimization::Reason_loop_limit_check),
+        _loop_limit_check_predicate_block(_assertion_predicate_block.entry(), Deoptimization::Reason_loop_limit_check),
         _profiled_loop_predicate_block(_loop_limit_check_predicate_block.entry(),
                                        Deoptimization::Reason_profile_predicate),
         _loop_predicate_block(_profiled_loop_predicate_block.entry(),
@@ -475,6 +475,12 @@ class Predicates : public StackObj {
   // node initially passed to the constructor is returned.
   Node* entry() const {
     return _entry;
+  }
+
+  bool has_parse_predicates() const {
+    return _loop_predicate_block.has_parse_predicate() ||
+           _profiled_loop_predicate_block.has_parse_predicate() ||
+           _loop_limit_check_predicate_block.has_parse_predicate();
   }
 
   const RegularPredicateBlock* loop_predicate_block() const {
@@ -561,7 +567,7 @@ class ParsePredicates : public StackObj {
         _phase(phase),
         _loop_node(loop_node) {}
 
-  Node* clone(const RegularPredicateBlocks* regular_predicate_blocks);
+  Node* clone(const Predicates* predicates);
 };
 
 class AssertionPredicateBoolOpcodes : public StackObj {

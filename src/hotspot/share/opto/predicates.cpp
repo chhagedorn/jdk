@@ -181,13 +181,13 @@ void ParsePredicates::create_new_parse_predicate(ParsePredicateSuccessProj* pred
 
 // Clone the Parse Predicates from the Predicate Blocks to this loop and add them below '_new_entry'.
 // Return the last node in the newly created Parse Predicate chain.
-Node* ParsePredicates::clone(const RegularPredicateBlocks* regular_predicate_blocks) {
-  clone_parse_predicate(regular_predicate_blocks->loop_predicate_block());
-  clone_parse_predicate(regular_predicate_blocks->profiled_loop_predicate_block());
+Node* ParsePredicates::clone(const Predicates* predicates) {
+  clone_parse_predicate(predicates->loop_predicate_block());
+  clone_parse_predicate(predicates->profiled_loop_predicate_block());
   if (!_loop_node->is_CountedLoop()) {
     // Don't clone the Loop Limit Check Parse Predicate if we already have a counted loop (a Loop Limit Check Predicate
     // is only created when converting a LoopNode to a CountedLoopNode).
-    clone_parse_predicate(regular_predicate_blocks->loop_limit_check_predicate_block());
+    clone_parse_predicate(predicates->loop_limit_check_predicate_block());
   }
   return _new_entry;
 }

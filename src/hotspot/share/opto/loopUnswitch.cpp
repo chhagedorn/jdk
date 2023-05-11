@@ -262,15 +262,15 @@ class UnswitchIf {
 class UnswitchedParsePredicates {
   LoopNode* _fast_loop_head; // The original loop becomes the fast loop.
   Node* _original_loop_entry;
-  const RegularPredicateBlocks* _regular_predicate_blocks;
+  const Predicates* _predicates;
   PhaseIdealLoop* _phase;
   uint _first_slow_loop_node_index;
 
  public:
-  UnswitchedParsePredicates(IdealLoopTree* loop, const RegularPredicateBlocks* regular_predicate_blocks, uint first_slow_loop_node_index)
+  UnswitchedParsePredicates(IdealLoopTree* loop, const Predicates* predicates, uint first_slow_loop_node_index)
      : _fast_loop_head(loop->_head->as_Loop()->skip_strip_mined()),
        _original_loop_entry(loop->_head->as_Loop()->skip_strip_mined()->in(LoopNode::EntryControl)),
-       _regular_predicate_blocks(regular_predicate_blocks),
+       _predicates(predicates),
        _phase(loop->_phase),
        _first_slow_loop_node_index(first_slow_loop_node_index) {}
 
@@ -305,9 +305,10 @@ class UnswitchedParsePredicates {
   // and the clone to the slow loop (or vice versa).to the slow and the fast loop. This, however, is not supported (yet).
   // Therefore, we cannot clone the Parse Predicates to the fast and slow loop in this case.
   bool can_clone() const {
+    const bool has_parse_predicates = _predicates->has_parse_predicates();
     const uint entry_outcnt = _original_loop_entry->outcnt();
     assert(entry_outcnt >= 3, "must have at least unswitch If, fast, and slow loop head after cloning the loop");
-    if (entry_outcnt > 3 && _regular_predicate_blocks->has_any()) {
+    if (entry_outcnt > 3 && has_parse_predicates) {
       // For each data out node:
       // Check if there is a slow node <-> fast node mapping (i.e. the node was part of the original loop to be unswitched)
       // If we find a node without such a mapping, then it was not part of the original loop to be unswitched.
@@ -318,7 +319,7 @@ class UnswitchedParsePredicates {
       const uint slow_loop_node_count = count_slow_loop_nodes();
       return slow_loop_node_count * 2 == entry_outcnt - 1;
     }
-    return true;
+    return has_parse_predicates;
   }
 
   uint count_slow_loop_nodes() const {
@@ -348,7 +349,7 @@ class UnswitchedParsePredicates {
 
   Node* clone_parse_predicates_to_loop(IfProjNode* unswitch_if_proj, NewParsePredicate* new_parse_predicate) const {
     ParsePredicates parse_predicates(new_parse_predicate, unswitch_if_proj, _phase, _fast_loop_head);
-    return parse_predicates.clone(_regular_predicate_blocks);
+    return parse_predicates.clone(_predicates);
   }
 };
 
@@ -412,8 +413,7 @@ class UnswitchedLoop {
   // 'fast_loop_entry' and 'slow_loop_entry'.
   void create_parse_predicates(Node*& fast_loop_entry, Node*& slow_loop_entry,
                                const uint first_slow_loop_node_index) const {
-    UnswitchedParsePredicates unswitched_parse_predicates(_loop, _predicates.regular_predicate_blocks(),
-                                                          first_slow_loop_node_index);
+    UnswitchedParsePredicates unswitched_parse_predicates(_loop, &_predicates, first_slow_loop_node_index);
     if (unswitched_parse_predicates.can_clone()) {
       fast_loop_entry = unswitched_parse_predicates.clone_to_fast_loop(fast_loop_entry->as_IfTrue());
       slow_loop_entry = unswitched_parse_predicates.clone_to_slow_loop(slow_loop_entry->as_IfFalse());
