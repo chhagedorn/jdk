@@ -542,3 +542,29 @@ Node* TemplateAssertionPredicateBools::create_last_value(Node* new_ctrl, OpaqueL
   _phase->register_new_node(last_value, new_ctrl);
   return last_value;
 }
+
+// Is current node pointed at by iterator a predicate?
+bool PredicatesIterator::is_predicate() const {
+  if (_current->is_TemplateAssertionPredicate()) {
+    return true;
+  } else if (_current->is_IfProj()) {
+      Node* if_node = _current->in(0);
+      assert(if_node->is_If(), "must be");
+      return (if_node->is_ParsePredicate() ||
+              RuntimePredicate::is_success_proj(_current) ||
+              InitializedAssertionPredicate::is_success_proj(_current));
+    }
+  return false;
+}
+
+// Skip the current predicate pointed at by iterator by returning the input into the predicate. This could possibly be
+// a non-predicate node.
+Node* PredicatesIterator::skip() {
+  assert(is_predicate(), "current must be predicate to go to next one");
+  if (_current->is_TemplateAssertionPredicate()) {
+    _current = _current->in(0);
+  } else {
+    _current = _current->in(0)->in(0);
+  }
+  return _current;
+}

@@ -991,4 +991,16 @@ class TemplateAssertionPredicateBools : public StackObj {
   }
 };
 
+// Predicate iterator to skip over predicates. This iterator can be used with any predicate node within a chain of
+// predicates.
+class PredicatesIterator : public StackObj {
+  Node* _current;
+
+ public:
+  PredicatesIterator(Node* start) : _current(start) {}
+
+  bool is_predicate() const;
+  Node* skip();
+};
+
 #endif // SHARE_OPTO_PREDICATES_HPP

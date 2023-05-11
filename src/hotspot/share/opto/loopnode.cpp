@@ -169,64 +169,68 @@ Node *PhaseIdealLoop::get_early_ctrl_for_expensive(Node *n, Node* earliest) {
   }
 
   while (1) {
-    Node *next = ctl;
+    Node* next = ctl;
     // Moving the node out of a loop on the projection of a If
     // confuses loop predication. So once we hit a Loop in a If branch
     // that doesn't branch to an UNC, we stop. The code that process
     // expensive nodes will notice the loop and skip over it to try to
     // move the node further up.
-    if (ctl->is_CountedLoop() && ctl->in(1) != nullptr && ctl->in(1)->in(0) != nullptr && ctl->in(1)->in(0)->is_If()) {
-      if (!ctl->in(1)->as_Proj()->is_uncommon_trap_if_pattern(Deoptimization::Reason_none)) {
-        break;
-      }
-      next = idom(ctl->in(1)->in(0));
-    } else if (ctl->is_Proj()) {
-      // We only move it up along a projection if the projection is
-      // the single control projection for its parent: same code path,
-      // if it's a If with UNC or fallthrough of a call.
-      Node* parent_ctl = ctl->in(0);
-      if (parent_ctl == nullptr) {
-        break;
-      } else if (parent_ctl->is_CountedLoopEnd() && parent_ctl->as_CountedLoopEnd()->loopnode() != nullptr) {
-        next = parent_ctl->as_CountedLoopEnd()->loopnode()->init_control();
-      } else if (parent_ctl->is_If()) {
-        if (!ctl->as_Proj()->is_uncommon_trap_if_pattern(Deoptimization::Reason_none)) {
-          break;
-        }
-        assert(idom(ctl) == parent_ctl, "strange");
-        next = idom(parent_ctl);
-      } else if (ctl->is_CatchProj()) {
-        if (ctl->as_Proj()->_con != CatchProjNode::fall_through_index) {
-          break;
-        }
-        assert(parent_ctl->in(0)->in(0)->is_Call(), "strange graph");
-        next = parent_ctl->in(0)->in(0)->in(0);
-      } else {
-        // Check if parent control has a single projection (this
-        // control is the only possible successor of the parent
-        // control). If so, we can try to move the node above the
-        // parent control.
-        int nb_ctl_proj = 0;
-        for (DUIterator_Fast imax, i = parent_ctl->fast_outs(imax); i < imax; i++) {
-          Node *p = parent_ctl->fast_out(i);
-          if (p->is_Proj() && p->is_CFG()) {
-            nb_ctl_proj++;
-            if (nb_ctl_proj > 1) {
-              break;
+
+    PredicatesIterator predicates_iterator(ctl->is_CountedLoop() ? ctl->in(LoopNode::EntryControl) : ctl);
+    if (predicates_iterator.is_predicate()) {
+      // Skip all predicates to not confuse Loop Predication.
+      do {
+        next = predicates_iterator.skip();
+      } while (predicates_iterator.is_predicate());
+      assert(is_dominator(next, ctl), "must be dominating after skipping predicates");
+    } else if (ctl->is_CountedLoop()) {
+      // Loop without predicates.
+      assert(idom(ctl) == ctl->in(LoopNode::EntryControl), "entry to loop must be dominator");
+      next = ctl->in(LoopNode::EntryControl);
+    } else {
+      if (ctl->is_Proj()) {
+        // We only move it up along a projection if the projection is
+        // the single control projection for its parent: same code path,
+        // if it's a If with UNC or fallthrough of a call.
+        Node* parent_ctl = ctl->in(0);
+        if (parent_ctl->is_CountedLoopEnd() && parent_ctl->as_CountedLoopEnd()->loopnode() != nullptr) {
+          next = parent_ctl->as_CountedLoopEnd()->loopnode()->init_control();
+        } else if (parent_ctl->is_If()) {
+          assert(idom(ctl) == parent_ctl, "strange");
+          next = idom(parent_ctl);
+        } else if (ctl->is_CatchProj()) {
+          if (ctl->as_Proj()->_con != CatchProjNode::fall_through_index) {
+            break;
+          }
+          assert(parent_ctl->in(0)->in(0)->is_Call(), "strange graph");
+          next = parent_ctl->in(0)->in(0)->in(0);
+        } else {
+          // Check if parent control has a single projection (this
+          // control is the only possible successor of the parent
+          // control). If so, we can try to move the node above the
+          // parent control.
+          int nb_ctl_proj = 0;
+          for (DUIterator_Fast imax, i = parent_ctl->fast_outs(imax); i < imax; i++) {
+            Node* p = parent_ctl->fast_out(i);
+            if (p->is_Proj() && p->is_CFG()) {
+              nb_ctl_proj++;
+              if (nb_ctl_proj > 1) {
+                break;
+              }
             }
           }
-        }
 
-        if (nb_ctl_proj > 1) {
-          break;
+          if (nb_ctl_proj > 1) {
+            break;
+          }
+          assert(parent_ctl->is_Start() || parent_ctl->is_MemBar() || parent_ctl->is_Call() ||
+                 BarrierSet::barrier_set()->barrier_set_c2()->is_gc_barrier_node(parent_ctl), "unexpected node");
+          assert(idom(ctl) == parent_ctl, "strange");
+          next = idom(parent_ctl);
         }
-        assert(parent_ctl->is_Start() || parent_ctl->is_MemBar() || parent_ctl->is_Call() ||
-               BarrierSet::barrier_set()->barrier_set_c2()->is_gc_barrier_node(parent_ctl), "unexpected node");
-        assert(idom(ctl) == parent_ctl, "strange");
-        next = idom(parent_ctl);
+      } else {
+        next = idom(ctl);
       }
-    } else {
-      next = idom(ctl);
     }
     if (next->is_Root() || next->is_Start() || dom_depth(next) < min_dom_depth) {
       break;
@@ -5986,29 +5990,14 @@ void PhaseIdealLoop::build_loop_late_post_work(Node *n, bool pinned) {
     // Move the node above predicates as far up as possible so a
     // following pass of loop predication doesn't hoist a predicate
     // that depends on it above that node.
-    Node* new_ctrl = least;
-    for (;;) {
-      if (!new_ctrl->is_Proj()) {
+    PredicatesIterator predicates_iterator(least);
+    while (predicates_iterator.is_predicate()) {
+      Node* next = predicates_iterator.skip();
+      if (is_dominator(next, early) && next != early) {
         break;
       }
-      CallStaticJavaNode* call = new_ctrl->as_Proj()->is_uncommon_trap_if_pattern(Deoptimization::Reason_none);
-      if (call == nullptr) {
-        break;
-      }
-      int req = call->uncommon_trap_request();
-      Deoptimization::DeoptReason trap_reason = Deoptimization::trap_request_reason(req);
-      if (trap_reason != Deoptimization::Reason_loop_limit_check &&
-          trap_reason != Deoptimization::Reason_predicate &&
-          trap_reason != Deoptimization::Reason_profile_predicate) {
-        break;
-      }
-      Node* c = new_ctrl->in(0)->in(0);
-      if (is_dominator(c, early) && c != early) {
-        break;
-      }
-      new_ctrl = c;
+      least = next;
     }
-    least = new_ctrl;
   }
   // Try not to place code on a loop entry projection
   // which can inhibit range check elimination.
