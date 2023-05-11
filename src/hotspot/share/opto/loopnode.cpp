@@ -349,11 +349,6 @@ void PhaseIdealLoop::insert_loop_limit_check_predicate(ParsePredicateSuccessProj
                                                          Deoptimization::Reason_loop_limit_check,
                                                          Op_If);
   Node* iff = new_predicate_proj->in(0);
-  assert(iff->Opcode() == Op_If, "bad graph shape");
-  Node* conv = iff->in(1);
-  assert(conv->Opcode() == Op_Conv2B, "bad graph shape");
-  Node* opaq = conv->in(1);
-  assert(opaq->Opcode() == Op_Opaque1, "bad graph shape");
   cmp_limit = _igvn.register_new_node_with_optimizer(cmp_limit);
   bol = _igvn.register_new_node_with_optimizer(bol);
   set_subtree_ctrl(bol, false);
@@ -563,19 +558,12 @@ Node* PhaseIdealLoop::loop_nest_replace_iv(Node* iv_to_replace, Node* inner_iv, 
 void PhaseIdealLoop::add_parse_predicate(Deoptimization::DeoptReason reason, Node* inner_head, IdealLoopTree* loop,
                                          SafePointNode* sfpt) {
   if (!C->too_many_traps(reason)) {
-    Node* cont = _igvn.intcon(1);
-    Node* opaq = new Opaque1Node(C, cont);
-    _igvn.register_new_node_with_optimizer(opaq);
-    Node* bol = new Conv2BNode(opaq);
-    _igvn.register_new_node_with_optimizer(bol);
-    set_subtree_ctrl(bol, false);
-    ParsePredicateNode* iff = new ParsePredicateNode(inner_head->in(LoopNode::EntryControl), bol, reason);
-    register_control(iff, loop, inner_head->in(LoopNode::EntryControl));
-    Node* if_false = new IfFalseNode(iff);
-    register_control(if_false, _ltree_root, iff);
-    Node* if_true = new IfTrueNode(iff);
-    register_control(if_true, loop, iff);
-    C->add_parse_predicate_opaq(opaq);
+    ParsePredicateNode* parse_predicate = new ParsePredicateNode(inner_head->in(LoopNode::EntryControl), reason, &_igvn);
+    register_control(parse_predicate, loop, inner_head->in(LoopNode::EntryControl));
+    Node* if_false = new IfFalseNode(parse_predicate);
+    register_control(if_false, _ltree_root, parse_predicate);
+    Node* if_true = new IfTrueNode(parse_predicate);
+    register_control(if_true, loop, parse_predicate);
 
     int trap_request = Deoptimization::make_trap_request(reason, Deoptimization::Action_maybe_recompile);
     address call_addr = SharedRuntime::uncommon_trap_blob()->entry_point();
@@ -4035,32 +4023,35 @@ void PhaseIdealLoop::log_loop_tree() {
   }
 }
 
-//---------------------collect_potentially_useful_predicates-----------------------
-// Helper function to collect potentially useful predicates to prevent them from
-// being eliminated by PhaseIdealLoop::eliminate_useless_predicates
-void PhaseIdealLoop::collect_potentially_useful_predicates(IdealLoopTree* loop, Unique_Node_List &useful_predicates) {
+// Eliminate all template assertion predicates that do not belong to their originally associated loop anymore by
+// replacing the bool test of the If node by a constant. IGVN will then clean up these nodes later.
+void PhaseIdealLoop::eliminate_useless_template_assertion_predicates() {
+  Unique_Node_List useful_predicates;
+  if (C->has_loops()) {
+    eliminate_useless_template_assertion_predicates(_ltree_root->_child, useful_predicates);
+  }
+  for (int i = 0; i < C->template_assertion_predicate_count(); i++) {
+    Node* opaque4 = C->template_assertion_predicate_opaq_node(i);
+    assert(opaque4->Opcode() == Op_Opaque4, "must be");
+    if (!useful_predicates.member(opaque4)) { // not in the useful list
+      _igvn.replace_node(opaque4, opaque4->in(2));
+    }
+  }
+}
+
+
+void PhaseIdealLoop::eliminate_useless_template_assertion_predicates(IdealLoopTree* loop, Unique_Node_List &useful_predicates) {
   if (loop->_child) { // child
-    collect_potentially_useful_predicates(loop->_child, useful_predicates);
+    eliminate_useless_template_assertion_predicates(loop->_child, useful_predicates);
   }
 
-  // self (only loops that we can apply loop predication may use their predicates)
-  if (loop->_head->is_Loop() &&
-      !loop->_irreducible    &&
-      !loop->tail()->is_top()) {
-    LoopNode* lpn = loop->_head->as_Loop();
-    Node* entry = lpn->in(LoopNode::EntryControl);
+  if (loop->can_apply_loop_predication()) {
+    Node* entry = loop->_head->in(LoopNode::EntryControl);
     const Predicates predicates(entry);
-    const RegularPredicateBlock* loop_limit_check_predicate_block = predicates.loop_limit_check_predicate_block();
-    if (loop_limit_check_predicate_block->has_parse_predicate()) { // right pattern that can be used by loop predication
-      IfProjNode* parse_predicate_proj = loop_limit_check_predicate_block->parse_predicate_success_proj();
-      assert(parse_predicate_proj->in(0)->in(1)->in(1)->Opcode() == Op_Opaque1, "must be");
-      useful_predicates.push(parse_predicate_proj->in(0)->in(1)->in(1)); // good one
-    }
     if (UseProfiledLoopPredicate) {
       const RegularPredicateBlock* profiled_loop_predicate_block = predicates.profiled_loop_predicate_block();
       if (profiled_loop_predicate_block->has_parse_predicate()) { // right pattern that can be used by loop predication
         IfProjNode* parse_predicate_proj = profiled_loop_predicate_block->parse_predicate_success_proj();
-        useful_predicates.push(parse_predicate_proj->in(0)->in(1)->in(1)); // good one
         get_assertion_predicates(parse_predicate_proj, useful_predicates, true);
       }
     }
@@ -4069,14 +4060,59 @@ void PhaseIdealLoop::collect_potentially_useful_predicates(IdealLoopTree* loop, 
       const RegularPredicateBlock* loop_predicate_block = predicates.loop_predicate_block();
       if (loop_predicate_block->has_parse_predicate()) { // right pattern that can be used by loop predication
         IfProjNode* parse_predicate_proj = loop_predicate_block->parse_predicate_success_proj();
-        useful_predicates.push(parse_predicate_proj->in(0)->in(1)->in(1)); // good one
         get_assertion_predicates(parse_predicate_proj, useful_predicates, true);
       }
     }
   }
 
   if (loop->_next) { // sibling
-    collect_potentially_useful_predicates(loop->_next, useful_predicates);
+    eliminate_useless_template_assertion_predicates(loop->_next, useful_predicates);
+  }
+}
+
+// Eliminate all parse predicates that do not belong to their originally associated loop anymore by marking them
+// as useless. IGVN will then clean up these nodes later.
+void PhaseIdealLoop::eliminate_useless_parse_predicates() {
+  for (int i = 0; i < C->parse_predicate_count(); i++) {
+    C->parse_predicate(i)->mark_useless();
+  }
+
+  if (C->has_loops()) {
+    eliminate_useless_parse_predicates(_ltree_root->_child);
+  }
+
+  add_useless_parse_predicates_to_igvn();
+}
+
+void PhaseIdealLoop::add_useless_parse_predicates_to_igvn() {
+  for (int i = 0; i < C->parse_predicate_count(); i++) {
+    ParsePredicateNode* parse_predicate_node = C->parse_predicate(i);
+    if (parse_predicate_node->is_useless()) {
+      _igvn._worklist.push(parse_predicate_node);
+    }
+  }
+}
+
+void PhaseIdealLoop::eliminate_useless_parse_predicates(IdealLoopTree* loop) {
+  if (loop->_child) { // child
+    eliminate_useless_parse_predicates(loop->_child);
+  }
+
+  if (loop->can_apply_loop_predication()) {
+    mark_useful_parse_predicates_for_loop(loop);
+  }
+
+  if (loop->_next) { // sibling
+    eliminate_useless_parse_predicates(loop->_next);
+  }
+}
+
+void PhaseIdealLoop::mark_useful_parse_predicates_for_loop(IdealLoopTree* loop) {
+  Node* entry = loop->_head->in(LoopNode::EntryControl);
+  const Predicates predicates(entry);
+  ParsePredicateIterator iterator(predicates);
+  while (iterator.has_next()) {
+    iterator.next()->mark_useful();
   }
 }
 
@@ -4089,26 +4125,8 @@ void PhaseIdealLoop::eliminate_useless_predicates() {
     return; // no predicate left
   }
 
-  Unique_Node_List useful_predicates; // to store useful predicates
-  if (C->has_loops()) {
-    collect_potentially_useful_predicates(_ltree_root->_child, useful_predicates);
-  }
-
-  for (int i = C->parse_predicate_count(); i > 0; i--) {
-     Node* n = C->parse_predicate_opaque1_node(i - 1);
-     assert(n->Opcode() == Op_Opaque1, "must be");
-     if (!useful_predicates.member(n)) { // not in the useful list
-       _igvn.replace_node(n, n->in(1));
-     }
-  }
-
-  for (int i = C->template_assertion_predicate_count(); i > 0; i--) {
-    Node* n = C->template_assertion_predicate_opaq_node(i - 1);
-    assert(n->Opcode() == Op_Opaque4, "must be");
-    if (!useful_predicates.member(n)) { // not in the useful list
-      _igvn.replace_node(n, n->in(2));
-    }
-  }
+  eliminate_useless_parse_predicates();
+  eliminate_useless_template_assertion_predicates();
 }
 
 //------------------------process_expensive_nodes-----------------------------
@@ -4503,7 +4521,7 @@ void PhaseIdealLoop::build_and_optimize() {
   }
 
   // Perform loop predication before iteration splitting
-  if (C->has_loops() && !C->major_progress() && (C->parse_predicate_count() > 0)) {
+  if (UseLoopPredicate && C->has_loops() && !C->major_progress() && (C->parse_predicate_count() > 0)) {
     _ltree_root->_child->loop_predication(this);
   }
 
@@ -4556,7 +4574,8 @@ void PhaseIdealLoop::build_and_optimize() {
   // until no more loop optimizations could be done.
   // After that switch predicates off and do more loop optimizations.
   if (!C->major_progress() && (C->parse_predicate_count() > 0)) {
-     C->cleanup_parse_predicates(_igvn);
+    C->mark_parse_predicate_nodes_useless(_igvn);
+    assert(C->parse_predicate_count() == 0, "should be zero now");
      if (TraceLoopOpts) {
        tty->print_cr("PredicatesOff");
      }

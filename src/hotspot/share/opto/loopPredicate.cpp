@@ -151,7 +151,7 @@ IfProjNode* PhaseIdealLoop::create_new_if_for_predicate(IfProjNode* cont_proj, N
       new_iff = new RangeCheckNode(entry, iff->in(1), iff->_prob, iff->_fcnt);
       break;
     case Op_ParsePredicate:
-      new_iff = new ParsePredicateNode(entry, iff->in(1), reason);
+      new_iff = new ParsePredicateNode(entry, reason, &_igvn);
       break;
     default:
       fatal("no other If variant here");
@@ -308,18 +308,8 @@ IfProjNode* PhaseIdealLoop::clone_parse_predicate_to_unswitched_loop(ParsePredic
 
   IfProjNode* new_predicate_proj = create_new_if_for_predicate(predicate_proj, new_entry, reason, Op_ParsePredicate,
                                                                slow_loop);
-  IfNode* iff = new_predicate_proj->in(0)->as_If();
-  Node* ctrl  = iff->in(0);
-
-  // Match original condition since predicate's projections could be swapped.
-  assert(predicate_proj->in(0)->in(1)->in(1)->Opcode()==Op_Opaque1, "must be");
-  Node* opq = new Opaque1Node(C, predicate_proj->in(0)->in(1)->in(1)->in(1));
-  C->add_parse_predicate_opaq(opq);
-  Node* bol = new Conv2BNode(opq);
-  register_new_node(opq, ctrl);
-  register_new_node(bol, ctrl);
-  _igvn.hash_delete(iff);
-  iff->set_req(1, bol);
+  ParsePredicateNode* parse_predicate = new_predicate_proj->in(0)->as_ParsePredicate();
+  _igvn.hash_delete(parse_predicate);
   return new_predicate_proj;
 }
 
@@ -378,11 +368,11 @@ void PhaseIdealLoop::clone_assertion_predicates_to_unswitched_loop(IdealLoopTree
 // is set, then the Opaque4 nodes of the Assertion Predicates are put on the list instead of the projections.
 void PhaseIdealLoop::get_assertion_predicates(Node* predicate, Unique_Node_List& list, bool get_opaque) {
   IfNode* iff = predicate->in(0)->as_If();
+  assert(iff->is_ParsePredicate(), "must be parse predicate");
   ProjNode* uncommon_proj = iff->proj_out(1 - predicate->as_Proj()->_con);
   Node* rgn = uncommon_proj->unique_ctrl_out();
   assert(rgn->is_Region() || rgn->is_Call(), "must be a region or call uct");
-  assert(iff->in(1)->in(1)->Opcode() == Op_Opaque1, "unexpected predicate shape");
-  predicate = iff->in(0);
+  predicate = predicate->in(0)->in(0);
   while (predicate != nullptr && predicate->is_Proj() && predicate->in(0)->is_If()) {
     iff = predicate->in(0)->as_If();
     uncommon_proj = iff->proj_out(1 - predicate->as_Proj()->_con);
@@ -1316,13 +1306,7 @@ IfProjNode* PhaseIdealLoop::add_template_assertion_predicate(IfNode* iff, IdealL
 
 //------------------------------ loop_predication_impl--------------------------
 // Insert loop predicates for null checks and range checks
-bool PhaseIdealLoop::loop_predication_impl(IdealLoopTree *loop) {
-  if (!UseLoopPredicate) return false;
-
-  if (!loop->_head->is_Loop()) {
-    // Could be a simple region when irreducible loops are present.
-    return false;
-  }
+bool PhaseIdealLoop::loop_predication_impl(IdealLoopTree* loop) {
   LoopNode* head = loop->_head->as_Loop();
 
   if (head->unique_ctrl_out()->is_NeverBranch()) {
@@ -1513,7 +1497,7 @@ bool IdealLoopTree::loop_predication( PhaseIdealLoop *phase) {
   }
 
   // self
-  if (!_irreducible && !tail()->is_top()) {
+  if (can_apply_loop_predication()) {
     hoisted |= phase->loop_predication_impl(this);
   }
 
@@ -1522,4 +1506,8 @@ bool IdealLoopTree::loop_predication( PhaseIdealLoop *phase) {
   }
 
   return hoisted;
+}
+
+bool IdealLoopTree::can_apply_loop_predication() {
+  return _head->is_Loop() && !_irreducible && !tail()->is_top();
 }

@@ -460,13 +460,26 @@ public:
 // More information about predicates can be found at loopPredicate.cpp.
 class ParsePredicateNode : public IfNode {
   Deoptimization::DeoptReason _deopt_reason;
+  bool _useless; // If the associated loop dies, this parse predicate becomes useless and can be cleaned up by Value().
  public:
-  ParsePredicateNode(Node* control, Node* bol, Deoptimization::DeoptReason deopt_reason);
+  ParsePredicateNode(Node* control, Deoptimization::DeoptReason deopt_reason, PhaseGVN* gvn);
   virtual int Opcode() const;
   virtual uint size_of() const { return sizeof(*this); }
 
   Deoptimization::DeoptReason deopt_reason() const {
     return _deopt_reason;
+  }
+
+  bool is_useless() const {
+    return _useless;
+  }
+
+  void mark_useless() {
+    _useless = true;
+  }
+
+  void mark_useful() {
+    _useless = false;
   }
 
   static bool is_success_proj(Node* parse_predicate_proj) {
@@ -481,6 +494,11 @@ class ParsePredicateNode : public IfNode {
 
   Node* uncommon_trap() const;
 
+  Node* Ideal(PhaseGVN* phase, bool can_reshape) {
+    return nullptr; // Don't optimize
+  }
+
+  const Type* Value(PhaseGVN* phase) const;
   NOT_PRODUCT(void dump_spec(outputStream* st) const;)
 };
 

@@ -82,3 +82,27 @@ bool RuntimePredicate::is_success_proj(Node* node, Deoptimization::DeoptReason d
     return false;
   }
 }
+
+ParsePredicateIterator::ParsePredicateIterator(const Predicates& predicates) : _current_index(0) {
+  const RegularPredicateBlock* loop_limit_check_predicate_block = predicates.loop_limit_check_predicate_block();
+  if (loop_limit_check_predicate_block->has_parse_predicate()) {
+    _parse_predicates.push(loop_limit_check_predicate_block->parse_predicate());
+  }
+  if (UseProfiledLoopPredicate) {
+    const RegularPredicateBlock* profiled_loop_predicate_block = predicates.profiled_loop_predicate_block();
+    if (profiled_loop_predicate_block->has_parse_predicate()) {
+      _parse_predicates.push(profiled_loop_predicate_block->parse_predicate());
+    }
+  }
+  if (UseLoopPredicate) {
+    const RegularPredicateBlock* loop_predicate_block = predicates.loop_predicate_block();
+    if (loop_predicate_block->has_parse_predicate()) {
+      _parse_predicates.push(loop_predicate_block->parse_predicate());
+    }
+  }
+}
+
+ParsePredicateNode* ParsePredicateIterator::next() {
+  assert(has_next(), "always check has_next() first");
+  return _parse_predicates.at(_current_index++);
+}
