@@ -32,6 +32,7 @@
 #include "opto/connode.hpp"
 #include "opto/loopnode.hpp"
 #include "opto/phaseX.hpp"
+#include "opto/predicates.hpp"
 #include "opto/runtime.hpp"
 #include "opto/rootnode.hpp"
 #include "opto/subnode.hpp"
@@ -1970,8 +1971,8 @@ Node* RangeCheckNode::Ideal(PhaseGVN *phase, bool can_reshape) {
 }
 
 ParsePredicateNode::ParsePredicateNode(Node* control, Node* bol, Deoptimization::DeoptReason deopt_reason)
-  : IfNode(control, bol, PROB_MAX, COUNT_UNKNOWN),
-    _deopt_reason(deopt_reason) {
+    : IfNode(control, bol, PROB_MAX, COUNT_UNKNOWN),
+      _deopt_reason(deopt_reason) {
   init_class_id(Class_ParsePredicate);
   assert(bol->Opcode() == Op_Conv2B && bol->in(1) != nullptr && bol->in(1)->is_Opaque1(), "wrong boolean input");
 #ifdef ASSERT
@@ -1984,6 +1985,12 @@ ParsePredicateNode::ParsePredicateNode(Node* control, Node* bol, Deoptimization:
       assert(false, "unsupported deoptimization reason for Parse Predicate");
   }
 #endif // ASSERT
+}
+
+Node* ParsePredicateNode::uncommon_trap() const {
+  Node* region = uncommon_proj()->unique_ctrl_out();
+  assert(region->is_Region() || region->is_Call(), "must be a region or call uct");
+  return region;
 }
 
 #ifndef PRODUCT
@@ -2003,4 +2010,5 @@ void ParsePredicateNode::dump_spec(outputStream* st) const {
       fatal("unknown kind");
   }
 }
+
 #endif // NOT PRODUCT

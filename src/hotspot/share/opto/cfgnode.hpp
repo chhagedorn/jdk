@@ -469,6 +469,18 @@ class ParsePredicateNode : public IfNode {
     return _deopt_reason;
   }
 
+  static bool is_success_proj(Node* parse_predicate_proj) {
+    assert(parse_predicate_proj != nullptr, "must not be null");
+    return parse_predicate_proj->is_IfTrue() && parse_predicate_proj->in(0)->is_ParsePredicate();
+  }
+
+  // Return the uncommon trap belonging to the parse predicate denoted by `parse_predicate_success_proj`.
+  ParsePredicateUncommonProj* uncommon_proj() const {
+    return proj_out(0)->as_IfFalse();
+  }
+
+  Node* uncommon_trap() const;
+
   NOT_PRODUCT(void dump_spec(outputStream* st) const;)
 };
 
