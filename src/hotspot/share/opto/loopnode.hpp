@@ -953,7 +953,6 @@ private:
   Node* create_bool_from_template_assertion_predicate(Node* template_assertion_predicate, Node* new_init, Node* new_stride,
                                                       Node* control);
   static bool assertion_predicate_has_loop_opaque_node(IfNode* iff);
-  static void get_assertion_predicates(Node* predicate, Unique_Node_List& list, bool get_opaque = false);
   void update_main_loop_assertion_predicates(Node* ctrl, CountedLoopNode* loop_head, Node* init, int stride_con);
   void copy_assertion_predicates_to_post_loop(LoopNode* main_loop_head, CountedLoopNode* post_loop_head, Node* init,
                                               Node* stride);
@@ -1383,7 +1382,6 @@ public:
 
   void eliminate_useless_predicates();
 
-  bool has_control_dependencies_from_predicates(LoopNode* head) const;
   void verify_fast_loop(LoopNode* head, const ProjNode* proj_true) const NOT_DEBUG_RETURN;
  public:
   // Change the control input of expensive nodes to allow commoning by
@@ -1626,26 +1624,6 @@ private:
 
     _nodes_required = UINT_MAX;
   }
-
-  // Clone Parse Predicates to slow and fast loop when unswitching a loop
-  void clone_parse_and_assertion_predicates_to_unswitched_loop(IdealLoopTree* loop, Node_List& old_new,
-                                                               IfProjNode*& iffast_pred, IfProjNode*& ifslow_pred);
-  void clone_loop_predication_predicates_to_unswitched_loop(IdealLoopTree* loop, const Node_List& old_new,
-                                                            const RegularPredicateBlock* regular_predicate_block,
-                                                            Deoptimization::DeoptReason reason, IfProjNode*& iffast_pred,
-                                                            IfProjNode*& ifslow_pred);
-  void clone_parse_predicate_to_unswitched_loops(const RegularPredicateBlock* regular_predicate_block,
-                                                 Deoptimization::DeoptReason reason, IfProjNode*& iffast_pred,
-                                                 IfProjNode*& ifslow_pred);
-  IfProjNode* clone_parse_predicate_to_unswitched_loop(ParsePredicateSuccessProj* predicate_proj, Node* new_entry,
-                                                       Deoptimization::DeoptReason reason, bool slow_loop);
-  void clone_assertion_predicates_to_unswitched_loop(IdealLoopTree* loop, const Node_List& old_new,
-                                                     Deoptimization::DeoptReason reason, IfProjNode* old_predicate_proj,
-                                                     IfProjNode* iffast_pred, IfProjNode* ifslow_pred);
-  IfProjNode* clone_assertion_predicate_for_unswitched_loops(Node* iff, IfProjNode* predicate,
-                                                             Deoptimization::DeoptReason reason,
-                                                             IfProjNode* output_proj);
-  static void check_cloned_parse_predicate_for_unswitching(const Node* new_entry, bool is_fast_loop) PRODUCT_RETURN;
 
   bool _created_loop_node;
   DEBUG_ONLY(void dump_idoms(Node* early, Node* wrong_lca);)

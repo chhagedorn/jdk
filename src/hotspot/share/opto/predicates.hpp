@@ -504,4 +504,98 @@ class EliminateUselessPredicates : public StackObj {
 
   void eliminate();
 };
+
+// Classes to create a new Parse Predicate node (clone of an old Parse Predicate) for either the fast or slow loop.
+// The fast loop need to create some additional clones while the slow loop can reuse old nodes.
+class NewParsePredicate : public ResourceObj {
+ public:
+  virtual Node* create(PhaseIdealLoop* phase, Node* new_entry, ParsePredicateSuccessProj* old_proj) = 0;
+};
+
+// Class to clone Parse Predicates.
+class CloneParsePredicates : public StackObj {
+  Node* _new_entry;
+  NewParsePredicate* _new_parse_predicate;
+  PhaseIdealLoop* _phase;
+  LoopNode* _loop_node;
+
+  void clone_parse_predicate(const RegularPredicateBlock* regular_predicate_block);
+  void create_new_parse_predicate(ParsePredicateSuccessProj* predicate_proj);
+
+ public:
+  CloneParsePredicates(NewParsePredicate* new_parse_predicate, Node* new_entry, PhaseIdealLoop* phase, LoopNode* loop_node)
+      : _new_entry(new_entry),
+        _new_parse_predicate(new_parse_predicate),
+        _phase(phase),
+        _loop_node(loop_node) {}
+
+  Node* clone(const RegularPredicateBlocks* regular_predicate_blocks);
+};
+
+
+// Classes to decide if a node is either in the fast or the slow loop.
+class NodeInLoop : public ResourceObj {
+ public:
+  virtual bool check(Node* node) const = 0;
+};
+
+class NodeInOriginalLoop : public NodeInLoop {
+ private:
+  PhaseIdealLoop* _phase;
+  IdealLoopTree* _loop;
+  uint _first_node_index_in_cloned_loop;
+
+ public:
+  explicit NodeInOriginalLoop(PhaseIdealLoop* phase, IdealLoopTree* loop, uint first_node_index_in_cloned_loop)
+      : _phase(phase),
+        _loop(loop),
+        _first_node_index_in_cloned_loop(first_node_index_in_cloned_loop) {}
+
+  // Check if node inside original loop:
+  // - Node index smaller than first node index in cloned loop.
+  // - Node get_ctrl(node) inside original loop.
+  bool check(Node* node) const override {
+    return node->_idx < _first_node_index_in_cloned_loop && _loop->is_member(_phase->get_loop(_phase->get_ctrl(node)));
+  }
+};
+
+class NodeInClonedLoop : public NodeInLoop {
+ private:
+  uint _first_node_index_in_cloned_loop;
+
+ public:
+  explicit NodeInClonedLoop(uint first_node_index_in_cloned_loop)
+      : _first_node_index_in_cloned_loop(first_node_index_in_cloned_loop) {}
+
+  // Check if node inside cloned loop:
+  // Node index greater than or equal first node index in cloned loop: Then we know that this node was cloned and is now
+  // part of the cloned loop.
+  bool check(Node* node) const override {
+    return node->_idx >= _first_node_index_in_cloned_loop;
+  }
+};
+
+// Class to clone Template Assertion Predicates.
+class CloneTemplateAssertionPredicates : public StackObj {
+  Node* _new_entry;
+  NodeInLoop* _node_in_loop;
+  PhaseIdealLoop* _phase;
+  uint _dom_depth;
+
+  static GrowableArray<TemplateAssertionPredicateNode*>
+  collect_template_assertion_predicates(const Predicates& predicates);
+  void clone_in_reverse_order(GrowableArray<TemplateAssertionPredicateNode*>& template_assertion_predicate_nodes);
+  void clone_template_assertion_predicate(TemplateAssertionPredicateNode* template_assertion_predicate);
+  void update_data_dependencies(const TemplateAssertionPredicateNode* template_assertion_predicate);
+
+ public:
+  CloneTemplateAssertionPredicates(Node* new_entry, NodeInLoop* node_in_loop, PhaseIdealLoop* phase)
+          : _new_entry(new_entry),
+            _node_in_loop(node_in_loop),
+            _phase(phase),
+            _dom_depth(phase->dom_depth(new_entry)) {}
+
+  Node* clone(const Predicates& predicates);
+};
+
 #endif // SHARE_OPTO_PREDICATES_HPP

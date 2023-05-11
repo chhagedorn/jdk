@@ -118,15 +118,11 @@ IfNode* PhaseIdealLoop::find_unswitching_candidate(const IdealLoopTree *loop) co
 // insert a clone of the test that selects which version to
 // execute.
 void PhaseIdealLoop::do_unswitching(IdealLoopTree *loop, Node_List &old_new) {
-  LoopNode* head = loop->_head->as_Loop();
-  if (has_control_dependencies_from_predicates(head)) {
-    return;
-  }
-
   // Find first invariant test that doesn't exit the loop
   IfNode* unswitch_iff = find_unswitching_candidate((const IdealLoopTree *)loop);
   assert(unswitch_iff != nullptr, "should be at least one");
 
+  LoopNode* head = loop->_head->as_Loop();
 #ifndef PRODUCT
   if (TraceLoopOpts) {
     tty->print("Unswitch   %d ", head->unswitch_count()+1);
@@ -203,20 +199,170 @@ void PhaseIdealLoop::do_unswitching(IdealLoopTree *loop, Node_List &old_new) {
   C->set_major_progress();
 }
 
-bool PhaseIdealLoop::has_control_dependencies_from_predicates(LoopNode* head) const {
-  Node* entry = head->skip_strip_mined()->in(LoopNode::EntryControl);
-  Predicates predicates(entry);
-  if (predicates.has_any()) {
-    assert(entry->is_IfProj(), "sanity - must be ifProj since there is at least one predicate");
-    if (entry->outcnt() > 1) {
-      // Bailout if there are predicates from which there are additional control dependencies (i.e. from loop
-      // entry 'entry') to previously partially peeled statements since this case is not handled and can lead
-      // to a wrong execution. Remove this bailout, once this is fixed.
-      return true;
+class NewFastLoopParsePredicate : public NewParsePredicate {
+ public:
+  Node* create(PhaseIdealLoop* phase, Node* new_entry, ParsePredicateSuccessProj* old_proj) override {
+    ParsePredicateNode* parse_predicate = old_proj->in(0)->as_ParsePredicate();
+#ifndef PRODUCT
+    if (TraceLoopPredicate) {
+      tty->print("Created %d ParsePredicated for fast loop", parse_predicate->_idx);
+      parse_predicate->dump();
     }
+#endif
+    return phase->create_new_if_for_predicate(old_proj, new_entry, parse_predicate->deopt_reason(), Op_ParsePredicate, false);
   }
-  return false;
-}
+};
+
+class NewSlowLoopParsePredicate : public NewParsePredicate {
+ public:
+  Node* create(PhaseIdealLoop* phase, Node* new_entry, ParsePredicateSuccessProj* old_proj) override {
+    ParsePredicateNode* parse_predicate = old_proj->in(0)->as_ParsePredicate();
+#ifndef PRODUCT
+    if (TraceLoopPredicate) {
+      tty->print("Created %d ParsePredicated for slow loop", parse_predicate->_idx);
+      parse_predicate->dump();
+    }
+#endif
+    return phase->create_new_if_for_predicate(old_proj, new_entry, parse_predicate->deopt_reason(), Op_ParsePredicate, true);
+  }
+};
+
+// Class to represent either the slow or the fast loop.
+class UnswitchedLoop : public StackObj {
+  const Predicates* _predicates;
+  NewParsePredicate* _new_parse_predicate;
+  NodeInLoop* _index_in_loop;
+  PhaseIdealLoop* _phase;
+  LoopNode* _old_loop_head;
+
+ public:
+  UnswitchedLoop(const Predicates* predicates, NewParsePredicate* new_parse_predicate, NodeInLoop* index_in_loop,
+                 PhaseIdealLoop* phase, IdealLoopTree* loop)
+      : _predicates(predicates),
+        _new_parse_predicate(new_parse_predicate),
+        _index_in_loop(index_in_loop),
+        _phase(phase),
+        _old_loop_head(loop->_head->as_Loop()) {}
+
+  static UnswitchedLoop create_fast_loop(PhaseIdealLoop* phase, IdealLoopTree* loop, const Predicates* predicates,
+                                         uint first_slow_loop_node_index) {
+    // Original loop becomes fast loop.
+    NodeInLoop* node_in_loop = new NodeInOriginalLoop(phase, loop, first_slow_loop_node_index);
+    UnswitchedLoop unswitched_loop(predicates, new NewFastLoopParsePredicate(), node_in_loop, phase, loop);
+    return unswitched_loop;
+  }
+
+  static UnswitchedLoop create_slow_loop(PhaseIdealLoop* phase, IdealLoopTree* loop, const Predicates* predicates,
+                                         uint first_slow_loop_node_index) {
+    // Cloned loop becomes slow loop.
+    NodeInLoop* node_in_loop = new NodeInClonedLoop(first_slow_loop_node_index);
+    UnswitchedLoop unswitched_loop(predicates, new NewSlowLoopParsePredicate(), node_in_loop, phase, loop);
+    return unswitched_loop;
+  }
+
+  // Clone the Parse Predicates from the original loop (if there are any) to this loop and add them below 'new_entry'.
+  // Return the last node in the newly created Template Assertion Predicate chain.
+  Node* clone_parse_predicates(Node* new_entry) const {
+    const RegularPredicateBlocks* regular_predicate_blocks = _predicates->regular_predicate_blocks();
+    CloneParsePredicates clone_parse_predicates(_new_parse_predicate, new_entry, _phase, _old_loop_head);
+    new_entry = clone_parse_predicates.clone(regular_predicate_blocks);
+    return new_entry;
+  }
+
+  // Clone the Template Assertion Predicates from the original loop (if there are any) to this loop and add them below
+  // 'new_entry'. This also moves all control dependencies belonging to this unswitched loop from the old Template
+  // Assertion Predicates to the new ones.
+  // Returns the last node in the newly created Template Assertion Predicate chain.
+  Node* clone_template_assertion_predicates(Node* new_entry) const {
+    CloneTemplateAssertionPredicates clone_template_assertion_predicates(new_entry, _index_in_loop, _phase);
+    return clone_template_assertion_predicates.clone(*_predicates);
+  }
+};
+
+// Class to clone Parse and Template Assertion Predicates from before the unswitch If to the fast and slow loop.
+class ClonePredicates {
+  LoopNode* _old_loop_node;
+  Predicates _predicates;
+  UnswitchedLoop _fast_loop;
+  UnswitchedLoop _slow_loop;
+  bool _can_clone_parse_predicates;
+
+  // When peeling or partial peeling a loop, we could have non-CFG nodes being pinned on some CFG nodes in the peeled
+  // section. If all CFG nodes in the peeled section are folded in the next IGVN phase, then the pinned non-CFG nodes
+  // end up at the predicates for the original loop (either a Template Assertion Predicate, if we've created any Hoisted
+  // Predicate in loop predication, or Parse Predicate otherwise). This allows some more checks to be hoisted out of the
+  // fast and slow loop after loop unswitching. If we do that and any of the Hoisted Predicates for the fast or slow loop
+  // failt at runtime, hoisted check is wrong at runtime, we deoptimize and jump to the start of the loop, assuming we
+  // have not executed any statements, yet. This requires, that all pinned non-CFG nodes are executed AFTER the Hoisted
+  // Predicates. We therefore need to update the pins to the fast and slow loop entry node (i.e. after some potentially
+  // created Hoisted Predicates). This is automatically done for pinned nodes inside the loop to be unswitched, as these
+  // are updated when cloning the predicates to the fast and slow loop. However, we could also have pinned non-CFG nodes
+  // that are not part of the original loop and therefore not cloned. But these could be a direct or indirect inputs to
+  // nodes inside the loop to be unswitched. We would need to clone all of them to be able to update the pin to the fast
+  // and slow loop. This is currently not supported.We therefore must bail out of loop unswitching until this is fixed.
+  bool has_no_outside_loop_data_dependencies_from_entry(uint first_slow_loop_node_index) const {
+    Node* entry = _old_loop_node->skip_strip_mined()->in(LoopNode::EntryControl);
+    const uint entry_outcnt = entry->outcnt();
+    assert(entry_outcnt >= 3, "must have at least final successor + fast and slow loop head which are not rewired, yet");
+    if (entry_outcnt > 3 && _predicates.regular_predicate_blocks()->has_any()) {
+      const uint slow_loop_node_count = count_slow_loop_nodes(entry, first_slow_loop_node_index);
+      // Total out nodes without counting the final (unique) out control of entry: T = entry_count - 1
+      // For each out node (without counting the unique out control node):
+      // Check if there is a slow node <-> fast node mapping (i.e. the node was part of the original loop to be unswitched)
+      // If we find a node without such a mapping, then it was not part of the original loop to be unswitched.
+      // In this case, we found a data depencency which prevents parse predicates from being cloned.
+      // Instead of actually mapping nodes, we can just count the number of slow loop nodes (which can only be mapped to
+      // a unique fast loop node) and multiply it by 2. This should be equal to T.
+      return slow_loop_node_count * 2 == entry_outcnt - 1;
+    }
+    return true;
+  }
+
+  static uint count_slow_loop_nodes(const Node* entry, const uint first_slow_loop_node_index) {
+    uint slow_loop_node_count = 0;
+    for (DUIterator_Fast imax, i = entry->fast_outs(imax); i < imax; i++) {
+      Node* out = entry->fast_out(i);
+      if (out->_idx >= first_slow_loop_node_index) {
+        slow_loop_node_count++;
+      }
+    }
+    return slow_loop_node_count;
+  }
+
+  Node* clone_for_loop(const UnswitchedLoop& unswitched_loop, Node* new_entry) const {
+    if (_can_clone_parse_predicates) {
+      // We cannot always clone the parse predicates. See comments at has_no_outside_loop_data_dependencies_from_entry().
+      // Nevertheless, we can still apply loop unswitching but cannot use the Parse Predicates anymore to create new
+      // predicates.
+      new_entry = unswitched_loop.clone_parse_predicates(new_entry);
+    }
+    if (_old_loop_node->is_CountedLoop()) {
+      // We can only hoist range checks from counted loops. Otherwise, there are no Template Assertion Predicates.
+      new_entry = unswitched_loop.clone_template_assertion_predicates(new_entry);
+    }
+    return new_entry;
+  }
+
+ public:
+  ClonePredicates(PhaseIdealLoop* phase, IdealLoopTree* loop, uint first_slow_loop_node_index)
+      : _old_loop_node(loop->_head->as_Loop()),
+        _predicates(_old_loop_node->skip_strip_mined()->in(LoopNode::EntryControl)),
+        _fast_loop(UnswitchedLoop::create_fast_loop(phase, loop, &_predicates, first_slow_loop_node_index)),
+        _slow_loop(UnswitchedLoop::create_slow_loop(phase, loop, &_predicates, first_slow_loop_node_index)),
+        _can_clone_parse_predicates(has_no_outside_loop_data_dependencies_from_entry(first_slow_loop_node_index)) {}
+
+  // Clone the predicates from the original loop (if there are any) to the fast loop and add them below 'new_entry'.
+  // Return the last node in the newly created predicate node chain which is the new entry to the fast loop.
+  Node* clone_for_fast_loop(Node* new_entry) const {
+    return clone_for_loop(_fast_loop, new_entry);
+  }
+
+  // Clone the predicates from the original loop (if there are any) to the slow loop and add them below 'new_entry'.
+  // Return the last node in the newly created predicate node chain which is the new entry to the slow loop.
+  Node* clone_for_slow_loop(Node* new_entry) const {
+    return clone_for_loop(_slow_loop, new_entry);
+  }
+};
 
 //-------------------------create_slow_version_of_loop------------------------
 // Create a slow version of the loop by cloning the loop
@@ -238,31 +384,30 @@ IfNode* PhaseIdealLoop::create_slow_version_of_loop(IdealLoopTree *loop,
   IfNode* iff = (unswitch_iff->Opcode() == Op_RangeCheck) ? new RangeCheckNode(entry, bol, unswitch_iff->_prob, unswitch_iff->_fcnt) :
     new IfNode(entry, bol, unswitch_iff->_prob, unswitch_iff->_fcnt);
   register_node(iff, outer_loop, entry, dom_depth(entry));
-  IfProjNode* iffast = new IfTrueNode(iff);
-  register_node(iffast, outer_loop, iff, dom_depth(iff));
-  IfProjNode* ifslow = new IfFalseNode(iff);
-  register_node(ifslow, outer_loop, iff, dom_depth(iff));
+  IfProjNode* if_fast = new IfTrueNode(iff);
+  register_node(if_fast, outer_loop, iff, dom_depth(iff));
+  IfProjNode* if_slow = new IfFalseNode(iff);
+  register_node(if_slow, outer_loop, iff, dom_depth(iff));
 
   // Clone the loop body.  The clone becomes the slow loop.  The
   // original pre-header will (illegally) have 3 control users
   // (old & new loops & new if).
+  const uint first_slow_loop_node_index = C->unique();
   clone_loop(loop, old_new, dom_depth(head->skip_strip_mined()), mode, iff);
   assert(old_new[head->_idx]->is_Loop(), "" );
 
-  // Fast (true) and Slow (false) control
-  IfProjNode* iffast_pred = iffast;
-  IfProjNode* ifslow_pred = ifslow;
-  clone_parse_and_assertion_predicates_to_unswitched_loop(loop, old_new, iffast_pred, ifslow_pred);
+  ClonePredicates clone_predicates(this, loop, first_slow_loop_node_index);
+  Node* if_fast_loop_entry = clone_predicates.clone_for_fast_loop(if_fast);
+  Node* if_slow_loop_entry = clone_predicates.clone_for_slow_loop(if_slow);
 
-  Node* l = head->skip_strip_mined();
-  _igvn.replace_input_of(l, LoopNode::EntryControl, iffast_pred);
-  set_idom(l, iffast_pred, dom_depth(l));
-  LoopNode* slow_l = old_new[head->_idx]->as_Loop()->skip_strip_mined();
-  _igvn.replace_input_of(slow_l, LoopNode::EntryControl, ifslow_pred);
-  set_idom(slow_l, ifslow_pred, dom_depth(l));
+  LoopNode* fast_loop_head = head->skip_strip_mined();
+  _igvn.replace_input_of(fast_loop_head, LoopNode::EntryControl, if_fast_loop_entry);
+  set_idom(fast_loop_head, if_fast_loop_entry, dom_depth(fast_loop_head));
+  LoopNode* slow_loop_head = old_new[head->_idx]->as_Loop()->skip_strip_mined();
+  _igvn.replace_input_of(slow_loop_head, LoopNode::EntryControl, if_slow_loop_entry);
+  set_idom(slow_loop_head, if_slow_loop_entry, dom_depth(fast_loop_head));
 
   recompute_dom_depth();
-
   return iff;
 }
 

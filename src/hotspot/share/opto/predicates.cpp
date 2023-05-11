@@ -177,3 +177,81 @@ void EliminateUselessPredicates::eliminate() {
   add_useless_predicates_to_igvn(C->parse_predicates());
   add_useless_predicates_to_igvn(C->template_assertion_predicates());
 }
+
+void CloneParsePredicates::clone_parse_predicate(const RegularPredicateBlock* regular_predicate_block) {
+  if (!regular_predicate_block->is_empty()) {
+    ParsePredicateSuccessProj* parse_predicate_proj = regular_predicate_block->parse_predicate_success_proj();
+    create_new_parse_predicate(parse_predicate_proj);
+  }
+}
+
+void CloneParsePredicates::create_new_parse_predicate(ParsePredicateSuccessProj* predicate_proj) {
+  _new_entry = _new_parse_predicate->create(_phase, _new_entry, predicate_proj);
+  ParsePredicateNode* parse_predicate = _new_entry->in(0)->as_ParsePredicate();
+  _phase->igvn().hash_delete(parse_predicate);
+}
+
+// Clone the Parse Predicates from the Predicate Blocks to this loop and add them below '_new_entry'.
+// Return the last node in the newly created Parse Predicate chain.
+Node* CloneParsePredicates::clone(const RegularPredicateBlocks* regular_predicate_blocks) {
+  clone_parse_predicate(regular_predicate_blocks->loop_predicate_block());
+  clone_parse_predicate(regular_predicate_blocks->profiled_loop_predicate_block());
+  if (!_loop_node->is_CountedLoop()) {
+    // Don't clone the Loop Limit Check Parse Predicate if we already have a counted loop (a Loop Limit Check Predicate
+    // is only created when converting a LoopNode to a CountedLoopNode).
+    clone_parse_predicate(regular_predicate_blocks->loop_limit_check_predicate_block());
+  }
+  return _new_entry;
+}
+
+GrowableArray<TemplateAssertionPredicateNode*>
+CloneTemplateAssertionPredicates::collect_template_assertion_predicates(const Predicates& predicates) {
+  TemplateAssertionPredicateIterator template_assertion_predicate_iterator(predicates);
+  GrowableArray<TemplateAssertionPredicateNode*> template_assertion_predicate_nodes;
+  while (true) {
+    TemplateAssertionPredicateNode* template_assertion_predicate = template_assertion_predicate_iterator.next();
+    if (template_assertion_predicate == nullptr) {
+      break;
+    }
+    template_assertion_predicate_nodes.push(template_assertion_predicate);
+  }
+  return template_assertion_predicate_nodes;
+}
+
+// Clone in reverse order to keep the order found for the original loop to be unswitched.
+void CloneTemplateAssertionPredicates::clone_in_reverse_order(GrowableArray<TemplateAssertionPredicateNode*>& template_assertion_predicate_nodes) {
+  for (int i = template_assertion_predicate_nodes.length() - 1; i >= 0; i--) {
+    clone_template_assertion_predicate(template_assertion_predicate_nodes.at(i));
+  }
+}
+
+void CloneTemplateAssertionPredicates::clone_template_assertion_predicate(TemplateAssertionPredicateNode* template_assertion_predicate) {
+  Node* clone = template_assertion_predicate->clone();
+  _phase->igvn().register_new_node_with_optimizer(clone);
+  _phase->igvn().replace_input_of(clone, 0, _new_entry);
+  _phase->set_idom(clone, _new_entry, _dom_depth);
+  _new_entry = clone;
+  update_data_dependencies(template_assertion_predicate);
+}
+
+void CloneTemplateAssertionPredicates::update_data_dependencies(const TemplateAssertionPredicateNode* template_assertion_predicate) {
+  for (DUIterator_Fast imax, i = template_assertion_predicate->fast_outs(imax); i < imax; i++) {
+    Node* node = template_assertion_predicate->fast_out(i);
+    if (!node->is_CFG() && _node_in_loop->check(node)) {
+      _phase->igvn().replace_input_of(node, 0, _new_entry);
+      --i;
+      --imax;
+    }
+  }
+}
+
+// Clones the given Template Assertion Predicates to '_new_entry'. If a Template Assertion Predicate has control
+// dependent output nodes, these are rewired if they belong to the unswichted loop to which we are cloning to.
+// This is checked with the node index captured before creating the slow loop.
+// Returns the last node in the newly created Template Assertion Predicate chain.
+Node* CloneTemplateAssertionPredicates::clone(const Predicates& predicates) {
+  GrowableArray<TemplateAssertionPredicateNode*> template_assertion_predicate_nodes =
+          collect_template_assertion_predicates(predicates);
+  clone_in_reverse_order(template_assertion_predicate_nodes);
+  return _new_entry;
+}
