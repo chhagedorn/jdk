@@ -321,8 +321,8 @@ a[1] = 34;
 // <=> -1 <u a.length
 AU(a[i])
 // Check: (limit-stride)*scale + offset <u array_length 
-// <=> (limit-1)*1 + 0 <u a.length 
-// <=> limit-1 <u a.length (Same as PL because stride and limit are the same)
+// <=> (limit-(-2))*1 + 0 <u a.length
+// <=> limit+2 <u a.length (Same as PL because stride and limit are the same)
 AL(a[i])
 for (int i = -1; i > -1; i -= 2) {
     a[i] = 34;
