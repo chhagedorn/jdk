@@ -186,8 +186,8 @@ lower bound:
 // <=> 1 <u a.length
 PU(a[i])
 // Check: (limit-stride)*scale + offset <u array_length 
-// <=> (limit-1)*1 + 0 <u a.length
-// <=> limit-1 <u a.length
+// <=> (limit-(-2))*1 + 0 <u a.length
+// <=> limit+2 <u a.length
 PL(a[i])
 for (int i = 1; i > limit; i -= 2) {
     a[i] = 34;
@@ -208,8 +208,8 @@ first runs for a single iteration and the second runs the remaining iterations:
 // <=> 1 <u a.length
 PU(a[i])
 // Check: (limit-stride)*scale + offset <u array_length 
-// <=> (limit-1)*1 + 0 <u a.length
-// <=> li
+// <=> (limit-(-2))*1 + 0 <u a.length
+// <=> limit+2 <u a.length
 PL(a[i])
 
 // Peeled iteration
@@ -232,8 +232,8 @@ loop iteration into a simple sequence of statements, achieving the goal of Loop 
 // <=> 1 <u a.length
 PU(a[i])
 // Check: (limit-stride)*scale + offset <u array_length 
-// <=> (limit-1)*1 + 0 <u a.length
-// <=> li
+// <=> (limit-(-2))*1 + 0 <u a.length
+// <=> limit+2 <u a.length
 PL(a[i])
 
 // Peeled iteration
@@ -306,8 +306,8 @@ of the Hoisted Predicates `PU` and `PL` when peeling a loop:
 // <=> 1 <u a.length
 PU(a[i])
 // Check: (limit-stride)*scale + offset <u array_length 
-// <=> (limit-1)*1 + 0 <u a.length
-// <=> li
+// <=> (limit-(-2))*1 + 0 <u a.length
+// <=> limit+2 <u a.length
 PL(a[i])
 
 // Peeled iteration
@@ -433,8 +433,8 @@ actually looks like in our example with the dedicated zero-trip guard after peel
 // <=> 1 <u a.length
 PU(a[i])
 // Check: (limit-stride)*scale + offset <u array_length 
-// <=> (limit-1)*1 + 0 <u a.length
-// <=> li
+// <=> (limit-(-2))*1 + 0 <u a.length
+// <=> limit+2 <u a.length
 PL(a[i])
 
 // Peeled iteration
@@ -450,8 +450,8 @@ if (i > limit) {
   // <=> -1 <u a.length
   AU(a[i])
   // Check: (limit-stride)*scale + offset <u array_length 
-  // <=> (limit-1)*1 + 0 <u a.length 
-  // <=> limit-1 <u a.length (Same as PL because stride and limit are the same)
+  // <=> (limit-(-2))*1 + 0 <u a.length
+  // <=> limit+2 <u a.length (Same as PL because stride and limit are the same)
   AL(a[i])
   // The IR uses a do-while structure
   do {
