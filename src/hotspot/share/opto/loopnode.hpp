@@ -1353,6 +1353,8 @@ public:
   // Implementation of the loop predication to promote checks outside the loop
   bool loop_predication_impl(IdealLoopTree *loop);
 
+  TemplateAssertionPredicateNode* add_template_assertion_predicate(int if_opcode, IdealLoopTree* loop, int scale,
+                                                                   Node* offset, Node* range, bool negate);
  private:
   bool loop_predication_impl_helper(IdealLoopTree* loop, IfProjNode* if_proj,
                                     ParsePredicateSuccessProj* parse_predicate_proj, CountedLoopNode* cl, ConNode* zero,
@@ -1362,8 +1364,7 @@ public:
   void loop_predication_follow_branches(Node *c, IdealLoopTree *loop, float loop_trip_cnt,
                                         PathFrequency& pf, Node_Stack& stack, VectorSet& seen,
                                         Node_List& if_proj_list);
-  TemplateAssertionPredicateNode* add_template_assertion_predicate(int if_opcode, IdealLoopTree* loop, int scale,
-                                                                   Node* offset, Node* range, bool negate);
+
   TemplateAssertionPredicateNode* add_range_check_elimination_assertion_predicates(IdealLoopTree* loop, int scale,
                                                                                    Node* offset, Node* range);
 

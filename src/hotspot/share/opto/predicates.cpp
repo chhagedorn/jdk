@@ -478,7 +478,7 @@ void AssertionPredicates::create_at(CountedLoopNode* target_loop_head, NodeInTar
 }
 
 // Creates new Template Assertion Predicates at the 'target_loop_head'. A new Template Assertion Predicate is inserted
-// with the  new init and stride values of the target loop for each existing Template Assertion Predicate found at source
+// with the new init and stride values of the target loop for each existing Template Assertion Predicate found at source
 // loop.
 void AssertionPredicates::create_template_predicates(CountedLoopNode* target_loop_head,
                                                      NodeInTargetLoop* node_in_target_loop) {
@@ -500,9 +500,24 @@ void AssertionPredicates::replace_to(CountedLoopNode* target_loop_head, NodeInTa
   }
 }
 
-// Creates new Assertion Predicates at the source loop. The templates are updated and new Initialized Assertion Predicates
-// are inserted based on the updated templates. Existing Initialized Assertion Predicates are no longer needed and killed.
-void AssertionPredicates::create_at_source_loop(const int new_stride_con) {
+// Creates new Assertion Predicates at the source loop based on the source loop init and stride values.
+void AssertionPredicates::create_at_source_loop(const int if_opcode, const int scale, Node* offset, Node* range,
+                                                const bool negate) {
+  TemplateAssertionPredicateNode* template_assertion_predicate =
+      _phase->add_template_assertion_predicate(if_opcode, _loop, scale, offset, range, negate);
+  const InitializedAssertionPredicateBlock* initialized_assertion_predicate_block =
+      _source_loop_predicates.initialized_assertion_predicate_block();
+  InitializedAssertionPredicates initialized_assertion_predicates(_source_loop_head->init_trip(),
+                                                                  _source_loop_head->stride(),
+                                                                  initialized_assertion_predicate_block->entry(),
+                                                                  _outer_target_loop);
+  initialized_assertion_predicates.create(template_assertion_predicate);
+}
+
+// Update existing Assertion Predicates at the source loop with the newly provided stride value. The templates are first
+// updated and then new Initialized Assertion Predicates are created based on the updated templates. The previously
+// existing Initialized Assertion are no longer needed and killed.
+void AssertionPredicates::update_at_source_loop(const int new_stride_con) {
   if (has_any()) {
     update_templates();
     const InitializedAssertionPredicateBlock* initialized_assertion_predicate_block =

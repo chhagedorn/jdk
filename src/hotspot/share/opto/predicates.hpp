@@ -935,6 +935,7 @@ class InitializedAssertionPredicates {
 class AssertionPredicates {
   CountedLoopNode* _source_loop_head;
   Predicates _source_loop_predicates;
+  IdealLoopTree* _loop;
   IdealLoopTree* _outer_target_loop;
   PhaseIdealLoop* _phase;
 
@@ -947,6 +948,7 @@ class AssertionPredicates {
   AssertionPredicates(CountedLoopNode* source_loop_head, IdealLoopTree* loop)
       : _source_loop_head(source_loop_head),
         _source_loop_predicates(source_loop_head->skip_strip_mined()->in(LoopNode::EntryControl)),
+        _loop(loop),
         _outer_target_loop(loop->head()->as_CountedLoop()->is_strip_mined() ? loop->_parent->_parent : loop->_parent),
         _phase(loop->_phase) {}
 
@@ -956,7 +958,8 @@ class AssertionPredicates {
 
   void create_at(CountedLoopNode* target_loop_head, NodeInTargetLoop* node_in_target_loop);
   void replace_to(CountedLoopNode* target_loop_head, NodeInTargetLoop* node_in_target_loop);
-  void create_at_source_loop(int new_stride_con);
+  void create_at_source_loop(int if_opcode, int scale, Node* offset, Node* range, bool negate);
+  void update_at_source_loop(int new_stride_con);
 };
 
 // Class to create bool nodes for a new Template Assertion Predicate.
