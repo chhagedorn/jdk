@@ -193,7 +193,7 @@
  */
 
 class Predicates;
-class ReplaceOpaqueLoopNodes;
+class TransformOpaqueLoopNodes;
 class TemplateAssertionPredicateBlock;
 
 enum class AssertionPredicateType {
@@ -621,46 +621,88 @@ class TemplateAssertionPredicateBool : public StackObj {
   // Create a new BoolNode from the Template Assertion Predicate bool by cloning all nodes on the input chain up to but
   // not including the OpaqueLoop* nodes. These are replaced depending on the strategy. Sets 'ctrl' as new ctrl for all
   // cloned (non-CFG) nodes.
-  BoolNode* clone(Node* new_ctrl, ReplaceOpaqueLoopNodes* replace_opaque_loop_nodes);
+  BoolNode* create(Node* new_ctrl, TransformOpaqueLoopNodes* transform_opaque_loop_nodes);
 };
 
-// Interface class to replace OpaqueLoop* nodes when creating new Template Assertion Predicates from existing ones.
-class ReplaceOpaqueLoopNodes : public StackObj {
+// Interface class for different strategies on how to transform OpaqueLoop* at old Template Assertion Predicate Bools to
+// use for a new Template Assertion Predicate. The old OpaqueLoop* nodes could either be:
+// - cloned (no modification to init and stride)
+// - replaced by new OpaqueLoop* nodes (with new init and stride value)
+// - replaced by non-OpaqueLoop* nodes
+class TransformOpaqueLoopNodes : public StackObj {
  public:
-  virtual Node* replace_init(OpaqueLoopInitNode* init, Node* ctrl) = 0;
-  virtual Node* replace_stride(OpaqueLoopStrideNode* stride, Node* ctrl) = 0;
+  virtual Node* transform_init(OpaqueLoopInitNode* init, Node* ctrl) = 0;
+  virtual Node* transform_stride(OpaqueLoopStrideNode* stride, Node* ctrl) = 0;
 };
 
-// This replacement strategy clones OpaqueLoop* nodes without updating the init and stride input values.
-class CloneOpaqueLoopNodes : public ReplaceOpaqueLoopNodes {
+// This transformation strategy clones OpaqueLoop* nodes without updating the init and stride input values.
+class CloneOpaqueLoopNodes : public TransformOpaqueLoopNodes {
   PhaseIdealLoop* _phase;
 
-  Node* clone_old(const Node* old_node, Node* ctrl) {
+  Node* clone_old(const Node* old_node, Node* new_ctrl) {
     Node* clone = old_node->clone();
-    _phase->register_new_node(clone, ctrl);
+    _phase->register_new_node(clone, new_ctrl);
     return clone;
   }
 
  public:
   CloneOpaqueLoopNodes(PhaseIdealLoop* phase) : _phase(phase) {}
 
-  Node* replace_init(OpaqueLoopInitNode* init, Node* ctrl) override;
-  Node* replace_stride(OpaqueLoopStrideNode* stride, Node* ctrl) override;
+  Node* transform_init(OpaqueLoopInitNode* init, Node* ctrl) override {
+    return clone_old(init, ctrl);
+  }
+
+  Node* transform_stride(OpaqueLoopStrideNode* stride, Node* ctrl) override {
+    return clone_old(stride, ctrl);
+  }
 };
 
-// This replacement strategy replaces only the OpaqueLoopInitNode with a new init node.
-class ReplaceOpaqueLoopInit : public ReplaceOpaqueLoopNodes {
+// This transformation strategy creates new OpaqueLoop* nodes by using new init and stride value.
+class CreateOpaqueLoopNodes : public TransformOpaqueLoopNodes {
+  Node* _new_init;
+  Node* _new_stride;
+  PhaseIdealLoop* _phase;
+
+  Node* clone(Node* opaque_node, Node* new_input, Node* new_ctrl) {
+    Node* opaque_clone = opaque_node->clone();
+    _phase->igvn().replace_input_of(opaque_clone, 1, new_input);
+    _phase->register_new_node(opaque_clone, new_ctrl);
+    return opaque_clone;
+  }
+
+ public:
+  CreateOpaqueLoopNodes(Node* new_init, Node* new_stride, PhaseIdealLoop* phase)
+      : _new_init(new_init),
+        _new_stride(new_stride),
+        _phase(phase) {}
+
+  Node* transform_init(OpaqueLoopInitNode* init, Node* ctrl) override {
+    return clone(init, _new_init, ctrl);
+  }
+  Node* transform_stride(OpaqueLoopStrideNode* stride, Node* ctrl) override {
+    return clone(stride, _new_stride, ctrl);
+  }
+};
+
+// This transformation strategy replaces only the OpaqueLoopInitNode with a new init node.
+class ReplaceOpaqueLoopInit : public TransformOpaqueLoopNodes {
   Node* _new_init;
 
  public:
   ReplaceOpaqueLoopInit(Node* new_init) : _new_init(new_init) {}
 
-  Node* replace_init(OpaqueLoopInitNode* init, Node* ctrl) override;
-  Node* replace_stride(OpaqueLoopStrideNode* stride, Node* ctrl) override;
+  Node* transform_init(OpaqueLoopInitNode* init, Node* ctrl) override {
+    return _new_init;
+  }
+
+  Node* transform_stride(OpaqueLoopStrideNode* stride, Node* ctrl) override {
+    assert(false, "should not be visited when cloning an init value template assertion bool");
+    return stride; // Do nothing.
+  }
 };
 
-// This replacement strategy replaces all OpaqueLoopNode/ with a new init and stride node, respectively.
-class ReplaceOpaqueLoopInitAndStride : public ReplaceOpaqueLoopNodes {
+// This transformation strategy replaces all OpaqueLoopNode* with a new init and stride node, respectively.
+class ReplaceOpaqueLoopInitAndStride : public TransformOpaqueLoopNodes {
   Node* _new_init;
   Node* _new_stride;
 
@@ -669,8 +711,13 @@ class ReplaceOpaqueLoopInitAndStride : public ReplaceOpaqueLoopNodes {
       : _new_init(new_init),
         _new_stride(new_stride) {}
 
-  Node* replace_init(OpaqueLoopInitNode* init, Node* ctrl) override;
-  Node* replace_stride(OpaqueLoopStrideNode* stride, Node* ctrl) override;
+  Node* transform_init(OpaqueLoopInitNode* init, Node* ctrl) override {
+    return _new_init;
+  }
+
+  Node* transform_stride(OpaqueLoopStrideNode* stride, Node* ctrl) override {
+    return _new_stride;
+  }
 };
 
 // Interface to check if an output node of a Template Assertion Predicate node, from which we created a new Template
@@ -717,41 +764,47 @@ class NodeInOriginalLoop : public NodeInTargetLoop {
   }
 };
 
-// This class represents a Template Assertion Predicate which can be used to create a new one from. The Template Assertion
-// Predicates can have additional data dependencies from a Hoisted Predicate created in Loop Predication. These
-// dependencies are also updated when creating a new template from this node.
+// This class provides an interface to update a Template Assertion Predicate by either replacing it completely or to
+// only update its Bool nodes.
 class TemplateAssertionPredicate : public StackObj {
   TemplateAssertionPredicateNode* _template_assertion_predicate;
   TemplateAssertionPredicateBool _init_value_bool;
   TemplateAssertionPredicateBool _last_value_bool;
-  ReplaceOpaqueLoopNodes* _replace_opaque_loop_nodes;
+  TransformOpaqueLoopNodes* _transform_opaque_loop_nodes;
   PhaseIdealLoop* _phase;
 
-  void update_data_dependencies(Node* template_assertion_predicate, NodeInTargetLoop* node_in_target_loop);
+  void create_bools(Node* new_ctrl, TemplateAssertionPredicateNode* new_template_assertion_predicate);
+  void update_data_dependencies(Node* template_assertion_predicate, NodeInTargetLoop* node_in_target_loop); // TODO
 
  public:
   TemplateAssertionPredicate(TemplateAssertionPredicateNode* template_assertion_predicate,
-                             ReplaceOpaqueLoopNodes* replace_opaque_loop_nodes, PhaseIdealLoop* phase)
+                             TransformOpaqueLoopNodes* transform_opaque_loop_nodes, PhaseIdealLoop* phase)
       : _template_assertion_predicate(template_assertion_predicate),
         _init_value_bool(TemplateAssertionPredicateBool(template_assertion_predicate->in(TemplateAssertionPredicateNode::InitValue)->as_Bool(),
                                                         phase)),
         _last_value_bool(TemplateAssertionPredicateBool(template_assertion_predicate->in(TemplateAssertionPredicateNode::LastValue)->as_Bool(),
                                                         phase)),
-        _replace_opaque_loop_nodes(replace_opaque_loop_nodes),
+        _transform_opaque_loop_nodes(transform_opaque_loop_nodes),
         _phase(phase) {}
 
-  TemplateAssertionPredicateNode* clone_to(Node* new_entry, NodeInTargetLoop* _node_in_target_loop);
-  void update();
+  TemplateAssertionPredicateNode* create(Node* new_ctrl, NodeInTargetLoop* _node_in_target_loop);
+  void update_bools();
 };
 
-// Interface to create a new Template Assertion Predicate at the target loop.
-class NewTemplateAssertionPredicate : public StackObj {
+// Interface class for different strategies on how to transform a Template Assertion Predicate.
+// A Template Assertion Predicate could either be transformed by:
+// - cloning the template with its Bools (no modification to the OpaqueLoop* nodes)
+// - creating new Bools for the template with new OpaqueLoop* nodes using the new init and stride value
+// - creating a new template with new Bools and new OpaqueLoop* nodes using the new init and stride value.
+// Interface class for strategies  a new Template Assertion Predicate at the target loop.
+class TransformTemplateAssertionPredicate : public StackObj {
  public:
-  virtual TemplateAssertionPredicateNode* create_from(TemplateAssertionPredicateNode* template_assertion_predicate_node) = 0;
+  virtual TemplateAssertionPredicateNode* transform(TemplateAssertionPredicateNode* template_assertion_predicate_node) = 0;
 };
 
-// Strategy to clone an existing Template Assertion Predicate from the source loop to the target loop.
-class CloneTemplateAssertionPredicate : public NewTemplateAssertionPredicate {
+// Strategy to clone an existing Template Assertion Predicate and their Bools, including the OpaqueLoop* nodes. We do
+// not provide a new init or stride value for the cloned OpaqueLoop* nodes.
+class CloneTemplateAssertionPredicate : public TransformTemplateAssertionPredicate {
   Node* _new_ctrl;
   PhaseIdealLoop* _phase;
   CloneOpaqueLoopNodes _clone_opaque_loop_nodes;
@@ -765,37 +818,39 @@ class CloneTemplateAssertionPredicate : public NewTemplateAssertionPredicate {
         _node_in_target_loop(node_in_target_loop) {}
 
 
-  TemplateAssertionPredicateNode* create_from(TemplateAssertionPredicateNode* template_assertion_predicate_node) override {
+  TemplateAssertionPredicateNode* transform(TemplateAssertionPredicateNode* template_assertion_predicate_node) override {
     TemplateAssertionPredicate template_assertion_predicate(template_assertion_predicate_node, &_clone_opaque_loop_nodes,
                                                             _phase);
-    return template_assertion_predicate.clone_to(_new_ctrl, _node_in_target_loop);
+    return template_assertion_predicate.create(_new_ctrl, _node_in_target_loop);
   }
 };
 
-// Strategy to clone an existing Template Assertion Predicate from the source loop to the target loop.
-class UpdateTemplateAssertionPredicate : public NewTemplateAssertionPredicate {
+// Strategy to update an existing Template Assertion Predicate by providing it new Bools that use new OpaqueLoop* nodes
+// with the provided init and stride value.
+class UpdateTemplateAssertionPredicate : public TransformTemplateAssertionPredicate {
   PhaseIdealLoop* _phase;
-  ReplaceOpaqueLoopInitAndStride _replace_opaque_loop_nodes;
+  CreateOpaqueLoopNodes _create_opaque_loop_nodes;
 
  public:
   UpdateTemplateAssertionPredicate(Node* new_init, Node* new_stride, PhaseIdealLoop* phase)
       : _phase(phase),
-        _replace_opaque_loop_nodes(new_init, new_stride) {}
+        _create_opaque_loop_nodes(new_init, new_stride, phase) {}
 
-
-  TemplateAssertionPredicateNode* create_from(TemplateAssertionPredicateNode* template_assertion_predicate_node) override {
+  TemplateAssertionPredicateNode* transform(TemplateAssertionPredicateNode* template_assertion_predicate_node) override {
     TemplateAssertionPredicate template_assertion_predicate(template_assertion_predicate_node,
-                                                            &_replace_opaque_loop_nodes, _phase);
-    template_assertion_predicate.update();
+                                                            &_create_opaque_loop_nodes, _phase);
+    template_assertion_predicate.update_bools();
     return template_assertion_predicate_node;
   }
 };
 
-// Strategy to create a new Template Assertion Predicate at the target loop.
-class CreateTemplateAssertionPredicate : public NewTemplateAssertionPredicate {
+// Strategy to create a new Template Assertion Predicate with new Bools that use new OpaqueLoop* nodes with the provided
+// init and stride value. We always use a dedicated node as control input to the new Template Assertion Predicate and
+// as ctrl for its created data nodes in the Bools.
+class CreateTemplateAssertionPredicate : public TransformTemplateAssertionPredicate {
   Node* _new_ctrl;
   PhaseIdealLoop* _phase;
-  ReplaceOpaqueLoopInitAndStride _replace_opaque_loop_nodes;
+  CreateOpaqueLoopNodes _create_opaque_loop_nodes;
   NodeInTargetLoop* _node_in_target_loop;
 
  public:
@@ -803,19 +858,18 @@ class CreateTemplateAssertionPredicate : public NewTemplateAssertionPredicate {
                                    NodeInTargetLoop* node_in_target_loop)
       : _new_ctrl(new_ctrl),
         _phase(phase),
-        _replace_opaque_loop_nodes(new_init, new_stride),
+        _create_opaque_loop_nodes(new_init, new_stride, phase),
         _node_in_target_loop(node_in_target_loop) {}
 
-  TemplateAssertionPredicateNode* create_from(TemplateAssertionPredicateNode* template_assertion_predicate_node) override;
+  TemplateAssertionPredicateNode* transform(TemplateAssertionPredicateNode* template_assertion_predicate_node) override;
 };
 
-// This class represents Template Assertion Predicates to clone from to a new target loop.
+// This class represents Template Assertion Predicates which can be cloned to a new target loop or updated at a source loop.
 class TemplateAssertionPredicates : public StackObj {
   const TemplateAssertionPredicateBlock* _template_assertion_predicate_block;
   PhaseIdealLoop* _phase;
 
-  TemplateAssertionPredicateNode* walk_templates(NewTemplateAssertionPredicate* _new_template_assertion_predicate);
-  void create_opaque_loop_nodes(Node*& opaque_init, Node*& opaque_stride, CountedLoopNode* target_loop_head);
+  TemplateAssertionPredicateNode* transform_old_templates(TransformTemplateAssertionPredicate* _transform_template_assertion_predicate);
 
  public:
   TemplateAssertionPredicates(const TemplateAssertionPredicateBlock* template_assertion_predicate_block, PhaseIdealLoop* phase)
@@ -828,12 +882,12 @@ class TemplateAssertionPredicates : public StackObj {
   TemplateAssertionPredicateNode* clone_to(Node* new_entry,
                                            NodeInTargetLoop* node_in_target_loop) {
     CloneTemplateAssertionPredicate clone_template_assertion_predicate(new_entry, _phase, node_in_target_loop);
-    return walk_templates(&clone_template_assertion_predicate);
+    return transform_old_templates(&clone_template_assertion_predicate);
   }
 
-  TemplateAssertionPredicateNode* clone_and_update_to(CountedLoopNode* target_loop_head,
-                                                      NodeInTargetLoop* node_in_target_loop);
-  void update(CountedLoopNode* loop_head);
+  TemplateAssertionPredicateNode* create_templates(CountedLoopNode* target_loop_head,
+                                                   NodeInTargetLoop* node_in_target_loop);
+  void update_templates(Node* init, Node* stride);
 };
 
 // This class creates a new Initialized Assertion Predicate.
@@ -879,7 +933,7 @@ class InitializedInitValueAssertionPredicate : public StackObj {
   IfTrueNode* create(TemplateAssertionPredicateNode* template_assertion_predicate) {
     BoolNode* template_init_value_bool = template_assertion_predicate->in(TemplateAssertionPredicateNode::InitValue)->as_Bool();
     TemplateAssertionPredicateBool template_assertion_predicate_bool(template_init_value_bool, _phase);
-    BoolNode* new_bool = template_assertion_predicate_bool.clone(_new_ctrl, &_replace_opaque_loop_init);
+    BoolNode* new_bool = template_assertion_predicate_bool.create(_new_ctrl, &_replace_opaque_loop_init);
     return _initialized_assertion_predicate.create(template_assertion_predicate, _new_ctrl, new_bool,
                                                    AssertionPredicateType::Init_value);
   }
@@ -903,7 +957,7 @@ class InitializedLastValueAssertionPredicate : public StackObj {
   IfTrueNode* create(TemplateAssertionPredicateNode* template_assertion_predicate) {
     BoolNode* template_last_value_bool = template_assertion_predicate->in(TemplateAssertionPredicateNode::LastValue)->as_Bool();
     TemplateAssertionPredicateBool template_assertion_predicate_bool(template_last_value_bool, _phase);
-    BoolNode* new_bool = template_assertion_predicate_bool.clone(_new_ctrl, &_replace_opaque_loop_init_and_stride);
+    BoolNode* new_bool = template_assertion_predicate_bool.create(_new_ctrl, &_replace_opaque_loop_init_and_stride);
     return _initialized_assertion_predicate.create(template_assertion_predicate, _new_ctrl, new_bool,
                                                    AssertionPredicateType::Last_value);
   }
@@ -942,7 +996,7 @@ class AssertionPredicates {
   void create_template_predicates(CountedLoopNode* target_loop_head, NodeInTargetLoop* node_in_target_loop);
 
   Node* create_stride(int stride_con);
-  void update_templates() const;
+  void update_templates(int new_stride_con);
 
  public:
   AssertionPredicates(CountedLoopNode* source_loop_head, IdealLoopTree* loop)

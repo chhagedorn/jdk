@@ -2719,12 +2719,12 @@ void PhaseIdealLoop::do_range_check(IdealLoopTree *loop, Node_List &old_new) {
 TemplateAssertionPredicateNode* PhaseIdealLoop::add_range_check_elimination_assertion_predicates(
     IdealLoopTree* loop, int scale, Node* offset, Node* range) {
   CountedLoopNode* loop_head = loop->_head->as_CountedLoop();
-  DEBUG_ONLY(uint current_node_index = C->unique());
+  DEBUG_ONLY(uint node_index_before = C->unique());
   AssertionPredicates assertion_predicates(loop_head, loop);
   assertion_predicates.create_at_source_loop(Op_RangeCheck, scale, offset, range, false);
   TemplateAssertionPredicateNode* template_assertion_predicate =
       loop_head->skip_strip_mined()->in(LoopNode::EntryControl)->as_TemplateAssertionPredicate();
-  assert(current_node_index >= template_assertion_predicate->_idx, "must be the newly created one");
+  assert(node_index_before <= template_assertion_predicate->_idx, "must be the newly created one");
   return template_assertion_predicate;
 }
 
