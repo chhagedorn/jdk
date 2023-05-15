@@ -22,51 +22,21 @@ The IR combines data and control flow into a single representation which is know
 ### Control and Data Are Always in Sync
 
 If at some point a control path is proven to be never taken, we not only need to remove the control nodes but also the
-data nodes specific to that path. The same principle is also true when data nodes die: If a data node dies within a 
-specific path, then all control nodes using this data node directly or indirectly must become unreachable. The path 
-containing these nodes to be removed. While the first
-property is not that difficult to maintain (data nodes without uses are just removed), the latter is not that straight
-forward. We need to _completely_ remove all control nodes on the current path with the same or higher nesting level as 
-the dead data. Let's illustrate this with a simple example:
+data nodes specific to that path. The same principle is also true when data nodes die: If a data node dies within a
+specific path, then all control nodes using this data node directly or indirectly must become unreachable. The path
+containing these nodes needs to be removed. While the first property is not that difficult to maintain (data nodes
+without uses are just removed), the latter is not that straight forward. We need to _completely_ remove all control
+nodes on the current path with the same or higher nesting level as the dead data. Let's illustrate this with a simple
+example:
 
-```java
-// Level 0
-if (cond)
-    // Level 1
-    statement 1;
-    if (cond2) {
-        // Level 2
-        statement 2;
-        statement 3;
-        if (cond3) {
-            // Level 3
-            statement 4;
-        }
-        statement 5; // Uses dead data node!
-        statement 6;
-        while (cond3) {
-             // Level 3
-             ... 
-        }
-    }
-    statement 7;
-}
-```
+![Dying Data Needs Control Sync](/jdk/assets/img/2023-05-05-assertion-predicates/control_data_sync.png)
 
-`statement 5` uses a dead data node. We need to remove all control nodes on the current path with the same and higher
-nesting level which is level 2 and 3. On top of that, we need to ensure that the splitting point to the path with the
-same nesting level as the dead data use is aware of this dead data use. In this example, `if (cond2)`is the splitting
-point to the nesting level 2 which uses the dead data node. As a consequence, `cond2` must become false such that the
-graph can be cleaned up correctly to:
-
-```java
-// Level 0
-if (cond)
-    // Level 1
-    statement 1;
-    statement 7;
-}
-```
+Here we have a counted loop `185 CountedLoop/177 CountedLoopEnd` inside which the data node `133 AddI` is dying (top
+input `1 Con`). The loop phi `85 Phi` uses this dead data node and is therefore also considered dead. Since there is no
+other control flow inside the loop, we need to make sure that the entire loop becomes unreachable (same nesting level
+as `133 AddI`). We can achieve that by ensuring that the condition `241 Bool` of the zero-trip guard
+`256 CountedLoopEnd`<sup>[3](#footnote3)</sup>, which is at a lower nesting level than `133 AddI`, becomes false. As a 
+result, we will always take the path of `258 IfFalse` and the graph is consistent again.
 
 Failing to keep control and data in sync can have unpredictable consequences in further optimizations and code emission.
 We could end up hitting an assertion failure further down the road or emitting wrong code, resulting in a crash or wrong 
@@ -84,7 +54,7 @@ once before the start of the loop instead of during each iteration which has a p
 Loop Predication can only remove checks (i.e. a `IfNode/RangeCheckNode`) out of a loop if they belong to one of the 
 following category:
 - The check is loop-invariant (e.g. null checks of objects created outside the loop).
-- The check is a range check (i.e. either a `RangeCheckNode` or an `IfNode`<sup>[3](#footnote3)</sup>) of the
+- The check is a range check (i.e. either a `RangeCheckNode` or an `IfNode`<sup>[4](#footnote4)</sup>) of the
   form `i*scale + offset <u array_length`, where `i` is the induction variable, `scale` and `offset` are 
   loop-invariant, `array_length` is the length of an array (i.e.  a `LoadRangeNode`), and the loop is a _counted_ 
   loop (i.e. represented by a `CountedLoopNode` inside the IR).
@@ -198,7 +168,7 @@ So far, so good.
 
 ## Splitting the Loop into Sub-Loops where One of Them Is Dead
 
-Now let's assume that we apply _Loop Peeling_ for the loop in our example<sup>[4](#footnote4)</sup>. Loop Peeling splits
+Now let's assume that we apply _Loop Peeling_ for the loop in our example<sup>[5](#footnote5)</sup>. Loop Peeling splits
 the first iteration from the loop to execute it before the remainder of the loop. We can do that by cloning the loop and
 changing the bounds in such a way that it only runs for one iteration. We are therefore left with two sub-loops: The
 first runs for a single iteration and the second runs for the remaining iterations:
@@ -223,7 +193,7 @@ for (int i = -1; i > limit; i -= 2) {
 }
 
 ```
-The first loop is not a real loop anymore as we are never taking the backedge. _IGVN<sup>[5](#footnote5)</sup>_ will
+The first loop is not a real loop anymore as we are never taking the backedge. _IGVN<sup>[6](#footnote6)</sup>_ will
 therefore fold this single loop iteration into a simple sequence of statements, achieving the goal of Loop Peeling:
 
 ```java
@@ -331,7 +301,7 @@ for (int i = -1; i > -1; i -= 2) {
 
 We can immediately see that `AU` compares `-1 <u a.length` which, obviously, always fails. We would therefore never 
 enter the loop. Accordingly, IGVN is now able to safely remove the created dead sub-loop and its involved data. The 
-graph is consistent again<sup>[6](#footnote6)</sup>.
+graph is consistent again<sup>[7](#footnote7)</sup>.
 
 ## Always True at Runtime
 
@@ -362,10 +332,10 @@ Predicate:
   - The pre and main loop bounds are updated such that a range check inside the main loop can be removed. This is
     similar to Loop Predication but instead of creating a Hoisted Predicate, we change the iterations of the pre and
     the main loop. The consequence, however, is the same: We need Assertion Predicates for the main loop to keep the
-    graph in a consistent state if the main loop becomes dead<sup>[7](#footnote7)</sup>.
+    graph in a consistent state if the main loop becomes dead<sup>[8](#footnote8)</sup>.
 
 ## Implementation Attempts
-Even though Loop Predication has been around for quite a while<sup>[8](#footnote8)</sup>, this problem was only 
+Even though Loop Predication has been around for quite a while<sup>[9](#footnote9)</sup>, this problem was only 
 detected years later. At that time, the scope of the problem was not yet entirely clear. We've started adding 
 Assertion Predicates (back then known as _Skeleton Predicates_) for different loop optimizations as new 
 failing testcases emerged. Over the time, more and more `CastConstraint` nodes were added which made the still 
@@ -373,8 +343,8 @@ very uncommon case more likely - especially with more enhanced fuzzer testing.
 
 What had started out as a simple, clean fix (relatively speaking), when Skeleton Predicates were first introduced in
 [JDK-8193130](https://bugs.openjdk.org/browse/JDK-8193130), became much more complex with each new fix. The latest
-bigger fix, at the time of this writing, was to add Assertion Predicates at Loop Peeling<sup>[9](#footnote9)</sup>. And
-yet, even though we now cover all loop optimizations, there are still cases which we do not cover properly when 
+bigger fix, at the time of this writing, was to add Assertion Predicates at Loop Peeling<sup>[10](#footnote10)</sup>.
+And yet, even though we now cover all loop optimizations, there are still cases which we do not cover properly when
 combining different loop optimizations together. The code became very complex and difficult to maintain over the years
 and fixing these cases became nearly impossible.
 
@@ -410,23 +380,26 @@ Assertion Predicates have been known as _Skeleton Predicates_.
 <a name="footnote2"><sup>2</sup></a>Also see [A Simple Graph-Based Intermediate Representation](
 https://www.oracle.com/technetwork/java/javase/tech/c2-ir95-150110.pdf).
 
-<a name="footnote3"><sup>3</sup></a>Almost always, a range check will be a `RangeCheckNode` as it is unusual to write
+<a name="footnote3"><sup>3</sup></a>In this example, we've peeled an iteration of the loop to establish a zero-trip 
+guard. Therefore, we have a `CountedLoopEndNode` and not a normal `IfNode`.
+
+<a name="footnote4"><sup>4</sup></a>Almost always, a range check will be a `RangeCheckNode` as it is unusual to write
 code that would emit an `IfNode` with an unsigned comparison with a `LoadRangeNode`, a trap on the uncommon path,
 and satisfying all other conditions to qualify for being hoisted as a range check out of a counted loop.
 
-<a name="footnote4"><sup>4</sup></a>Loop Peeling would not actually be triggered for this example as there is no 
+<a name="footnote5"><sup>5</sup></a>Loop Peeling would not actually be triggered for this example as there is no 
 reason to peel (see [IdealLoopTree::estimate_peeling()](
 https://github.com/chhagedorn/jdk/blob/1be80a4445cf74adc9b2cd5bf262a897f9ede74f/src/hotspot/share/opto/loopTransform.cpp#L452-L504)).
 But for the sake of simplicity, let's assume that C2 actually applies Loop Peeling for this example.
 
-<a name="footnote5"><sup>5</sup></a> Short for _Iterative Global Value Numbering_. In the context of C2, _Global Value
+<a name="footnote6"><sup>6</sup></a> Short for _Iterative Global Value Numbering_. In the context of C2, _Global Value
 Numbering_ tries to replace an IR node with another one that computes the same result. This could either be an existing
 IR node with the same hash (i.e. shares the same inputs) or a new IR node that does the computation in a more
 optimized or canonical way. Iterative Global Value Numbering applies this technique iteratively to a set of IR nodes
 until a fixed-point is reached. More information about Global Value Numbering in C2 can be found [here](
 https://courses.cs.washington.edu/courses/cse501/06wi/reading/click-pldi95.pdf).
 
-<a name="footnote6"><sup>6</sup></a>The careful reader might ask now how we can prevent to accidentally remove the 
+<a name="footnote7"><sup>7</sup></a>The careful reader might ask now how we can prevent to accidentally remove the 
 entire remaining graph when folding an Assertion Predicate away? C2 actually establishes a dedicated 
 _zero-trip guard_ which checks beforehand if the remaining loop should be entered depending on the induction 
 variable and the limit. We put the Assertion Predicates right into the "enter the loop"-path of the zero-trip guard 
@@ -469,15 +442,15 @@ if (i > limit) {
 }
 ```
 
-<a name="footnote7"><sup>7</sup></a>Loop Predication and Range Check Elimination achieve the same goal to remove range
+<a name="footnote8"><sup>8</sup></a>Loop Predication and Range Check Elimination achieve the same goal to remove range
 checks from loops. Most of them can be removed with Loop Predication. But there are some cases where we cannot apply
 Loop Predication anymore (e.g. we've lost the Parse Predicates which provide the required safepoint for the Hoisted
 Predicate trap) while Range Check Elimination is still possible. More information about Range Check Elimination can 
 be found [here](https://wiki.openjdk.org/display/HotSpot/RangeCheckElimination).
 
-<a name="footnote8"><sup>8</sup></a>First version added with [JDK-6894778](https://bugs.openjdk.org/browse/JDK-6894778).
+<a name="footnote9"><sup>9</sup></a>First version added with [JDK-6894778](https://bugs.openjdk.org/browse/JDK-6894778).
 
-<a name="footnote9"><sup>9</sup></a>See [JDK-8283466](https://bugs.openjdk.org/browse/JDK-8283466).
+<a name="footnote10"><sup>10</sup></a>See [JDK-8283466](https://bugs.openjdk.org/browse/JDK-8283466).
 
 ---
 
