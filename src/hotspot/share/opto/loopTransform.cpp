@@ -793,7 +793,7 @@ void PhaseIdealLoop::do_peeling(IdealLoopTree *loop, Node_List &old_new) {
 void PhaseIdealLoop::create_assertion_predicates(CountedLoopNode* source_loop_head, CountedLoopNode* target_loop_head,
                                                  IdealLoopTree* loop, NodeInTargetLoop* node_in_target_loop) {
   AssertionPredicates assertion_predicates(source_loop_head, loop);
-  assertion_predicates.create_at(target_loop_head, node_in_target_loop);
+  assertion_predicates.create_at_target_loop(target_loop_head, node_in_target_loop);
 }
 
 // Creates new Assertion Predicates at the 'target_loop_head'. A new Template Assertion Predicate is inserted with the

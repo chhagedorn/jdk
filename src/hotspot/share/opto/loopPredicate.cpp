@@ -1300,7 +1300,7 @@ bool PhaseIdealLoop::can_create_loop_predicates(const RegularPredicateBlock* pro
   bool can_create_loop_predicates = true;
   if (has_profiled_loop_predicate_block
       && (profiled_loop_predicate_block->has_runtime_predicates() // (1)
-          || profiled_loop_predicate_block->entry()->outcnt() != 1)) { // (2)
+          || profiled_loop_predicate_block->entry()->outcnt() != 1)) { // (2) TODO: Fix to use Loop Predication Parse Predicate directly
     can_create_loop_predicates = false;
   }
   return can_create_loop_predicates;
