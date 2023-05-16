@@ -242,10 +242,130 @@ void TemplateAssertionPredicates::update_templates(Node* new_init, Node* new_str
   }
 }
 
+class TransformRelatedNodes : public StackObj {
+ public:
+  virtual Node* transform_chain_node(Node* node_in_chain) = 0;
+  virtual Node* transform_opaque_init(OpaqueLoopInitNode* opaque_init) = 0;
+  virtual Node* transform_opaque_stride(OpaqueLoopStrideNode* opaque_stride) = 0;
+};
+
+class CloneAll : public TransformRelatedNodes {
+  PhaseIdealLoop* _phase;
+  Node* _new_ctrl;
+
+ public:
+  CloneAll(PhaseIdealLoop* phase, Node* new_ctrl) : _phase(phase), _new_ctrl(new_ctrl) {}
+
+  Node* transform_chain_node(Node* node_in_chain) override {
+    return _phase->clone_and_register(node_in_chain, _new_ctrl);
+  }
+
+  Node* transform_opaque_init(OpaqueLoopInitNode* opaque_init) override {
+    return _phase->clone_and_register(opaque_init, _new_ctrl);
+  }
+
+  Node* transform_opaque_stride(OpaqueLoopStrideNode* opaque_stride) override {
+    return _phase->clone_and_register(opaque_stride, _new_ctrl);
+  }
+};
+
+class CloneWithNewOpaqueInitInput : public TransformRelatedNodes {
+  PhaseIdealLoop* _phase;
+  Node* _new_ctrl;
+  Node* _new_opaque_init_input;
+
+ public:
+  CloneWithNewOpaqueInitInput(PhaseIdealLoop* phase, Node* new_ctrl, Node* new_opaque_init_input)
+      : _phase(phase),
+        _new_ctrl(new_ctrl),
+        _new_opaque_init_input(new_opaque_init_input) {}
+
+  Node* transform_chain_node(Node* node_in_chain) override {
+    return _phase->clone_and_register(node_in_chain, _new_ctrl);
+  }
+
+  Node* transform_opaque_init(OpaqueLoopInitNode* opaque_init) override {
+    Node* new_opaque_init = _phase->clone_and_register(opaque_init, _new_ctrl);
+    _phase->igvn().replace_input_of(new_opaque_init, 1, _new_opaque_init_input);
+    return new_opaque_init;
+  }
+
+  Node* transform_opaque_stride(OpaqueLoopStrideNode* opaque_stride) override {
+    return _phase->clone_and_register(opaque_stride, _new_ctrl);
+  }
+};
+
+class CloneWithInitialization : public TransformRelatedNodes {
+  PhaseIdealLoop* _phase;
+  Node* _ctrl;
+  Node* _new_init;
+  Node* _new_stride;
+
+ public:
+  CloneWithInitialization(PhaseIdealLoop* phase, Node* new_ctrl, Node* new_init, Node* new_stride)
+      : _phase(phase),
+        _new_init(new_init),
+        _new_stride(new_stride) {}
+
+  Node* transform_chain_node(Node* node_in_chain) override {
+    return _phase->clone_and_register(node_in_chain, _ctrl);
+  }
+
+  Node* transform_opaque_init(OpaqueLoopInitNode* opaque_init) override {
+    return _new_init;
+  }
+
+  Node* transform_opaque_stride(OpaqueLoopStrideNode* opaque_stride) override {
+    return _new_stride;
+  }
+};
+
+class UpdateOpaqueStrideInput : public TransformRelatedNodes {
+  PhaseIterGVN* _igvn;
+  Node* _new_opaque_stride_input;
+
+ public:
+  UpdateOpaqueStrideInput(PhaseIterGVN* igvn, Node* new_opaque_stride_input)
+      : _igvn(igvn),
+        _new_opaque_stride_input(new_opaque_stride_input) {}
+
+  Node* transform_chain_node(Node* node_in_chain) override {
+    return node_in_chain;
+  }
+
+  Node* transform_opaque_init(OpaqueLoopInitNode* opaque_init) override {
+    return opaque_init;
+  }
+
+  Node* transform_opaque_stride(OpaqueLoopStrideNode* opaque_stride) override {
+    _igvn->replace_input_of(opaque_stride, 1, _new_opaque_stride_input);
+    return opaque_stride;
+  }
+};
+
+
+
+BoolNode* TemplateAssertionPredicateBool::clone(Node* new_ctrl) {
+  CloneAll clone_all(_phase, new_ctrl);
+
+}
+
+BoolNode* TemplateAssertionPredicateBool::clone_update_opaque_init(Node* new_opaque_init_input) {
+  return nullptr;
+}
+
+BoolNode* TemplateAssertionPredicateBool::clone_initialized(Node* new_init, Node* new_stride) {
+  return nullptr;
+}
+
+void TemplateAssertionPredicateBool::update_opaque_stride(Node* new_opaque_stride_input) {
+
+}
+
 // Create a new Bool node from the provided Template Assertion Predicate Bool.
 // Replace found OpaqueLoop* nodes with new_init and new_stride, respectively, if non-null.
 // All newly cloned (non-CFG) nodes will get 'ctrl' as new ctrl.
-BoolNode* TemplateAssertionPredicateBool::create(Node* new_ctrl, TransformOpaqueLoopNodes* transform_opaque_loop_nodes) {
+BoolNode* TemplateAssertionPredicateBool::transform(TransformRelatedNodes* transform_related_nodes) {
   Node_Stack to_clone(2);
   to_clone.push(_source_bol, 1);
   const uint idx_before_cloning = C->unique();
@@ -260,17 +380,14 @@ BoolNode* TemplateAssertionPredicateBool::create(Node* new_ctrl, TransformOpaque
     if (AssertionPredicateBoolOpcodes::is_valid(input)) {
       if (input->is_Opaque1()) {
         if (n->_idx < idx_before_cloning) {
-          n = n->clone();
-          _phase->register_new_node(n, new_ctrl);
+          n = transform_related_nodes->transform_chain_node(n);
         }
         const int op = input->Opcode();
         if (op == Op_OpaqueLoopInit) {
-          Node* replacement = transform_opaque_loop_nodes->transform_init(input->as_OpaqueLoopInit(), new_ctrl);
-          n->set_req(i, replacement);
+          transform_related_nodes->transform_opaque_init(input->as_OpaqueLoopInit());
           found_init = true;
         } else {
-          Node* replacement = transform_opaque_loop_nodes->transform_stride(input->as_OpaqueLoopStride(), new_ctrl);
-          n->set_req(i, replacement);
+          transform_related_nodes->transform_opaque_stride(input->as_OpaqueLoopStride());
         }
         to_clone.set_node(n);
       } else {
@@ -294,10 +411,12 @@ BoolNode* TemplateAssertionPredicateBool::create(Node* new_ctrl, TransformOpaque
       Node* next = to_clone.node();
       j = to_clone.index();
       if (next->in(j) != cur) {
+        // We cloned next->in(j), so we also need to clone next on the way back to the BoolNode.
         assert(cur->_idx >= idx_before_cloning || next->in(j)->Opcode() == Op_Opaque1, "new node or Opaque1 being replaced");
         if (next->_idx < idx_before_cloning) {
-          next = next->clone();
-          _phase->register_new_node(next, new_ctrl);
+          assert(!next->is_OpaqueLoopInit() || !next->is_OpaqueLoopStride(), "should be normal chain node");
+          next = transform_related_nodes->transform_chain_node(next);
+          assert(next->_idx > idx_before_cloning, "should have been cloned");
           to_clone.set_node(next);
         }
         next->set_req(j, cur);

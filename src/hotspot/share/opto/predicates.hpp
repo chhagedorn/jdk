@@ -193,6 +193,7 @@
  */
 
 class Predicates;
+class TransformRelatedNodes;
 class TransformOpaqueLoopNodes;
 class TemplateAssertionPredicateBlock;
 
@@ -615,6 +616,7 @@ class TemplateAssertionPredicateBool : public StackObj {
   PhaseIdealLoop* _phase;
   Compile* C;
 
+  BoolNode* transform(TransformRelatedNodes* transform_opaque_loop_nodes);
  public:
   TemplateAssertionPredicateBool(BoolNode* source_bol, PhaseIdealLoop* phase)
       : _source_bol(source_bol),
@@ -634,7 +636,11 @@ class TemplateAssertionPredicateBool : public StackObj {
   // Create a new BoolNode from the Template Assertion Predicate bool by cloning all nodes on the input chain up to but
   // not including the OpaqueLoop* nodes. These are replaced depending on the strategy. Sets 'ctrl' as new ctrl for all
   // cloned (non-CFG) nodes.
-  BoolNode* create(Node* new_ctrl, TransformOpaqueLoopNodes* transform_opaque_loop_nodes);
+
+  BoolNode* clone(Node* new_ctrl);
+  BoolNode* clone_update_opaque_init(Node* new_opaque_init_input);
+  BoolNode* clone_initialized(Node* new_init, Node* new_stride);
+  void update_opaque_stride(Node* new_opaque_stride_input);
 };
 
 // Interface class for different strategies on how to transform OpaqueLoop* at old Template Assertion Predicate Bools to

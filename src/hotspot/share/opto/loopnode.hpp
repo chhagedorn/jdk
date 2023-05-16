@@ -1619,6 +1619,12 @@ public:
   bool created_loop_node()     { return _created_loop_node; }
   void register_new_node(Node* n, Node* blk);
 
+  Node* clone_and_register(Node* n, Node* ctrl) {
+    n = n->clone();
+    register_new_node(n, ctrl);
+    return n;
+  }
+
 #ifdef ASSERT
   void dump_bad_graph(const char* msg, Node* n, Node* early, Node* LCA);
 #endif
