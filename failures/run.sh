@@ -44,3 +44,5 @@ check_crash Reduced5.java
 $java -Xcomp -XX:CompileCommand=compileonly,Test::* Test6.java > output$test_nr
 check_crash Test6.java
 
+$java -Xcomp -XX:-TieredCompilation -XX:CompileCommand=compileonly,Test::* Test7.java > output$test_nr
+check_crash Test7.java
