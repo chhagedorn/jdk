@@ -50,3 +50,7 @@ check_crash Test7.java
 # mach5-one-jdk-21+29-2397-tier8
 $java -Xcomp -XX:-TieredCompilation -XX:CompileCommand=compileonly,Test::* Test8.java > output$test_nr
 check_crash Test8.java
+
+# mach5-one-jdk-22+5-323-tier8
+$java -Xcomp -XX:-TieredCompilation -XX:CompileCommand=compileonly,Test::* Test9.java > output$test_nr
+check_crash Test9.java

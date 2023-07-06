@@ -10,7 +10,7 @@ public class Reduced {
     static void test() {
         int i10, i16;
         try {
-            for (i10 = 61; ; ) {
+            for (i10 = 61; i10 < 50000 ; i10++) {
                 for (i16 = 2; i16 > i10; i16--) {
                     sFld *= iArrFld[i16][i16] = byFld *= sFld;
                 }
