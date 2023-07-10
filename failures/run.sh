@@ -9,6 +9,7 @@ NC='\033[0m'
 test_nr=1
 
 function check_crash() {
+    mv output $1_output
     echo -n "-> $1: "
     test_nr=$((test_nr+1))
     hs_err_file=$(find . -maxdepth 1 -name "hs_err_pid*")
@@ -22,35 +23,75 @@ function check_crash() {
 }
 
 
-$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test1.java > output$test_nr
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test1.java > output
 check_crash Test1.java
 
-$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test2.java > output$test_nr
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test2.java > output
 check_crash Test2.java
 
-$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test3.java > output$test_nr
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test3.java > output
 check_crash Test3.java
 
 # jdk-21+26-2230-tier6
-$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test4.java > output$test_nr
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test4.java > output
 check_crash Test4.java
 
 # jdk-21+24-2010-tier8 (currently attached as Test/Reduced.java to JDK-8308392)
-$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test5.java > output$test_nr
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test5.java > output
 check_crash Test5.java
-$java -Xcomp -XX:CompileCommand=compileonly,Reduced::* Reduced5.java > output$test_nr
+$java -Xcomp -XX:CompileCommand=compileonly,Reduced::* Reduced5.java > output
 check_crash Reduced5.java
 
-$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test6.java > output$test_nr
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test6.java > output
 check_crash Test6.java
 
-$java -Xcomp -XX:-TieredCompilation -XX:CompileCommand=compileonly,Test::* Test7.java > output$test_nr
+$java -Xcomp -XX:-TieredCompilation -XX:CompileCommand=compileonly,Test::* Test7.java > output
 check_crash Test7.java
 
 # mach5-one-jdk-21+29-2397-tier8
-$java -Xcomp -XX:-TieredCompilation -XX:CompileCommand=compileonly,Test::* Test8.java > output$test_nr
+$java -Xcomp -XX:-TieredCompilation -XX:CompileCommand=compileonly,Test::* Test8.java > output
 check_crash Test8.java
 
 # mach5-one-jdk-22+5-323-tier8
-$java -Xcomp -XX:-TieredCompilation -XX:CompileCommand=compileonly,Test::* Test9.java > output$test_nr
+$java -Xcomp -XX:-TieredCompilation -XX:CompileCommand=compileonly,Test::* Test9.java > output
 check_crash Test9.java
+
+# mach5-one-jdk-21+30-2418-tier6
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test10.java > output
+check_crash Test10.java
+
+# mach5-one-jdk-21+30-2416-tier8
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test11.java > output
+check_crash Test11.java
+
+# mach5-one-jdk-22+5-322-tier8
+$java -Xcomp -XX:-TieredCompilation -XX:CompileCommand=compileonly,Test::* Test12.java > output
+check_crash Test12.java
+
+# mach5-one-jdk-21+30-2419-tier8
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test13.java > output
+check_crash Test13.java
+
+# mach5-one-jdk-22+5-341-tier6
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test14.java > output
+check_crash Test14.java
+
+# mach5-one-jdk-22+5-340-tier8
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test15.java > output
+check_crash Test15.java
+
+# mach5-one-jdk-22+5-340-tier8
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test16.java > output
+check_crash Test16.java
+
+# mach5-one-jdk-21+31-2434-tier6
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test17.java > output
+check_crash Test17.java
+
+# mach5-one-jdk-22+6-368-tier6
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test18.java > output
+check_crash Test18.java
+
+# mach5-one-jdk-22+5-343-tier8
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test19.java > output
+check_crash Test19.java
