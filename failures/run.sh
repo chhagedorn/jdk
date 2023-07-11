@@ -95,3 +95,31 @@ check_crash Test18.java
 # mach5-one-jdk-22+5-343-tier8
 $java -Xcomp -XX:CompileCommand=compileonly,Test::* Test19.java > output
 check_crash Test19.java
+
+# mach5-one-jdk-21+31-2438-tier8
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test20.java > output
+check_crash Test20.java
+
+# mach5-one-jdk-21+31-2439-tier8
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test21.java > output
+check_crash Test21.java
+
+# custom user run
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* -XX:-TieredCompilation Test22.java > output
+check_crash Test22.java
+
+# custom user run
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test23.java > output
+check_crash Test23.java
+
+# custom user run
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* -XX:-TieredCompilation Test24.java > output
+check_crash Test24.java
+
+# custom user run
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test25.java > output
+check_crash Test25.java
+
+# custom user run
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test26.java > output
+check_crash Test26.java
