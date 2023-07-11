@@ -2195,6 +2195,9 @@ void ParsePredicateNode::dump_spec(outputStream* st) const {
     default:
       fatal("unknown kind");
   }
+  if (_useless) {
+    st->print("#useless ");
+  }
 }
 
 #endif // NOT PRODUCT

@@ -2858,6 +2858,14 @@ const Type* TemplateAssertionPredicateNode::Value(PhaseGVN* phase) const {
   return phase->type(in(0));
 }
 
+#ifndef PRODUCT
+void TemplateAssertionPredicateNode::dump_spec(outputStream* st) const {
+  if (_useless) {
+    st->print("#useless ");
+  }
+}
+#endif // NOT PRODUCT
+
 //=============================================================================
 const RegMask &JumpNode::out_RegMask() const {
   return RegMask::Empty;

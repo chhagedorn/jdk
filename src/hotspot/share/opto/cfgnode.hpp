@@ -324,6 +324,7 @@ class TemplateAssertionPredicateNode : public Node {
   virtual const Type* bottom_type() const { return Type::CONTROL; }
   virtual Node* Identity(PhaseGVN* phase);
   virtual const Type* Value(PhaseGVN* phase) const;
+  NOT_PRODUCT(void dump_spec(outputStream* st) const;)
 };
 
 //------------------------------CProjNode--------------------------------------
