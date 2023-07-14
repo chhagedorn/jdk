@@ -806,17 +806,29 @@ NewTemplateAssertionPredicate::create_template_assertion_predicate(const int if_
   return template_assertion_predicate_node;
 }
 
+// An Initialized Assertion Predicate has an OpaqueAssertionPredicateNode as bool input and a Halt node on the uncommon
+// projection. However, during IGVN, one or both of these nodes could already have been removed/replaced. We also
+// need to account for these cases:
+// - OpaqueAssertionPredicateNode replaced by constant.
+// - Uncommon projection with Halt node already folded.
+// - Both of the above.
 bool InitializedAssertionPredicate::is_success_proj(const Node* success_proj) {
-  if (success_proj->is_IfProj() && success_proj->in(0)->is_If()) {
-    return has_opaque(success_proj) && has_halt(success_proj);
+  if (success_proj->is_IfProj() && success_proj->in(0)->is_If()) { // Not a dying If
+    IfNode* if_node = success_proj->in(0)->as_If();
+    return has_opaque_or_con(if_node) && (is_uncommon_proj_missing(if_node) || has_halt(success_proj));
   }
   return false;
 }
 
-// Check if the If node of `predicate_proj` has an OpaqueAssertionPredicate node as input.
-bool InitializedAssertionPredicate::has_opaque(const Node* predicate_proj) {
-  IfNode* iff = predicate_proj->in(0)->as_If();
-  return iff->in(1)->Opcode() == Op_OpaqueAssertionPredicate;
+bool InitializedAssertionPredicate::is_uncommon_proj_missing(const IfNode* if_node) {
+  return if_node->outcnt() == 1;
+}
+
+// Check if the If node of `predicate_proj` has an OpaqueAssertionPredicate node or a ConI as input. The latter case
+// could happen when an Initialized Assertion Predicate is about to be folded.
+bool InitializedAssertionPredicate::has_opaque_or_con(const IfNode* if_node) {
+  Node* bool_input = if_node->in(1);
+  return bool_input->is_ConI() || bool_input->Opcode() == Op_OpaqueAssertionPredicate;
 }
 
 // Check if the other projection (UCT projection) of `success_proj` has a Halt node as output.

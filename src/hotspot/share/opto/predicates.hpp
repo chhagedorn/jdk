@@ -609,7 +609,8 @@ class InitializedAssertionPredicate : public Predicate {
   IfTrueNode* _success_proj;
   IfNode* _if_node;
 
-  static bool has_opaque(const Node* predicate_proj);
+  static bool has_opaque_or_con(const IfNode* if_node);
+  static bool is_uncommon_proj_missing(const IfNode* if_node);
   static bool has_halt(const Node* success_proj);
 
  public:
