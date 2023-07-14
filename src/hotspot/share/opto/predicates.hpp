@@ -596,7 +596,7 @@ class NodeInOriginalLoop : public TemplateAssertionPredicateDataOutput {
   // clone from it (with _old_new). If there is a clone, we know that 'output_data_node' belongs to the original loop.
   bool must_update(Node* output_data_node) override {
     if (output_data_node->_idx < _first_node_index_in_cloned_loop) {
-      Node* cloned_node = _old_new->at(output_data_node->_idx);
+      Node* cloned_node = (*_old_new)[output_data_node->_idx];
       return cloned_node != nullptr && cloned_node->_idx >= _first_node_index_in_cloned_loop;
     } else {
       return false;
