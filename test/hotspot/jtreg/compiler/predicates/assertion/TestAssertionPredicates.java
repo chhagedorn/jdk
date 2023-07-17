@@ -39,6 +39,7 @@
  * @run main/othervm -Xcomp
  *                   -XX:CompileCommand=compileonly,compiler.predicates.assertion.TestAssertionPredicates::*
  *                   -XX:CompileCommand=dontinline,compiler.predicates.assertion.TestAssertionPredicates::*
+ *                   -XX:CompileCommand=inline,compiler.predicates.assertion.TestAssertionPredicates::inline
  *                   compiler.predicates.assertion.TestAssertionPredicates Xcomp
  */
 
@@ -117,7 +118,8 @@ public class TestAssertionPredicates {
     static int[] iArr = new int[100];
     static int[] iArr2 = new int[100];
     static int[] iArrNull = null;
-    static int[][] sArr2D = new int[10][10];
+    static int[][] iArr2D = new int[10][10];
+    static short[] sArr = new short[10];
     static float[] fArr = new float[10];
     static float[][] fArr2D = new float[10][10];
 
@@ -137,6 +139,8 @@ public class TestAssertionPredicates {
     }
 
     static Foo foo = new Foo();
+
+
     public static void main(String[] args) {
         try {
             executeTests(args[0]);
@@ -153,6 +157,8 @@ public class TestAssertionPredicates {
                 testUnswitchingThenPeeling();
                 testPeelingThenUnswitchingThenPeeling();
                 testPeelingThenUnswitchingThenPeelingThenPreMainPost();
+                testDyingRuntimePredicate();
+                testDyingNegatedRuntimePredicate();
             }
             case "LoopMaxUnroll2" -> {
                 testPeelMainLoopAfterUnrollingThenPreMainPost();
@@ -170,6 +176,7 @@ public class TestAssertionPredicates {
                 testPeelingThenPreMainPost();
                 testUnswitchingThenPeelingThenPreMainPost();
                 runTestDontCloneParsePredicateUnswitching();
+                testDyingInitializedAssertionPredicate();
                 test8288981();
                 test8288941();
                 iFld = -1;
@@ -187,6 +194,8 @@ public class TestAssertionPredicates {
                 test8308392No7();
                 iFld = 0;
                 test8308392No8();
+                runTest8308392No9();
+                test8308392No10();
             }
             case "Xbatch" -> {
                 for (int i = 0; i < 100000; i++) {
@@ -606,6 +615,138 @@ public class TestAssertionPredicates {
         }
     }
 
+    // Initialized Assertion Predicate with ConI as bool node is not recognized, and we miss to remove a Template
+    // Assertion Predicate from which we later create a wrong Initialized Assertion Predicate (for wrong loop).
+    static void testDyingInitializedAssertionPredicate() {
+        boolean b = false;
+        int i4, i6, i7 = 14, i8, iArr[][] = new int[10][10];
+        for (int i = 0; i < iArr.length; i++) {
+            inline(iArr[i]);
+        }
+        for (i4 = 7; i4 < 10; i4++) {
+            iArr2[1] += 5;
+        }
+        for (i6 = 100; i6 > 4; --i6) {
+            i8 = 1;
+            while (++i8 < 6) {
+                sArr[i8] = 3;
+                i7 += i8 + i8;
+                iArr2[i8] -= 34;
+            }
+        }
+    }
+
+    public static void inline(int[] a) {
+        for (int i = 0; i < a.length; i++) {
+            a[i] = 4;
+        }
+    }
+
+    static void testDyingRuntimePredicate() {
+        int zero = 34;
+        int[] iArrLoc = new int[100];
+
+        int limit = 2;
+        int loopInit = -10;
+        int four = -10;
+        for (; limit < 4; limit *= 2);
+        for (int i = 2; i < limit; i++) {
+            zero = 0;
+            loopInit = 99;
+            four = 4;
+        }
+
+        // Template + Hoisted Range Check Predicate for iArr[i]. Hoisted Invariant Check Predicate IC for iArr3[index].
+        // After CCP: ConI for IC and uncommon proj already killed -> IGVN will fold this away. But Predicate logic
+        // need to still recognize this predicate to find the Template above to kill it. If we don't do it, then it
+        // will end up at loop below and peeling will clone the template and create a completely wrong Initialized
+        // Assertion Predicate, killing some parts of the graph and leaving us with a broken graph.
+        for (int i = loopInit; i < 100; i++) {
+            iArr[i] = 34;
+            iArrLoc[four] = 34;
+            //if (-3 > loop) {
+            //    iArr3[101] = 34; // Always out of bounds and will be a range_check trap in the graph.
+            //}
+        }
+
+        int i = -10;
+        while (true) {
+
+            // Found as loop head in ciTypeFlow, but both path inside loop -> head not cloned.
+            // As a result, this head has the safepoint as backedge instead of the loop exit test
+            // and we cannot create a counted loop (yet). We first need to partial peel.
+            if (zero * i == 34) {
+                iFld2 = 23;
+            } else {
+                iFld = 2;
+            }
+
+            // Loop exit test.
+            if (i >= -2) {
+                break;
+            }
+            // <-- Partial Peeling CUT -->
+            // Safepoint
+            if (zero * i + five == 0) {
+                return;
+            }
+            iFld2 = 34;
+            i++;
+        }
+    }
+
+    static void testDyingNegatedRuntimePredicate() {
+        int zero = 34;
+        int[] iArrLoc = new int[100];
+
+        int limit = 2;
+        int loopInit = -10;
+        int four = -10;
+        for (; limit < 4; limit *= 2);
+        for (int i = 2; i < limit; i++) {
+            zero = 0;
+            loopInit = 99;
+            four = 4;
+        }
+
+        // Template + Hoisted Range Check Predicate for iArr[i]. Hoisted Invariant Check Predicate IC for iArr3[index].
+        // After CCP: ConI for IC and uncommon proj already killed -> IGVN will fold this away. But Predicate logic
+        // need to still recognize this predicate to find the Template above to kill it. If we don't do it, then it
+        // will end up at loop below and peeling will clone the template and create a completely wrong Initialized
+        // Assertion Predicate, killing some parts of the graph and leaving us with a broken graph.
+        for (int i = loopInit; i < 100; i++) {
+            iArr[i] = 34;
+            if (-3 > loopInit) {
+                // Negated Hoisted Invariant Check Predicate.
+                iArrLoc[101] = 34; // Always out of bounds and will be a range_check trap in the graph.
+            }
+        }
+
+        int i = -10;
+        while (true) {
+
+            // Found as loop head in ciTypeFlow, but both path inside loop -> head not cloned.
+            // As a result, this head has the safepoint as backedge instead of the loop exit test
+            // and we cannot create a counted loop (yet). We first need to partial peel.
+            if (zero * i == 34) {
+                iFld2 = 23;
+            } else {
+                iFld = 2;
+            }
+
+            // Loop exit test.
+            if (i >= -2) {
+                break;
+            }
+            // <-- Partial Peeling CUT -->
+            // Safepoint
+            if (zero * i + five == 0) {
+                return;
+            }
+            iFld2 = 34;
+            i++;
+        }
+    }
 
     /**
      * Tests to verify correct data dependencies update when splitting loops for which we created Hoisted Predicates.
@@ -837,7 +978,7 @@ public class TestAssertionPredicates {
         try {
             for (i10 = 61; i10 < 50000 ; i10++) {
                 for (i16 = 2; i16 > i10; i16--) {
-                    sFld *= sArr2D[i16][i16] = byFld *= sFld;
+                    sFld *= iArr2D[i16][i16] = byFld *= sFld;
                 }
             }
         } catch (NegativeArraySizeException exc3) {
@@ -891,7 +1032,7 @@ public class TestAssertionPredicates {
         int i20, i22 = 6, i25;
         for (i20 = 50000; i20 > 3; i20--) {
             for (i25 = 1; i25 > i22; i25--) {
-                sArr2D[i25 + 1][i22] += fFld -= iFld;
+                iArr2D[i25 + 1][i22] += fFld -= iFld;
             }
         }
     }
@@ -957,11 +1098,37 @@ public class TestAssertionPredicates {
             for (i22 = 2; i22 < 71; i22++) {
                 for (i28 = 2; i28 > i21; --i28) {
                     i25 %= i26;
-                    sArr2D[i28][1] ^= 5;
+                    iArr2D[i28][1] ^= 5;
                 }
             }
             i21--;
         }
     }
 
+    static void runTest8308392No9() {
+        try {
+            test8308392No9();
+        } catch (ArithmeticException e) {
+            // Expected.
+        }
+    }
+
+    static void test8308392No9() {
+        for (int i20 = 60; ; i20--) {
+            for (int i22 = 2; i22 > i20; --i22) {
+                fFld += 5;
+                iFld = iFld / 9 / iArr[i22];
+            }
+        }
+    }
+
+    static void test8308392No10() {
+        int i14, i16 = -27148, i18, i21;
+        for (i14 = 21; i16 < 9; ++i16) {
+            for (i18 = 2; i14 < i18; i18--) {
+                iArr2D[i18][i18] -= lFld = i18;
+            }
+            for (i21 = 1; i21 < 2; i21++) {}
+        }
+    }
 }
