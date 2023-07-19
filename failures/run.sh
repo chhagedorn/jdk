@@ -135,3 +135,19 @@ check_crash Test28.java
 # mach5-one-jdk-22+6-377-tier8
 $java -Xcomp -XX:CompileCommand=compileonly,Test::* Test29.java > output
 check_crash Test29.java
+
+# custom user run
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* -XX:-TieredCompilation Test30.java > output
+check_crash Test30.java
+
+# custom user run
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test31.java > output
+check_crash Test31.java
+
+# mach5-one-jdk-21+32-2452-tier8
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test32.java > output
+check_crash Test32.java
+
+# custom user run
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test33.java > output
+check_crash Test33.java
