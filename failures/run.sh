@@ -151,3 +151,7 @@ check_crash Test32.java
 # custom user run
 $java -Xcomp -XX:CompileCommand=compileonly,Test::* Test33.java > output
 check_crash Test33.java
+
+#  mach5-one-jdk-22+7-443-tier8
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test34.java > output
+check_crash Test34.java
