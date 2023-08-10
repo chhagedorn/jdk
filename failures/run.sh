@@ -152,7 +152,7 @@ check_crash Test32.java
 $java -Xcomp -XX:CompileCommand=compileonly,Test::* Test33.java > output
 check_crash Test33.java
 
-#  mach5-one-jdk-22+7-443-tier8
+# mach5-one-jdk-22+7-443-tier8
 $java -Xcomp -XX:CompileCommand=compileonly,Test::* Test34.java > output
 check_crash Test34.java
 
@@ -160,3 +160,34 @@ check_crash Test34.java
 $java -Xcomp -XX:CompileCommand=compileonly,Test::* Test35.java > output
 check_crash Test35.java
 
+# mach5-one-jdk-22+9-607
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* -XX:-TieredCompilation Test36.java > output
+check_crash Test36.java
+
+# mach5-one-jdk-22+9-607
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* -XX:-TieredCompilation Test37.java > output
+check_crash Test37.java
+
+# custom user run
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test38.java > output
+check_crash Test38.java
+
+# custom user run
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test39.java > output
+check_crash Test39.java
+
+# custom user run
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* -XX:-TieredCompilation Test40.java > output
+check_crash Test40.java
+
+# custom user run
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* -XX:-TieredCompilation Test41.java > output
+check_crash Test41.java
+
+# custom user run
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test42.java > output
+check_crash Test42.java
+
+# custom user run
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test43.java > output
+check_crash Test43.java
