@@ -51,13 +51,13 @@ once before the start of the loop instead of during each iteration which has a p
 
 ### Conditions
 
-Loop Predication can only remove checks (i.e. a `IfNode/RangeCheckNode`) out of a loop if they belong to one of the 
-following category:
+Loop Predication can only remove checks (i.e. a `IfNode/RangeCheckNode`) out of a loop if they have an uncommon trap 
+on one path and if they belong to one of the following category:
 - The check is loop-invariant (e.g. null checks of objects created outside the loop).
 - The check is a range check (i.e. either a `RangeCheckNode` or an `IfNode`<sup>[4](#footnote4)</sup>) of the
   form `i*scale + offset <u array_length`, where `i` is the induction variable, `scale` and `offset` are 
-  loop-invariant, `array_length` is the length of an array (i.e.  a `LoadRangeNode`), and the loop is a _counted_ 
-  loop (i.e. represented by a `CountedLoopNode` inside the IR).
+  loop-invariant, `array_length` is the length of an array (i.e.  a `LoadRangeNode` or a constant), and the loop is a 
+  _counted_ loop (i.e. represented by a `CountedLoopNode` inside the IR).
 
 #### Why Do Array Range Checks Have a Single Unsigned Comparison?
 
@@ -386,8 +386,8 @@ https://www.oracle.com/technetwork/java/javase/tech/c2-ir95-150110.pdf).
 guard. Therefore, we have a `CountedLoopEndNode` and not a normal `IfNode`.
 
 <a name="footnote4"><sup>4</sup></a>Almost always, a range check will be a `RangeCheckNode` as it is unusual to write
-code that would emit an `IfNode` with an unsigned comparison with a `LoadRangeNode`, a trap on the uncommon path,
-and satisfying all other conditions to qualify for being hoisted as a range check out of a counted loop.
+code that would emit an `IfNode` with an unsigned comparison with a `LoadRangeNode` or a constant, a trap on the 
+uncommon path, and satisfying all other conditions to qualify for being hoisted as a range check out of a counted loop.
 
 <a name="footnote5"><sup>5</sup></a>Loop Peeling would not actually be triggered for this example as there is no 
 reason to peel (see [IdealLoopTree::estimate_peeling()](
