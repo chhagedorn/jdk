@@ -4,10 +4,10 @@ date: 2023-05-05
 ---
 
 _Assertion Predicates_<sup>[1](#footnote1)</sup> are a specific kind of predicates found in the C2 compiler that
-accompany _Hoisted Predicates_ created during _Loop Predication_. Their only purpose is to make sure that the C2 IR 
-is in a consistent state. Compared to Hoisted Predicates, they do not represent a required check that needs to be 
-executed during runtime to ensure correctness. They could be removed after the loop optimization phases - hence the 
-name "Assertion Predicates". But if Assertion Predicates are not required at runtime, why do we need them anyway? 
+accompany _Hoisted Check Predicates_ created during _Loop Predication_. Their only purpose is to make sure that the 
+C2 IR is in a consistent state. Compared to Hoisted Check Predicates, they do not represent a required check that needs 
+to be executed during runtime to ensure correctness. They could be removed after the loop optimization phases - hence 
+the name "Assertion Predicates". But if Assertion Predicates are not required at runtime, why do we need them anyway? 
 The reason is found in the very nature of the C2 IR.
 
 There are other kinds of predicates which I will not cover in this blog article but possibly in a future one. 
@@ -87,9 +87,10 @@ Once we find a check that qualifies to be hoisted out of a loop, we move it righ
 forward for invariant checks, where we can simply re-use the condition inside the loop as a condition for the check 
 outside the loop.
 
-#### One Hoisted Predicate
+#### One Hoisted Check Predicate
 
-We therefore create a single Hoisted Predicate for a loop-invariant check before the loop and kill the old check inside 
+We therefore create a single Hoisted Check Predicate for a loop-invariant check before the loop and kill the old check 
+inside 
 the loop.
 
 ### Hoisting Range Checks
@@ -103,26 +104,26 @@ loop, we actually only need to perform the index check for the initial value of 
 - `init*scale + offset <u array_length` 
 - `last*scale + offset = (limit-stride)*scale + offset <u array_length` 
 
-#### Two Hoisted Predicates
+#### Two Hoisted Check Predicates
 
-We therefore create two Hoisted Predicates for a range check before the counted loop: One with inserting the initial 
-value of the induction variable and one with inserting the value of the induction variable in the last iteration 
+We therefore create two Hoisted Check Predicates for a range check before the counted loop: One with inserting the 
+initial value of the induction variable and one with inserting the value of the induction variable in the last iteration 
 for the index check `i*scale + offset <u array_length`. The old range check inside the loop is removed.
 
-### What Happens if a Hoisted Predicate Fails at Runtime
+### What Happens if a Hoisted Check Predicate Fails at Runtime
 
-If a Hoisted Predicate fails at runtime, we trap and simply jump back to the interpreter and continue execution right
-before the loop. Since Hoisted Predicates are evaluated once before the start of the loop, we have not executed any
-iteration of the loop, yet. It is therefore safe to resume execution in this way.
+If a Hoisted Check Predicate fails at runtime, we trap and simply jump back to the interpreter and continue execution 
+right before the loop. Since Hoisted Check Predicates are evaluated once before the start of the loop, we have not 
+executed any iteration of the loop, yet. It is therefore safe to resume execution in this way.
 
 Now that we've recapped on how Loop Predication works, we can have a closer look at why this simple idea of creating 
-Hoisted Predicates introduces a new fundamental problem for the C2 IR. 
+Hoisted Check Predicates introduces a new fundamental problem for the C2 IR. 
 
-# A Fundamental Issue with Hoisted Predicates
+# A Fundamental Issue with Hoisted Check Predicates for Range Checks
 
-Regardless on how we further optimize a loop (peeling, unrolling, unswitching etc.), if a Hoisted Predicate for a loop
-fails, we will always trap before executing any iteration and resume in the interpreter just before the start of the
-loop. However, when splitting such a loop into sub-loops, we could run into a fundamental problem for Hoisted 
+Regardless on how we further optimize a loop (peeling, unrolling, unswitching etc.), if a Hoisted Check Predicate for a 
+loop fails, we will always trap before executing any iteration and resume in the interpreter just before the start of 
+the loop. However, when splitting such a loop into sub-loops, we could run into a fundamental problem for Hoisted Check 
 Predicates created for range checks due to the mixture of control and data in the C2 IR.
 
 Let's work through an example to illustrate why.
@@ -148,8 +149,8 @@ of the index by taking the maximum value of `i` that we know from the type of `8
 additional `124 CastII` to store the improved type `[0..1]` for the array index at `a[i]`.
 
 Loop Predication will identify `111 RangeCheck` as valid range check and remove it from the loop by creating two
-Hoisted Predicates. We will denote the Hoisted Predicates with `PU(a[i])`, for the upper bound, and `PL(a[i])`, for the
-lower bound:
+Hoisted Check Predicates. We will denote the Hoisted Check Predicates with `PU(a[i])`, for the upper bound, and 
+`PL(a[i])`, for the lower bound:
 ```java
 // Check: init*scale + offset <u array_length`
 // <=> 1*1 + 0 <u a.length 
@@ -232,7 +233,7 @@ way that the node itself does not die (e.g. a `PhiNode` which merges multiple va
 ### The Remaining Loop Is Dead Anyway - Where Is the Problem Now?
 
 You might argue now while looking at the code after Loop Peeling that the remaining loop, starting at `-1`, will never
-be executed. This is true because if `limit < 0`, then the Hoisted Predicate will fail at runtime and we trap. If 
+be executed. This is true because if `limit < 0`, then the Hoisted Check Predicate will fail at runtime and we trap. If 
 `limit >= 0`, then the loop will not be entered. Either way, the loop is never executed and evidently dead. So why 
 don't we just remove it and go home? Well, yes, but how?
 
@@ -246,30 +247,31 @@ state: Some data/control/memory nodes could have been removed while others still
 _could_ lead to assertion failures even though any of the not yet cleared nodes inside this dead sub-loop will never be 
 executed at runtime.
 
-### CastII Nodes Are Updated - Hoisted Predicates Are Not
+### CastII Nodes Are Updated - Hoisted Check Predicates Are Not
 
 How did we end up in this situation? The problem is that each time we are updating the initial value of the induction
 variable, the stride and/or the limit of the loop, the involved `CastII` node for the array index (and potentially
 other `CastConstraint` nodes dependent on the induction variable, stride and/or limit) are updated while Hoisted
-Predicates are not. If a Hoisted Predicate cannot be proven to always fail, then we still cannot prove it after
-splitting the loop in an arbitrary way (assuming that we will not find out anything new about the loop in the meantime).
+Check Predicates are not. If a Hoisted Check Predicate cannot be proven to always fail, then we still cannot prove it 
+after splitting the loop in an arbitrary way (assuming that we will not find out anything new about the loop in the 
+meantime).
 
 ### How Can We Fix This?
-How can this discrepancy between `CastConstraint` nodes and Hoisted Predicates be prevented? How can we ensure a 
+How can this discrepancy between `CastConstraint` nodes and Hoisted Check Predicates be prevented? How can we ensure a 
 dead sub-loop is cleaned up when data is dying inside it? How can we establish the synchronization of control and data 
 again? The answer lies within Assertion Predicates.
 
 # Assertion Predicates
 
-Now that we understand the fundamental issue with Hoisted Predicates, we need to address it. Our solution is to set up a
-special version of each Hoisted Predicate for each sub-loop such that it reflects any new initial value of the induction
-variable, new stride, and new limit. We call these versions _Assertion Predicates_.
+Now that we understand the fundamental issue with Hoisted Check Predicates, we need to address it. Our solution is to 
+set up a special version of each Hoisted Check Predicate for each sub-loop such that it reflects any new initial 
+value of the induction variable, new stride, and new limit. We call these versions _Assertion Predicates_.
 
 ## Fold Dead Sub-Loop Away
 
 Having these additional Assertion Predicates in place will now take care of folding dead sub-loops away. Let's revisit 
 our example from the last section and see how we can create Assertion Predicates `AU` and `AL` as special versions 
-of the Hoisted Predicates `PU` and `PL` when peeling a loop:
+of the Hoisted Check Predicates `PU` and `PL` when peeling a loop:
 ```java
 // Check: init*scale + offset <u array_length`
 // <=> 1*1 + 0 <u a.length 
@@ -306,15 +308,15 @@ graph is consistent again<sup>[7](#footnote7)</sup>.
 ## Always True at Runtime
 
 An Assertion Predicate will always be true during runtime because it re-checks something we've already covered with 
-a Hoisted Predicate. We can therefore completely remove an Assertion Predicate once loop optimizations are over. But for
-debugging purpose, it helps to keep these Assertion Predicates alive to ensure that none of these will ever fail. To do 
-that, we implement the failing path with a `HaltNode` instead of a trap. Executing the `HaltNode` at runtime will 
+a Hoisted Check Predicate. We can therefore completely remove an Assertion Predicate once loop optimizations are over. 
+But for debugging purpose, it helps to keep these Assertion Predicates alive to ensure that none of these will ever fail. 
+To do that, we implement the failing path with a `HaltNode` instead of a trap. Executing the `HaltNode` at runtime will 
 result in a crash.
 
 ## Always Added/Updated when Modifying the Initial Value of an Induction Variable, the Stride or the Limit of a Loop
 
-We always insert Assertion Predicates when changing a loop, for which we created Hoisted Predicates, in such a way 
-that either the initial value of the induction variable, the stride, or the limit is updated. This happens when:
+We always insert Assertion Predicates when changing a loop, for which we created Hoisted Check Predicates, in such a 
+way that either the initial value of the induction variable, the stride, or the limit is updated. This happens when:
 - Peeling a Loop: 
   - The remaining loop needs Assertion Predicates.
 - Creating Pre/Main/Post Loops: 
@@ -327,12 +329,12 @@ Furthermore, we need to update existing Assertion Predicates when:
   - The fast and the slow loop need a version of the Assertion Predicate (we could split these loops further).
 
 There is one more case where we need to insert Assertion Predicates even though we have not created any Hoisted
-Predicate:
+Check Predicate:
 - Range Check Elimination:
   - The pre and main loop bounds are updated such that a range check inside the main loop can be removed. This is
-    similar to Loop Predication but instead of creating a Hoisted Predicate, we change the iterations of the pre and
-    the main loop. The consequence, however, is the same: We need Assertion Predicates for the main loop to keep the
-    graph in a consistent state if the main loop becomes dead<sup>[8](#footnote8)</sup>.
+    similar to Loop Predication but instead of creating a Hoisted Check Predicate, we change the iterations of the 
+    pre and the main loop. The consequence, however, is the same: We need Assertion Predicates for the main loop to keep 
+    the graph in a consistent state if the main loop becomes dead<sup>[8](#footnote8)</sup>.
 
 ## Implementation Attempts
 Even though Loop Predication has been around for quite a while<sup>[9](#footnote9)</sup>, this problem was only 
@@ -362,8 +364,8 @@ The first two goals are prerequisites to make the redesign of Assertion Predicat
 a clean way. 
 
 # Conclusion
-We've discussed a long-standing issues with Hoisted Predicates and how this was attempted to be fixed over the last 
-years with Assertion Predicates. A complete solution is yet to be added. However, we've filed [JDK-8288981](
+We've discussed a long-standing issues with Hoisted Check Predicates and how this was attempted to be fixed over the 
+last years with Assertion Predicates. A complete solution is yet to be added. However, we've filed [JDK-8288981](
 https://bugs.openjdk.org/browse/JDK-8288981) with its sub-tasks to achieve this. Over the last months, I've shifted my 
 focus towards achieving this goal. The cleanup and re-implementation of Assertion Predicates is almost done as of 
 today. The only major thing left is to clean up the code further and heavily test my patches to ensure correctness.
@@ -445,8 +447,8 @@ if (i > limit) {
 <a name="footnote8"><sup>8</sup></a>Loop Predication and Range Check Elimination achieve the same goal to remove range
 checks from loops. Most of them can be removed with Loop Predication. But there are some cases where we cannot apply
 Loop Predication anymore (e.g. we've lost the Parse Predicates which provide the required safepoint for the Hoisted
-Predicate trap) while Range Check Elimination is still possible. More information about Range Check Elimination can 
-be found [here](https://wiki.openjdk.org/display/HotSpot/RangeCheckElimination).
+Check Predicate trap) while Range Check Elimination is still possible. More information about Range Check Elimination 
+can be found [here](https://wiki.openjdk.org/display/HotSpot/RangeCheckElimination).
 
 <a name="footnote9"><sup>9</sup></a>First version added with [JDK-6894778](https://bugs.openjdk.org/browse/JDK-6894778).
 
