@@ -49,12 +49,12 @@ void EliminateUselessParsePredicates::eliminate() {
     IdealLoopTree* loop = iterator.current();
     mark_parse_predicates_useful(loop);
   }
-  add_useless_predicates_to_igvn();
+  add_useless_predicates_to_igvn_worklist();
 }
 
 void EliminateUselessParsePredicates::mark_all_parse_predicates_useless() {
-  for (int i = 0; i < C->parse_predicates().length(); i++) {
-    C->parse_predicates().at(i)->mark_useless();
+  for (ParsePredicateNode* parse_predicate : C->parse_predicates()) {
+    parse_predicate->mark_useless();
   }
 }
 
@@ -77,11 +77,10 @@ void EliminateUselessParsePredicates::mark_parse_predicates_useful(IdealLoopTree
   }
 }
 
-void EliminateUselessParsePredicates::add_useless_predicates_to_igvn() {
-  for (int i = 0; i < C->parse_predicates().length(); i++) {
-    ParsePredicateNode* predicate_node = C->parse_predicates().at(i);
-    if (predicate_node->is_useless()) {
-      _igvn->_worklist.push(predicate_node);
+void EliminateUselessParsePredicates::add_useless_predicates_to_igvn_worklist() {
+  for (ParsePredicateNode* parse_predicate : C->parse_predicates()) {
+    if (parse_predicate->is_useless()) {
+      _igvn->_worklist.push(parse_predicate);
     }
   }
 }

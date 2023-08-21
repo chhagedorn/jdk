@@ -307,7 +307,7 @@ class EliminateUselessParsePredicates : public StackObj {
 
   void mark_all_parse_predicates_useless();
   static void mark_parse_predicates_useful(IdealLoopTree* loop);
-  void add_useless_predicates_to_igvn();
+  void add_useless_predicates_to_igvn_worklist();
 
  public:
   EliminateUselessParsePredicates(PhaseIterGVN* igvn, IdealLoopTree* ltree_root)
