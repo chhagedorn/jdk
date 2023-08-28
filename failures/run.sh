@@ -208,3 +208,59 @@ check_crash Test46.java
 $java -Xcomp -XX:CompileCommand=compileonly,Test::* -XX:-TieredCompilation Test47.java > output
 check_crash Test47.java
 
+# custom user run
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test48.java > output
+check_crash Test48.java
+
+# custom user run
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test49.java > output
+check_crash Test49.java
+
+# mach5-one-jdk-22+11-772-tier8
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* -XX:-TieredCompilation Test50.java > output
+check_crash Test50.java
+
+# mach5-one-jdk-22+11-772-tier8
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test51.java > output
+check_crash Test51.java
+
+# mach5-one-jdk-22+11-772-tier8
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* -XX:-TieredCompilation Test52.java > output
+check_crash Test52.java
+
+# mach5-one-jdk-22+11-772-tier8
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* -XX:-TieredCompilation Test53.java > output
+check_crash Test53.java
+
+# mach5-one-jdk-22+11-786-tier8
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test54.java > output
+check_crash Test54.java
+
+# mach5-one-jdk-22+12-814-tier6
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test55.java > output
+check_crash Test55.java
+
+# mach5-one-jdk-22+12-810-tier8
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test56.java > output
+check_crash Test56.java
+
+# mach5-one-jdk-22+12-810-tier8
+$java -Xcomp -XX:CompileOnly=Test::* -XX:CompileOnly=Test::* -XX:-TieredCompilation -XX:CompileCommand=RepeatCompilation,Test::mainTest,100 -XX:+StressIGVN Test57.java > output
+check_crash Test57.java
+
+# mach5-one-jdk-22+12-833-tier6
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test58.java > output
+check_crash Test58.java
+
+# mach5-one-jdk-22+12-831-tier8
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* -XX:-TieredCompilation Test59.java > output
+check_crash Test59.java
+
+# mach5-one-jdk-22+12-833-tier8
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test60.java > output
+check_crash Test60.java
+
+# mach5-one-jdk-22+12-856-tier8
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test61.java > output
+check_crash Test61.java
+
