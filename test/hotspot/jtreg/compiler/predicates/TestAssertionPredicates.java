@@ -23,9 +23,10 @@
  */
 
 /*
- * @test
+ * @test id=Xbatch
  * @bug 8288981
- * @summary TODO
+ * @summary Test all possible cases in which Assertion Predicates are required such that the graph is not left in a
+ *          broken state to trigger assertions. Additional tests ensure the correctness of the implementation.
  * @run main/othervm -Xbatch
  *                   -XX:CompileCommand=compileonly,compiler.predicates.TestAssertionPredicates::*
  *                   -XX:CompileCommand=dontinline,compiler.predicates.TestAssertionPredicates::*
@@ -33,9 +34,8 @@
  */
 
 /*
- * @test
+ * @test id=Xcomp
  * @bug 8288981
- * @summary TODO
  * @run main/othervm -Xcomp
  *                   -XX:CompileCommand=compileonly,compiler.predicates.TestAssertionPredicates::*
  *                   -XX:CompileCommand=dontinline,compiler.predicates.TestAssertionPredicates::*
@@ -44,9 +44,8 @@
  */
 
 /*
- * @test
+ * @test id=UseProfiledLoopPredicateFalse
  * @bug 8288981
- * @summary TODO
  * @requires vm.compiler2.enabled
  * @run main/othervm -Xcomp -XX:-UseProfiledLoopPredicate
  *                   -XX:CompileCommand=compileonly,compiler.predicates.TestAssertionPredicates::*
@@ -55,9 +54,8 @@
  */
 
 /*
- * @test
+ * @test id=LoopMaxUnroll0
  * @bug 8288981
- * @summary TODO
  * @requires vm.compiler2.enabled
  * @run main/othervm -Xcomp -XX:LoopMaxUnroll=0
  *                   -XX:CompileCommand=compileonly,compiler.predicates.TestAssertionPredicates::*
@@ -66,9 +64,8 @@
  */
 
 /*
- * @test
+ * @test id=LoopMaxUnroll2
  * @bug 8288981
- * @summary TODO
  * @requires vm.compiler2.enabled
  * @run main/othervm -Xcomp -XX:LoopMaxUnroll=2
  *                   -XX:CompileCommand=compileonly,compiler.predicates.TestAssertionPredicates::*
@@ -77,9 +74,8 @@
  */
 
 /*
- * @test
+ * @test id=LoopUnrollLimit40
  * @bug 8288981
- * @summary TODO
  * @requires vm.compiler2.enabled
  * @run main/othervm -Xcomp -XX:LoopUnrollLimit=40
  *                   -XX:CompileCommand=compileonly,compiler.predicates.TestAssertionPredicates::*
@@ -88,9 +84,8 @@
  */
 
 /*
- * @test
+ * @test id=LoopUnrollLimit150
  * @bug 8288981
- * @summary TODO
  * @requires vm.compiler2.enabled
  * @run main/othervm -Xcomp -XX:LoopUnrollLimit=150
  *                   -XX:CompileCommand=compileonly,compiler.predicates.TestAssertionPredicates::*
@@ -99,10 +94,9 @@
  */
 
 /*
- * @test
+ * @test id=ZGC
  * @key randomness
  * @bug 8288981
- * @summary TODO
  * @requires vm.gc.ZSinglegen
  * @requires vm.compiler2.enabled
  * @run main/othervm -Xcomp -XX:+UnlockDiagnosticVMOptions -XX:+StressGCM -XX:+UseZGC -XX:-ZGenerational
