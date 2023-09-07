@@ -27,9 +27,9 @@
  * @bug 8288981
  * @summary TODO
  * @run main/othervm -Xbatch
- *                   -XX:CompileCommand=compileonly,compiler.predicates.assertion.TestAssertionPredicates::*
- *                   -XX:CompileCommand=dontinline,compiler.predicates.assertion.TestAssertionPredicates::*
- *                   compiler.predicates.assertion.TestAssertionPredicates Xbatch
+ *                   -XX:CompileCommand=compileonly,compiler.predicates.TestAssertionPredicates::*
+ *                   -XX:CompileCommand=dontinline,compiler.predicates.TestAssertionPredicates::*
+ *                   compiler.predicates.TestAssertionPredicates Xbatch
  */
 
 /*
@@ -37,10 +37,10 @@
  * @bug 8288981
  * @summary TODO
  * @run main/othervm -Xcomp
- *                   -XX:CompileCommand=compileonly,compiler.predicates.assertion.TestAssertionPredicates::*
- *                   -XX:CompileCommand=dontinline,compiler.predicates.assertion.TestAssertionPredicates::*
- *                   -XX:CompileCommand=inline,compiler.predicates.assertion.TestAssertionPredicates::inline
- *                   compiler.predicates.assertion.TestAssertionPredicates Xcomp
+ *                   -XX:CompileCommand=compileonly,compiler.predicates.TestAssertionPredicates::*
+ *                   -XX:CompileCommand=dontinline,compiler.predicates.TestAssertionPredicates::*
+ *                   -XX:CompileCommand=inline,compiler.predicates.TestAssertionPredicates::inline
+ *                   compiler.predicates.TestAssertionPredicates Xcomp
  */
 
 /*
@@ -49,9 +49,9 @@
  * @summary TODO
  * @requires vm.compiler2.enabled
  * @run main/othervm -Xcomp -XX:-UseProfiledLoopPredicate
- *                   -XX:CompileCommand=compileonly,compiler.predicates.assertion.TestAssertionPredicates::*
- *                   -XX:CompileCommand=dontinline,compiler.predicates.assertion.TestAssertionPredicates::*
- *                   compiler.predicates.assertion.TestAssertionPredicates NoProfiledLoopPredicate
+ *                   -XX:CompileCommand=compileonly,compiler.predicates.TestAssertionPredicates::*
+ *                   -XX:CompileCommand=dontinline,compiler.predicates.TestAssertionPredicates::*
+ *                   compiler.predicates.TestAssertionPredicates NoProfiledLoopPredicate
  */
 
 /*
@@ -60,9 +60,9 @@
  * @summary TODO
  * @requires vm.compiler2.enabled
  * @run main/othervm -Xcomp -XX:LoopMaxUnroll=0
- *                   -XX:CompileCommand=compileonly,compiler.predicates.assertion.TestAssertionPredicates::*
- *                   -XX:CompileCommand=dontinline,compiler.predicates.assertion.TestAssertionPredicates::*
- *                   compiler.predicates.assertion.TestAssertionPredicates LoopMaxUnroll0
+ *                   -XX:CompileCommand=compileonly,compiler.predicates.TestAssertionPredicates::*
+ *                   -XX:CompileCommand=dontinline,compiler.predicates.TestAssertionPredicates::*
+ *                   compiler.predicates.TestAssertionPredicates LoopMaxUnroll0
  */
 
 /*
@@ -71,9 +71,9 @@
  * @summary TODO
  * @requires vm.compiler2.enabled
  * @run main/othervm -Xcomp -XX:LoopMaxUnroll=2
- *                   -XX:CompileCommand=compileonly,compiler.predicates.assertion.TestAssertionPredicates::*
- *                   -XX:CompileCommand=dontinline,compiler.predicates.assertion.TestAssertionPredicates::*
- *                   compiler.predicates.assertion.TestAssertionPredicates LoopMaxUnroll2
+ *                   -XX:CompileCommand=compileonly,compiler.predicates.TestAssertionPredicates::*
+ *                   -XX:CompileCommand=dontinline,compiler.predicates.TestAssertionPredicates::*
+ *                   compiler.predicates.TestAssertionPredicates LoopMaxUnroll2
  */
 
 /*
@@ -82,9 +82,9 @@
  * @summary TODO
  * @requires vm.compiler2.enabled
  * @run main/othervm -Xcomp -XX:LoopUnrollLimit=40
- *                   -XX:CompileCommand=compileonly,compiler.predicates.assertion.TestAssertionPredicates::*
- *                   -XX:CompileCommand=dontinline,compiler.predicates.assertion.TestAssertionPredicates::*
- *                   compiler.predicates.assertion.TestAssertionPredicates LoopUnrollLimit40
+ *                   -XX:CompileCommand=compileonly,compiler.predicates.TestAssertionPredicates::*
+ *                   -XX:CompileCommand=dontinline,compiler.predicates.TestAssertionPredicates::*
+ *                   compiler.predicates.TestAssertionPredicates LoopUnrollLimit40
  */
 
 /*
@@ -93,9 +93,9 @@
  * @summary TODO
  * @requires vm.compiler2.enabled
  * @run main/othervm -Xcomp -XX:LoopUnrollLimit=150
- *                   -XX:CompileCommand=compileonly,compiler.predicates.assertion.TestAssertionPredicates::*
- *                   -XX:CompileCommand=dontinline,compiler.predicates.assertion.TestAssertionPredicates::*
- *                   compiler.predicates.assertion.TestAssertionPredicates LoopUnrollLimit150
+ *                   -XX:CompileCommand=compileonly,compiler.predicates.TestAssertionPredicates::*
+ *                   -XX:CompileCommand=dontinline,compiler.predicates.TestAssertionPredicates::*
+ *                   compiler.predicates.TestAssertionPredicates LoopUnrollLimit150
  */
 
 /*
@@ -106,13 +106,13 @@
  * @requires vm.gc.ZSinglegen
  * @requires vm.compiler2.enabled
  * @run main/othervm -Xcomp -XX:+UnlockDiagnosticVMOptions -XX:+StressGCM -XX:+UseZGC -XX:-ZGenerational
- *                   -XX:CompileCommand=compileonly,compiler.predicates.assertion.TestAssertionPredicates::*
- *                   -XX:CompileCommand=dontinline,compiler.predicates.assertion.TestAssertionPredicates::*
- *                   compiler.predicates.assertion.TestAssertionPredicates ZGCStressGCM
+ *                   -XX:CompileCommand=compileonly,compiler.predicates.TestAssertionPredicates::*
+ *                   -XX:CompileCommand=dontinline,compiler.predicates.TestAssertionPredicates::*
+ *                   compiler.predicates.TestAssertionPredicates ZGCStressGCM
  */
 
 
-package compiler.predicates.assertion;
+package compiler.predicates;
 
 public class TestAssertionPredicates {
     static int[] iArr = new int[100];
@@ -196,6 +196,7 @@ public class TestAssertionPredicates {
                 test8308392No8();
                 runTest8308392No9();
                 test8308392No10();
+                testSplitIfCloneDownWithOpaqueAssertionPredicate();
             }
             case "Xbatch" -> {
                 for (int i = 0; i < 100000; i++) {
@@ -1131,4 +1132,27 @@ public class TestAssertionPredicates {
             for (i21 = 1; i21 < 2; i21++) {}
         }
     }
+
+    static void testSplitIfCloneDownWithOpaqueAssertionPredicate() {
+        int p = 0, j;
+        if (flag) {
+            iArr[3] = 3;
+            dontInline();
+        }
+        int i = 1;
+        while (++i < 4) {
+            if (flag) {
+                p = 8;
+            }
+            iArr[i - 1] = 4;
+            for (j = 1; j < 3; ++j) {
+                iArr[j] = 34;
+            }
+        }
+        long n = p;
+    }
+
+    static void dontInline() {
+    }
+
 }
