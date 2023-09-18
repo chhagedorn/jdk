@@ -2595,10 +2595,6 @@ void PhaseIdealLoop::do_range_check(IdealLoopTree *loop, Node_List &old_new) {
           // The underflow and overflow limits: 0 <= scale*I+offset < limit
           add_constraint(stride_con, lscale_con, offset, zero, limit, pre_ctrl, &pre_limit, &main_limit);
           loop_entry = add_range_check_elimination_assertion_predicates(loop, scale_con, int_offset, int_limit);
-
-          // Add two Template Assertion Predicates to create new Initialized Assertion Predicates from when either
-          // unrolling or splitting this main-loop further.
-
         } else {
           if (PrintOpto) {
             tty->print_cr("missed RCE opportunity");

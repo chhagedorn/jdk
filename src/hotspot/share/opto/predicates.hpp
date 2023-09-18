@@ -727,15 +727,33 @@ class Predicates : public StackObj {
   }
 };
 
-// Predicate Block iterator that applies a PredicateVisitor to each predicate in the block specified by the deopt_reason
-// and starting at the passed node.
-class BlockPredicateIterator : public StackObj {
+// Iterator that applies a PredicateVisitor to each Regular Predicate in the block specified by the deopt_reason.
+class RegularPredicateInBlockIterator : public StackObj {
   Deoptimization::DeoptReason _deopt_reason;
   Node* _start_node;
   PredicateVisitor* _predicate_visitor;
 
  public:
-  BlockPredicateIterator(Node* start_node, Deoptimization::DeoptReason deopt_reason, PredicateVisitor* predicate_visitor);
+  RegularPredicateInBlockIterator(Node* start_node, Deoptimization::DeoptReason deopt_reason,
+                                  PredicateVisitor* predicate_visitor)
+      : _deopt_reason(deopt_reason),
+        _start_node(start_node),
+        _predicate_visitor(predicate_visitor) {}
+
+  Node* for_each();
+};
+
+// Iterator that applies a PredicateVisitor to each predicate in the block specified by the deopt_reason.
+class PredicateInBlockIterator : public StackObj {
+  Node* _start_node;
+  Deoptimization::DeoptReason _deopt_reason;
+  PredicateVisitor* _predicate_visitor;
+
+ public:
+  PredicateInBlockIterator(Node* start_node, Deoptimization::DeoptReason deopt_reason, PredicateVisitor* predicate_visitor)
+          : _start_node(start_node),
+            _deopt_reason(deopt_reason),
+            _predicate_visitor(predicate_visitor) {}
 
   Node* for_each();
 };

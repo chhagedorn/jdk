@@ -68,10 +68,12 @@ class ParsePredicateUsefulMarker : public PredicateVisitor {
   }
 };
 
+// Mark all Parse Predicates 'loop' as useful. If 'loop' represents an outer strip mined loop, we can skip it because
+// we have already processed the predicates before when we visited its counted (inner) loop.
 void EliminateUselessParsePredicates::mark_parse_predicates_useful(IdealLoopTree* loop) {
-  if (loop->can_apply_loop_predication()) {
+  if (loop->can_apply_loop_predication() && !loop->_head->is_OuterStripMinedLoop()) {
     ParsePredicateUsefulMarker useful_marker;
-    Node* entry = loop->_head->in(LoopNode::EntryControl);
+    Node* entry = loop->_head->as_Loop()->skip_strip_mined()->in(LoopNode::EntryControl);
     PredicatesForLoop predicates_for_loop(entry, &useful_marker);
     predicates_for_loop.for_each();
   }
@@ -848,14 +850,14 @@ bool InitializedAssertionPredicate::has_halt(const Node* success_proj) {
 
 #ifdef ASSERT
 // Check that the block has at most one Parse Predicate and that we only find Regular Predicate nodes (i.e. IfProj,
-// If, or RangeCheck nodes).
+// If, RangeCheck, or TemplateAssertionPredicate nodes.
 void PredicateBlock::verify_block() {
   Node* next = _parse_predicate.entry(); // Skip unique Parse Predicate of this block if present
   while (next != _entry) {
     assert(!next->is_ParsePredicate(), "can only have one Parse Predicate in a block");
     const int opcode = next->Opcode();
-    assert(next->is_IfProj() || opcode == Op_If || opcode == Op_RangeCheck,
-           "Regular Predicates consist of an IfProj and an If or RangeCheck node");
+    assert(next->is_IfProj() || next->is_TemplateAssertionPredicate() || opcode == Op_If || opcode == Op_RangeCheck,
+           "Regular Predicates consist of an IfProj and an If or RangeCheck or a TemplateAssertionPredicate node");
     assert(opcode != Op_If || !next->as_If()->is_zero_trip_guard(), "should not be zero trip guard");
     next = next->in(0);
   }
@@ -866,30 +868,33 @@ void PredicateBlock::verify_block() {
 // anymore (i.e. entry to the first Regular Predicate in this block if any or `regular_predicate_proj` otherwise).
 Node* PredicateBlock::skip_regular_predicates(Node* regular_predicate_proj, Deoptimization::DeoptReason deopt_reason) {
   PredicateVisitor do_nothing_visitor;
-  BlockPredicateIterator block_predicate_iterator(regular_predicate_proj, deopt_reason, &do_nothing_visitor);
-  return block_predicate_iterator.for_each();
+  PredicateInBlockIterator predicate_in_block_iterator(regular_predicate_proj, deopt_reason, &do_nothing_visitor);
+  return predicate_in_block_iterator.for_each();
 }
 
-BlockPredicateIterator::BlockPredicateIterator(Node* start_node, Deoptimization::DeoptReason deopt_reason,
-                                               PredicateVisitor* predicate_visitor)
-    : _deopt_reason(deopt_reason),
-      _start_node(start_node),
-      _predicate_visitor(predicate_visitor) {}
+// Applies the PredicateVisitor to each Regular Predicate in this block.
+Node* PredicateInBlockIterator::for_each() {
+  Node* entry = _start_node;
+  if (entry->is_IfTrue() && entry->in(0)->is_ParsePredicate()) {
+    ParsePredicate parse_predicate(entry, _deopt_reason);
+    if (parse_predicate.is_valid()) {
+      _predicate_visitor->visit(parse_predicate);
+      entry = parse_predicate.entry();
+    } else {
+      // Parse Predicate belonging to a different Predicate Block.
+      return entry;
+    }
+  }
 
-// Applies the PredicateVisitor to each predicate in this block.
-Node* BlockPredicateIterator::for_each() {
+  RegularPredicateInBlockIterator regular_predicate_in_block_iterator(entry, _deopt_reason, _predicate_visitor);
+  return regular_predicate_in_block_iterator.for_each();
+}
+
+// Applies the PredicateVisitor to each Regular Predicate in this block.
+Node* RegularPredicateInBlockIterator::for_each() {
   Node* entry = _start_node;
   while (true) {
-    if (entry->is_IfTrue() && entry->in(0)->is_ParsePredicate()) {
-      ParsePredicate parse_predicate(entry, _deopt_reason);
-      if (parse_predicate.is_valid()) {
-        _predicate_visitor->visit(parse_predicate);
-        entry = parse_predicate.entry();
-      } else {
-        // Parse Predicate belonging to a different Predicate Block.
-        break;
-      }
-    } else if (entry->is_TemplateAssertionPredicate()) {
+    if (entry->is_TemplateAssertionPredicate()) {
       TemplateAssertionPredicate template_assertion_predicate(entry->as_TemplateAssertionPredicate());
       _predicate_visitor->visit(template_assertion_predicate);
       entry = template_assertion_predicate.entry();
@@ -902,7 +907,7 @@ Node* BlockPredicateIterator::for_each() {
       _predicate_visitor->visit(initialized_assertion_predicate);
       entry = initialized_assertion_predicate.entry();
     } else {
-      // Not a Regular Predicate.
+      // Either a Parse Predicate or not a Regular Predicate. In both cases, the node does not belong to this block.
       break;
     }
   }
@@ -922,14 +927,14 @@ void PredicatesForLoop::for_each() {
 }
 
 Node* PredicatesForLoop::for_each(Node* current, Deoptimization::DeoptReason deopt_reason) {
-  BlockPredicateIterator block_predicate_iterator(current, deopt_reason, _predicate_visitor);
-  return block_predicate_iterator.for_each();
+  PredicateInBlockIterator predicate_in_block_iterator(current, deopt_reason, _predicate_visitor);
+  return predicate_in_block_iterator.for_each();
 }
 
 PredicateEntryIterator::PredicateEntryIterator(Node* start)
     : _current(start) {}
 
-// Is current node pointed at by iterator a predicate?
+// Is current node pointed at by iterator a predicate tail?
 bool PredicateEntryIterator::has_next() const {
   if (_current->is_TemplateAssertionPredicate()) {
     return true;
