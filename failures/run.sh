@@ -264,3 +264,18 @@ check_crash Test60.java
 $java -Xcomp -XX:CompileCommand=compileonly,Test::* Test61.java > output
 check_crash Test61.java
 
+# custom run
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test62.java > output
+check_crash Test62.java
+
+# custom run
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test63.java > output
+check_crash Test63.java
+
+# custom run
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test64.java > output
+check_crash Test64.java
+
+# custom run
+$java -Xcomp -XX:CompileCommand=compileonly,Test::* Test64.java > output
+check_crash Test65.java
