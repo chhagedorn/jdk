@@ -310,7 +310,7 @@ class TemplateAssertionPredicateNode : public Node {
                                  int initialized_init_value_opcode, int initialized_last_value_opcode);
 
   IfNode* create_initialized_assertion_predicate(Node* control, OpaqueAssertionPredicateNode* opaque_bool,
-                                                 AssertionPredicateType initialized_assertion_predicate_type);
+                                                 AssertionPredicateType initialized_assertion_predicate_type) const;
 
   void mark_useless() {
     _useless = true;

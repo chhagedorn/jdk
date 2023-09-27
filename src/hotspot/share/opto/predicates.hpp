@@ -416,14 +416,12 @@ class AssertionPredicateBoolOpcodes : public StackObj {
 class TemplateAssertionPredicateBool : public StackObj {
   BoolNode* _source_bool;
 
-#ifdef ASSERT
-  bool is_valid() const {
-    return _source_bool != nullptr;
-  }
-#endif // ASSERT
-
  public:
   explicit TemplateAssertionPredicateBool(Node* source_bool);
+
+  bool is_not_dead() const {
+    return _source_bool != nullptr;
+  }
 
   BoolNode* clone(Node* new_ctrl, PhaseIdealLoop* phase);
   BoolNode* clone_update_opaque_init(Node* new_ctrl, Node* new_opaque_init_input, PhaseIdealLoop* phase);
@@ -438,10 +436,10 @@ class TemplateAssertionPredicate : public Predicate {
   TemplateAssertionPredicateBool _init_value_bool;
   TemplateAssertionPredicateBool _last_value_bool;
 
-  TemplateAssertionPredicate create_and_init(Node* new_ctrl, BoolNode* new_init_bool, BoolNode* new_last_bool,
+  TemplateAssertionPredicate create_and_init(Node* new_ctrl, BoolNode* new_init_bool, Node* new_last_value,
                                              TemplateAssertionPredicateDataOutput* node_in_target_loop, PhaseIdealLoop* phase);
   static void init_new_template(TemplateAssertionPredicateNode* cloned_template, Node* new_ctrl, BoolNode* new_init_bool,
-                                BoolNode* new_last_bool, PhaseIdealLoop* phase);
+                                Node* new_last_value, PhaseIdealLoop* phase);
   void update_data_dependencies_to_clone(TemplateAssertionPredicateNode* cloned_template_assertion_predicate,
                                          TemplateAssertionPredicateDataOutput* node_in_target_loop, PhaseIdealLoop* phase);
   void create_initialized_predicate(Node* new_ctrl, PhaseIdealLoop* phase, TemplateAssertionPredicateBool &template_bool,
@@ -469,8 +467,13 @@ class TemplateAssertionPredicate : public Predicate {
   // Clones this Template Assertion Predicate which will also clone its bools. The cloned nodes are not updated in any way.
   TemplateAssertionPredicate clone(Node* new_ctrl, TemplateAssertionPredicateDataOutput* node_in_target_loop, PhaseIdealLoop* phase) {
     BoolNode* new_init_bool = _init_value_bool.clone(new_ctrl, phase);
-    BoolNode* new_last_bool = _last_value_bool.clone(new_ctrl, phase);
-    return create_and_init(new_ctrl, new_init_bool, new_last_bool, node_in_target_loop, phase);
+    Node* new_last_value;
+    if (_last_value_bool.is_not_dead()) {
+      new_last_value = _last_value_bool.clone(new_ctrl, phase);
+    } else {
+      new_last_value = phase->igvn().intcon(1);
+    }
+    return create_and_init(new_ctrl, new_init_bool, new_last_value, node_in_target_loop, phase);
   }
 
   // Same as clone() but the cloned OpaqueLoopInitNode nodes will get 'new_opaque_cloned nodes' as new input.
@@ -478,8 +481,13 @@ class TemplateAssertionPredicate : public Predicate {
                                                       TemplateAssertionPredicateDataOutput* node_in_target_loop,
                                                       PhaseIdealLoop* phase) {
     BoolNode* new_init_bool = _init_value_bool.clone_update_opaque_init(new_ctrl, new_opaque_init_input, phase);
-    BoolNode* new_last_bool = _last_value_bool.clone_update_opaque_init(new_ctrl, new_opaque_init_input, phase);
-    return create_and_init(new_ctrl, new_init_bool, new_last_bool, node_in_target_loop, phase);
+    Node* new_last_value;
+    if (_last_value_bool.is_not_dead()) {
+      new_last_value = _last_value_bool.clone_update_opaque_init(new_ctrl, new_opaque_init_input, phase);
+    } else {
+      new_last_value = phase->igvn().intcon(1);
+    }
+    return create_and_init(new_ctrl, new_init_bool, new_last_value, node_in_target_loop, phase);
   }
 
   // Update the input of the OpaqueLoopStrideNode of the last value bool of this Template Assertion Predicate to
@@ -487,7 +495,9 @@ class TemplateAssertionPredicate : public Predicate {
   void update_opaque_stride(Node* new_opaque_stride_input, PhaseIterGVN* igvn) {
     // Only last value bool has OpaqueLoopStrideNode.
     DEBUG_ONLY(_init_value_bool.verify_no_opaque_stride());
-    _last_value_bool.update_opaque_stride(new_opaque_stride_input, igvn);
+    if (_last_value_bool.is_not_dead()) {
+      _last_value_bool.update_opaque_stride(new_opaque_stride_input, igvn);
+    }
   }
 
   // Create an Initialized Assertion Predicate from this Template Assertion Predicate for the init and the last value.
@@ -495,7 +505,10 @@ class TemplateAssertionPredicate : public Predicate {
   // them away and using their inputs instead).
   void initialize(PhaseIdealLoop* phase, PredicateChain& predicate_chain) {
     Node* new_ctrl = entry();
-    create_initialized_predicate(new_ctrl, phase, _last_value_bool, AssertionPredicateType::Last_value, predicate_chain);
+    if (_last_value_bool.is_not_dead()) {
+      create_initialized_predicate(new_ctrl, phase, _last_value_bool, AssertionPredicateType::Last_value,
+                                   predicate_chain);
+    }
     create_initialized_predicate(new_ctrl, phase, _init_value_bool, AssertionPredicateType::Init_value, predicate_chain);
   }
 

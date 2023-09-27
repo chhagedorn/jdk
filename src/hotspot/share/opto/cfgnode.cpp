@@ -2813,8 +2813,8 @@ const RegMask &GotoNode::out_RegMask() const {
 
 TemplateAssertionPredicateNode::TemplateAssertionPredicateNode(Node* control, BoolNode* bool_init_value,
                                                                BoolNode* bool_last_value,
-                                                               int initialized_init_value_opcode,
-                                                               int initialized_last_value_opcode)
+                                                               const int initialized_init_value_opcode,
+                                                               const int initialized_last_value_opcode)
     : Node(control, bool_init_value, bool_last_value),
       _initialized_init_value_opcode(initialized_init_value_opcode),
       _initialized_last_value_opcode(initialized_last_value_opcode),
@@ -2822,11 +2822,11 @@ TemplateAssertionPredicateNode::TemplateAssertionPredicateNode(Node* control, Bo
   assert(initialized_init_value_opcode == Op_If || initialized_init_value_opcode == Op_RangeCheck, "invalid opcode");
   assert(initialized_last_value_opcode == Op_If || initialized_last_value_opcode == Op_RangeCheck, "invalid opcode");
   init_class_id(Class_TemplateAssertionPredicate);
-  init_flags(Flag_is_macro);
 }
 
 IfNode* TemplateAssertionPredicateNode::create_initialized_assertion_predicate(
-    Node* control, OpaqueAssertionPredicateNode* opaque_bool, AssertionPredicateType initialized_assertion_predicate_type) {
+    Node* control, OpaqueAssertionPredicateNode* opaque_bool,
+    AssertionPredicateType initialized_assertion_predicate_type) const {
   bool create_if_node = true;
   switch (initialized_assertion_predicate_type) {
     case AssertionPredicateType::Init_value:
@@ -2844,9 +2844,7 @@ IfNode* TemplateAssertionPredicateNode::create_initialized_assertion_predicate(
 }
 
 Node* TemplateAssertionPredicateNode::Identity(PhaseGVN* phase) {
-  if (phase->C->post_loop_opts_phase() || _useless || in(InitValue)->is_ConI() || in(LastValue)->is_ConI()) {
-    // Useless or a BoolNode folded to a constant. In the latter case, the Hoisted Check Predicate is either always true
-    // or always false. In both cases, we can remove this node because we do not need to create Assertion Predicates from.
+  if (phase->C->post_loop_opts_phase() || _useless) {
     return in(0);
   } else {
     phase->C->record_for_post_loop_opts_igvn(this);

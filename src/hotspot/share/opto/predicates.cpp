@@ -304,7 +304,7 @@ Node* AssertionPredicates::create_stride(const int stride_con) {
 TemplateAssertionPredicateBool::TemplateAssertionPredicateBool(Node* source_bool) : _source_bool(source_bool->isa_Bool()) {
 #ifdef ASSERT
   // We could have already folded the BoolNode to a constant.
-  if (is_valid()) {
+  if (is_not_dead()) {
     // During IGVN, we could have multiple outputs of the _source_bool, for example, when the backedge of the loop is
     // this Template Assertion Predicate is about to die and the CastII on the last value bool already folded to a
     // constant (i.e. no OpaqueLoop* nodes anymore). Then IGVN could already have commoned up the bool with the bool of
@@ -467,7 +467,7 @@ class CloneAssertionPredicateBool : public StackObj {
     }
   }
 
-  bool is_cloned_node(Node* node) {
+  bool is_cloned_node(Node* node) const {
     return node->_idx >= _idx_before_cloning;
   }
 
@@ -551,7 +551,7 @@ class CloneOpaqueLoopNodes : public TransformOpaqueLoopNodes {
 // Clones this Template Assertion Predicate bool. This includes all nodes from the BoolNode to the OpaqueLoop* nodes.
 // The cloned nodes are not updated.
 BoolNode* TemplateAssertionPredicateBool::clone(Node* new_ctrl, PhaseIdealLoop* phase) {
-  assert(is_valid(), "must be valid");
+  assert(is_not_dead(), "must not be dead");
   CloneOpaqueLoopNodes clone_opaque_loop_nodes(phase, new_ctrl);
   CloneAssertionPredicateBool clone_assertion_predicate_bool(_source_bool, new_ctrl, phase);
   return clone_assertion_predicate_bool.clone(&clone_opaque_loop_nodes);
@@ -586,7 +586,7 @@ class CloneWithNewOpaqueInitInput : public TransformOpaqueLoopNodes {
 // not updated.
 BoolNode* TemplateAssertionPredicateBool::clone_update_opaque_init(Node* new_ctrl, Node* new_opaque_init_input,
                                                                    PhaseIdealLoop* phase) {
-  assert(is_valid(), "must be valid");
+  assert(is_not_dead(), "must not be dead");
   CloneWithNewOpaqueInitInput clone_with_new_opaque_init_input(phase, new_ctrl, new_opaque_init_input);
   CloneAssertionPredicateBool clone_assertion_predicate_bool(_source_bool, new_ctrl, phase);
   return clone_assertion_predicate_bool.clone(&clone_with_new_opaque_init_input);
@@ -609,7 +609,7 @@ class RemoveOpaqueLoopNodes : public TransformOpaqueLoopNodes {
 // Clones this Template Assertion Predicate bool. This includes all nodes from the BoolNode to the OpaqueLoop* nodes.
 // The OpaqueLoop* nodes are not cloned but replaced by their input nodes (i.e. folding the OpaqueLoop* nodes away).
 BoolNode* TemplateAssertionPredicateBool::clone_remove_opaque_loop_nodes(Node* new_ctrl, PhaseIdealLoop* phase) {
-  assert(is_valid(), "must be valid");
+  assert(is_not_dead(), "must not be dead");
   RemoveOpaqueLoopNodes remove_opaque_loop_nodes;
   CloneAssertionPredicateBool clone_assertion_predicate_bool(_source_bool, new_ctrl, phase);
   return clone_assertion_predicate_bool.clone(&remove_opaque_loop_nodes);
@@ -659,7 +659,7 @@ class OpaqueLoopStrideNodes : public StackObj {
 
 // Sets 'new_opaque_stride_input' as new input of the OpaqueLoopStride node of this Template Assertion Predicate bool.
 void TemplateAssertionPredicateBool::update_opaque_stride(Node* new_opaque_stride_input, PhaseIterGVN* igvn) {
-  assert(is_valid(), "must be valid");
+  assert(is_not_dead(), "must not be dead");
   UpdateOpaqueStrideInput update_opaque_stride_input(igvn, new_opaque_stride_input);
   OpaqueLoopStrideNodes opaque_loop_stride_nodes(_source_bool);
   opaque_loop_stride_nodes.findAndVisit(&update_opaque_stride_input);
@@ -684,19 +684,19 @@ void TemplateAssertionPredicateBool::verify_no_opaque_stride() {
 #endif // ASSERT
 
 TemplateAssertionPredicate
-TemplateAssertionPredicate::create_and_init(Node* new_ctrl, BoolNode* new_init_bool, BoolNode* new_last_bool,
+TemplateAssertionPredicate::create_and_init(Node* new_ctrl, BoolNode* new_init_bool, Node* new_last_value,
                                             TemplateAssertionPredicateDataOutput* node_in_target_loop, PhaseIdealLoop* phase) {
   TemplateAssertionPredicateNode* cloned_template = _template_assertion_predicate->clone()->as_TemplateAssertionPredicate();
   update_data_dependencies_to_clone(cloned_template, node_in_target_loop, phase);
-  init_new_template(cloned_template, new_ctrl, new_init_bool, new_last_bool, phase);
+  init_new_template(cloned_template, new_ctrl, new_init_bool, new_last_value, phase);
   return { cloned_template->as_TemplateAssertionPredicate() };
 }
 
 void TemplateAssertionPredicate::init_new_template(TemplateAssertionPredicateNode* cloned_template, Node* new_ctrl,
-                                                   BoolNode* new_init_bool, BoolNode* new_last_bool,
+                                                   BoolNode* new_init_bool, Node* new_last_value,
                                                    PhaseIdealLoop* phase) {
   phase->igvn().replace_input_of(cloned_template, TemplateAssertionPredicateNode::InitValue, new_init_bool);
-  phase->igvn().replace_input_of(cloned_template, TemplateAssertionPredicateNode::LastValue, new_last_bool);
+  phase->igvn().replace_input_of(cloned_template, TemplateAssertionPredicateNode::LastValue, new_last_value);
   phase->igvn().replace_input_of(cloned_template, 0, new_ctrl);
   phase->register_control(cloned_template, phase->get_loop(new_ctrl), new_ctrl);
 }
