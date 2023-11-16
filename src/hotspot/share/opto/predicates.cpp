@@ -104,9 +104,9 @@ bool RuntimePredicate::is_success_proj(Node* maybe_success_proj) {
 
 bool RuntimePredicate::may_be_runtime_predicate_if(Node* node) {
   if (node->is_IfProj()) {
-    const IfNode* if_node = node->in(0)->as_If();
+    const Node* if_node = node->in(0);
     const int opcode_if = if_node->Opcode();
-    if ((opcode_if == Op_If && !if_node->is_zero_trip_guard())
+    if ((opcode_if == Op_If && !if_node->as_If()->is_zero_trip_guard())
         || opcode_if == Op_RangeCheck) {
       return true;
     }
