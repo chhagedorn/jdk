@@ -325,6 +325,7 @@ class RuntimePredicate : public Predicate {
 
   static Deoptimization::DeoptReason uncommon_trap_reason(IfProjNode* if_proj);
   static bool may_be_runtime_predicate_if(Node* node);
+  static bool is_being_folded_without_uncommon_proj(const IfProjNode* success_proj);
 
  public:
   explicit RuntimePredicate(IfProjNode* success_proj)
@@ -345,8 +346,8 @@ class RuntimePredicate : public Predicate {
     return _success_proj;
   }
 
-  static bool is_success_proj(Node* success_proj);
-  static bool is_success_proj(Node* success_proj, Deoptimization::DeoptReason deopt_reason);
+  static bool is_success_proj(Node* maybe_success_proj);
+  static bool is_success_proj(Node* maybe_success_proj, Deoptimization::DeoptReason deopt_reason);
 };
 
 // This class represents a chain of predicates above a loop. We build the chain by inserting either existing predicates
@@ -610,7 +611,6 @@ class InitializedAssertionPredicate : public Predicate {
   IfNode* _if_node;
 
   static bool has_opaque_or_con(const IfNode* if_node);
-  static bool is_uncommon_proj_missing(const IfNode* if_node);
   static bool has_halt(const Node* success_proj);
 
  public:

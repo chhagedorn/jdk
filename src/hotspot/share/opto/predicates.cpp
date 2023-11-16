@@ -86,9 +86,13 @@ void EliminateUselessParsePredicates::add_useless_predicates_to_igvn() {
   }
 }
 
-bool RuntimePredicate::is_success_proj(Node* success_proj) {
-  if (may_be_runtime_predicate_if(success_proj)) {
-    const Deoptimization::DeoptReason deopt_reason = uncommon_trap_reason(success_proj->as_IfProj());
+bool RuntimePredicate::is_success_proj(Node* maybe_success_proj) {
+  if (may_be_runtime_predicate_if(maybe_success_proj)) {
+    IfProjNode* success_proj = maybe_success_proj->as_IfProj();
+    if (is_being_folded_without_uncommon_proj(success_proj)) {
+      return true;
+    }
+    const Deoptimization::DeoptReason deopt_reason = uncommon_trap_reason(success_proj);
     return (deopt_reason == Deoptimization::Reason_loop_limit_check ||
             deopt_reason == Deoptimization::Reason_predicate ||
             deopt_reason == Deoptimization::Reason_profile_predicate);
@@ -109,6 +113,14 @@ bool RuntimePredicate::may_be_runtime_predicate_if(Node* node) {
   return false;
 }
 
+// Has the If node only the success projection left due to already folding the uncommon projection because of a constant
+// bool input? This can happen during IGVN. Treat this case as being a Runtime Predicate to not miss other Predicates
+// above this node when iterating through them.
+bool RuntimePredicate::is_being_folded_without_uncommon_proj(const IfProjNode* success_proj) {
+  IfNode* if_node = success_proj->in(0)->as_If();
+  return if_node->in(1)->is_ConI() && if_node->outcnt() == 1;
+}
+
 Deoptimization::DeoptReason RuntimePredicate::uncommon_trap_reason(IfProjNode* if_proj) {
     CallStaticJavaNode* uct_call = if_proj->is_uncommon_trap_if_pattern();
     if (uct_call == nullptr) {
@@ -117,9 +129,11 @@ Deoptimization::DeoptReason RuntimePredicate::uncommon_trap_reason(IfProjNode* i
     return Deoptimization::trap_request_reason(uct_call->uncommon_trap_request());
 }
 
-bool RuntimePredicate::is_success_proj(Node* success_proj, Deoptimization::DeoptReason deopt_reason) {
-  if (may_be_runtime_predicate_if(success_proj)) {
-    return deopt_reason == uncommon_trap_reason(success_proj->as_IfProj());
+bool RuntimePredicate::is_success_proj(Node* maybe_success_proj, Deoptimization::DeoptReason deopt_reason) {
+  if (may_be_runtime_predicate_if(maybe_success_proj)) {
+    IfProjNode* success_proj = maybe_success_proj->as_IfProj();
+    return is_being_folded_without_uncommon_proj(success_proj)
+           || deopt_reason == uncommon_trap_reason(success_proj);
   } else {
     return false;
   }
@@ -806,26 +820,22 @@ NewTemplateAssertionPredicate::create_template_assertion_predicate(const int if_
   return template_assertion_predicate_node;
 }
 
-// An Initialized Assertion Predicate has an OpaqueAssertionPredicateNode as bool input and a Halt node on the uncommon
-// projection. However, during IGVN, one or both of these nodes could already have been removed/replaced. We also
-// need to account for these cases:
-// - OpaqueAssertionPredicateNode replaced by constant.
-// - Uncommon projection with Halt node already folded.
-// - Both of the above.
+// We have an Initialized Assertion Predicate if the bool input of the IfNode is an OpaqueAssertionPredicate or a ConI
+// node (could be found during IGVN when this node is being folded) and we find a HaltNode on the uncommon projection path.
+// If an Initialized Assertion Predicate is being folded and has already lost its uncommon projection with the HaltNode,
+// (i.e. the IfNode has only the success projection left), then we treat it as Runtime Predicate.
 bool InitializedAssertionPredicate::is_success_proj(const Node* success_proj) {
-  if (success_proj->is_IfProj() && success_proj->in(0)->is_If()) { // Not a dying If
-    IfNode* if_node = success_proj->in(0)->as_If();
-    return has_opaque_or_con(if_node) && (is_uncommon_proj_missing(if_node) || has_halt(success_proj));
+  if (success_proj->is_IfTrue()) {
+    Node* if_node = success_proj->in(0);
+    if (if_node->is_If() && if_node->outcnt() == 2) {
+      return has_opaque_or_con(if_node->as_If()) && has_halt(success_proj);
+    }
   }
   return false;
 }
 
-bool InitializedAssertionPredicate::is_uncommon_proj_missing(const IfNode* if_node) {
-  return if_node->outcnt() == 1;
-}
-
-// Check if the If node of `predicate_proj` has an OpaqueAssertionPredicate node or a ConI as input. The latter case
-// could happen when an Initialized Assertion Predicate is about to be folded.
+// Check if the If node has an OpaqueAssertionPredicate or a ConI node as bool input. The latter case could happen when
+// an Initialized Assertion Predicate is about to be folded during IGVN.
 bool InitializedAssertionPredicate::has_opaque_or_con(const IfNode* if_node) {
   Node* bool_input = if_node->in(1);
   return bool_input->is_ConI() || bool_input->Opcode() == Op_OpaqueAssertionPredicate;
