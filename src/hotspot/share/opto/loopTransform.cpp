@@ -796,8 +796,8 @@ void PhaseIdealLoop::do_peeling(IdealLoopTree *loop, Node_List &old_new) {
 
 // Creates new Assertion Predicates at the 'target_loop_head' (cloned loop). A new Template Assertion Predicate is
 // inserted with the new init and stride values of the target loop for each existing Template Assertion Predicate found
-// 'source_loop_head (original loop). For each new Template Assertion Predicate, an init and last value Initialized
-// Assertion Predicate is created.
+// at 'source_loop_head (original loop). For each new Template Assertion Predicate, an Initialized Assertion Predicate
+// for the new init and stride value is created.
 void PhaseIdealLoop::clone_assertion_predicates_from_original_loop(CountedLoopNode* source_loop_head,
                                                                    CountedLoopNode* target_loop_head,
                                                                    const uint first_cloned_loop_node_index) {

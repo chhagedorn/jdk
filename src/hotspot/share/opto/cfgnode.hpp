@@ -291,8 +291,9 @@ public:
   virtual const RegMask &out_RegMask() const;
 };
 
-// This node represents a Template Assertion Predicate with two bools as input which can be used to create and
+// This node represents a Template Assertion Predicate with two bools as input which can be used to create an
 // Initialized Assertion Predicate from (more information can be found in the summary at predicates.hpp).
+// This node is folded either after loop opts or once the associated CountedLoopNode is removed.
 class TemplateAssertionPredicateNode : public Node {
   int _initialized_init_value_opcode;
   int _initialized_last_value_opcode;
@@ -308,7 +309,6 @@ class TemplateAssertionPredicateNode : public Node {
 
   TemplateAssertionPredicateNode(Node* control, BoolNode* bool_init_value, BoolNode* bool_last_value,
                                  int initialized_init_value_opcode, int initialized_last_value_opcode);
-
   IfNode* create_initialized_assertion_predicate(Node* control, OpaqueAssertionPredicateNode* opaque_bool,
                                                  AssertionPredicateType initialized_assertion_predicate_type) const;
 
@@ -492,7 +492,8 @@ public:
 
 class RangeCheckNode : public IfNode {
 private:
-  int is_range_check(Node* &range, Node* &index, jint &offset);
+  int is_range_check(Node*& range, Node*& index, jint& offset);
+
 public:
   RangeCheckNode(Node* control, Node* bol, float p, float fcnt)
       : IfNode(control, bol, p, fcnt) {
@@ -516,7 +517,7 @@ public:
 // There are three kinds of Parse Predicates:
 // Loop Parse Predicate, Profiled Loop Parse Predicate (both used by Loop Predication), and Loop Limit Check Parse
 // Predicate (used for integer overflow checks when creating a counted loop).
-// More information about predicates can be found in loopPredicate.cpp.
+// More information about predicates can be found in predicates.hpp.
 class ParsePredicateNode : public IfNode {
   Deoptimization::DeoptReason _deopt_reason;
   bool _useless; // If the associated loop dies, this parse predicate becomes useless and can be cleaned up by Value().

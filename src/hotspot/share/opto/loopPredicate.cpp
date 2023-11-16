@@ -612,7 +612,7 @@ bool IdealLoopTree::is_range_check_if(IfProjNode* if_success_proj, PhaseIdealLoo
 // (2) stride*scale < 0
 //   max(scale*i + offset) = scale*init + offset
 BoolNode* PhaseIdealLoop::rc_predicate(Node* ctrl, const int scale, Node* offset, Node* init, Node* limit,
-                                       const jint stride, Node* range, const bool upper, bool &overflow) {
+                                       const jint stride, Node* range, const bool upper, bool& overflow) {
   jint con_limit  = (limit != nullptr && limit->is_Con())  ? limit->get_int()  : 0;
   jint con_init   = init->is_Con()   ? init->get_int()   : 0;
   jint con_offset = offset->is_Con() ? offset->get_int() : 0;
@@ -1003,10 +1003,8 @@ void PhaseIdealLoop::loop_predication_follow_branches(Node *n, IdealLoopTree *lo
 bool PhaseIdealLoop::loop_predication_impl_helper(IdealLoopTree* loop, IfProjNode* if_success_proj,
                                                   ParsePredicateSuccessProj* parse_predicate_proj, CountedLoopNode* cl,
                                                   ConNode* zero, Invariance& invar, Deoptimization::DeoptReason reason) {
-  // Following are changed to nonnull when a predicate can be hoisted
-  Node* new_predicate_tail = nullptr;
-  IfNode*   iff  = if_success_proj->in(0)->as_If();
-  Node*     test = iff->in(1);
+  IfNode* iff  = if_success_proj->in(0)->as_If();
+  Node* test = iff->in(1);
   if (!test->is_Bool()) { // Conv2B, ...
     return false;
   }
@@ -1094,7 +1092,9 @@ bool PhaseIdealLoop::loop_predication_impl_helper(IdealLoopTree* loop, IfProjNod
     IfNode* lower_bound_iff = lower_bound_proj->in(0)->as_If();
     _igvn.hash_delete(lower_bound_iff);
     lower_bound_iff->set_req(1, lower_bound_bol);
-    if (TraceLoopPredicate) tty->print_cr("lower bound check if: %d", lower_bound_iff->_idx);
+    if (TraceLoopPredicate) {
+      tty->print_cr("lower bound check if: %d", lower_bound_iff->_idx);
+    }
 
     // Test the upper bound
     BoolNode* upper_bound_bol = rc_predicate(lower_bound_proj, scale, offset, init, limit, stride, rng, true, overflow);
@@ -1104,7 +1104,9 @@ bool PhaseIdealLoop::loop_predication_impl_helper(IdealLoopTree* loop, IfProjNod
     IfNode* upper_bound_iff = upper_bound_proj->in(0)->as_If();
     _igvn.hash_delete(upper_bound_iff);
     upper_bound_iff->set_req(1, upper_bound_bol);
-    if (TraceLoopPredicate) tty->print_cr("upper bound check if: %d", lower_bound_iff->_idx);
+    if (TraceLoopPredicate) {
+      tty->print_cr("upper bound check if: %d", upper_bound_iff->_idx);
+    }
 
     // Each newly created Hoisted Check Predicate is accompanied by two Template Assertion Predicates. Later, we initialize
     // them by making a copy of them when splitting a loop into sub loops. The Assertion Predicates ensure that dead sub
@@ -1308,7 +1310,7 @@ bool PhaseIdealLoop::loop_predication_impl(IdealLoopTree* loop) {
   return hoisted;
 }
 
-// We cannot add Loop Predicates if:
+// We cannot create Loop Predicates if:
 // (1) There is no Loop Parse Predicate.
 // (2) Already added Profiled Loop Predicates (Loop Predicates and Profiled Loop Predicates can be dependent
 //     through a data node, and thus we should only add new Profiled Loop Predicates which are below Loop Predicates

@@ -142,19 +142,19 @@ bool RuntimePredicate::is_success_proj(Node* maybe_success_proj, Deoptimization:
 
 // Insert a new predicate above the current tail of the chain. The control input of the current tail is set to the new
 // predicate. The new predicate becomes the new tail of this chain.
-void PredicateChain::insert_new_predicate(Predicate& new_predicate) {
+void PredicateInserter::insert(Predicate& new_predicate) {
   Node* new_entry_for_tail = new_predicate.tail();
-  if (_tail->is_Loop()) {
-    _phase->replace_loop_entry(_tail->as_Loop(), new_entry_for_tail);
+  if (_ctrl_out->is_Loop()) {
+    _phase->replace_loop_entry(_ctrl_out->as_Loop(), new_entry_for_tail);
   } else {
-    _phase->replace_control_same_loop(_tail, new_entry_for_tail);
+    _phase->replace_control_same_loop(_ctrl_out, new_entry_for_tail);
   }
-  _tail = new_predicate.head();
+  _ctrl_out = new_predicate.head();
 }
 
 // Insert an existing predicate into the chain by setting it as new tail. There is no control update involved.
-void PredicateChain::insert_existing_predicate(Predicate& existing_predicate) {
-  _tail = existing_predicate.head();
+void PredicateInserter::skip(Predicate& existing_predicate) {
+  _ctrl_out = existing_predicate.head();
 }
 
 // This visitor clones all visited Template Assertion Predicates and sets a new input for the cloned OpaqueLoopInitNodes.
@@ -164,13 +164,13 @@ class CloneAndInitAssertionPredicates : public PredicateVisitor {
   Node* _new_init;
   PhaseIdealLoop* _phase;
   TemplateAssertionPredicateDataOutput* _node_in_target_loop;
-  PredicateChain _predicate_chain;
+  PredicateInserter _predicate_inserter;
 
   TemplateAssertionPredicate create_new_template(TemplateAssertionPredicate& template_assertion_predicate) {
     TemplateAssertionPredicate new_template =
         template_assertion_predicate.clone_update_opaque_init(_old_target_loop_entry, _new_init, _node_in_target_loop,
                                                                _phase);
-    _predicate_chain.insert_new_predicate(new_template);
+    _predicate_inserter.insert(new_template);
     return new_template;
   }
 
@@ -183,11 +183,11 @@ class CloneAndInitAssertionPredicates : public PredicateVisitor {
         _new_init(target_loop_head->init_trip()),
         _phase(phase),
         _node_in_target_loop(node_in_target_loop),
-        _predicate_chain(target_loop_head, phase) {}
+        _predicate_inserter(target_loop_head, phase) {}
 
   void visit(TemplateAssertionPredicate& template_assertion_predicate) override {
     TemplateAssertionPredicate new_template = create_new_template(template_assertion_predicate);
-    new_template.initialize(_phase, _predicate_chain);
+    new_template.initialize(_phase, _predicate_inserter);
   }
 };
 
@@ -233,34 +233,34 @@ void AssertionPredicates::move_to_loop(CountedLoopNode* target_loop_head, Templa
   predicates_for_loop.for_each();
 }
 
-// Creates a single new Template Assertion Predicates at the source loop with its init and stride value together with an
+// Creates a single new Template Assertion Predicate at the source loop with its init and stride value together with an
 // Initialized Assertion Predicate for the init and last value.
 void AssertionPredicates::create(const int if_opcode, const int scale, Node* offset, Node* range) {
-  PredicateChain predicate_chain(_source_loop_head, _phase);
+  PredicateInserter predicate_inserter(_source_loop_head, _phase);
   TemplateAssertionPredicate template_assertion_predicate = create_new_template(if_opcode, scale, offset, range,
-                                                                                predicate_chain);
-  template_assertion_predicate.initialize(_phase, predicate_chain);
+                                                                                predicate_inserter);
+  template_assertion_predicate.initialize(_phase, predicate_inserter);
 }
 
 TemplateAssertionPredicate AssertionPredicates::create_new_template(const int if_opcode, const int scale, Node* offset,
-                                                                    Node* range, PredicateChain& predicate_chain) {
+                                                                    Node* range, PredicateInserter& predicate_inserter) {
   LoopNode* loop_head = _source_loop_head->skip_strip_mined();
   NewTemplateAssertionPredicate new_template_assertion_predicate(_source_loop_head, _phase);
   TemplateAssertionPredicate template_assertion_predicate(
       new_template_assertion_predicate.create(if_opcode, loop_head->in(LoopNode::EntryControl), scale, offset,
                                               range));
-  predicate_chain.insert_new_predicate(template_assertion_predicate);
+  predicate_inserter.insert(template_assertion_predicate);
   return template_assertion_predicate;
 }
 
 // This visitor updates all visited Template Assertion Predicates by setting a new input for the OpaqueLoopStrideNodes.
-// Afterward, we initialize the updated template by creating an InitializedAssertionPredicate for the init and last value.
-// The old InitializedAssertionPredicates are killed.
+// Afterward, we initialize the updated template by creating an Initialized Assertion Predicate for the init and last
+// value. The old Initialized Assertion Predicates are killed.
 class UpdateAndInitAssertionPredicates : public PredicateVisitor {
   Node* _new_stride;
   PhaseIdealLoop* _phase;
   uint _index_before_visit;
-  PredicateChain _predicate_chain;
+  PredicateInserter _predicate_inserter;
 
  public:
   using PredicateVisitor::visit;
@@ -269,12 +269,12 @@ class UpdateAndInitAssertionPredicates : public PredicateVisitor {
       : _new_stride(new_stride),
         _phase(phase),
         _index_before_visit(phase->C->unique()),
-        _predicate_chain(loop_head, phase) {}
+        _predicate_inserter(loop_head, phase) {}
 
   void visit(TemplateAssertionPredicate& template_assertion_predicate) override {
     template_assertion_predicate.update_opaque_stride(_new_stride, &_phase->igvn());
-    _predicate_chain.insert_existing_predicate(template_assertion_predicate);
-    template_assertion_predicate.initialize(_phase, _predicate_chain);
+    _predicate_inserter.skip(template_assertion_predicate);
+    template_assertion_predicate.initialize(_phase, _predicate_inserter);
   }
 
   void visit(InitializedAssertionPredicate& initialized_assertion_predicate) override {
@@ -305,7 +305,7 @@ TemplateAssertionPredicateBool::TemplateAssertionPredicateBool(Node* source_bool
 #ifdef ASSERT
   // We could have already folded the BoolNode to a constant.
   if (is_not_dead()) {
-    // During IGVN, we could have multiple outputs of the _source_bool, for example, when the backedge of the loop is
+    // During IGVN, we could have multiple outputs of the _source_bool, for example, when the backedge of the loop of
     // this Template Assertion Predicate is about to die and the CastII on the last value bool already folded to a
     // constant (i.e. no OpaqueLoop* nodes anymore). Then IGVN could already have commoned up the bool with the bool of
     // one of the Hoisted Check Predicates. Just check that the Template Assertion Predicate is one of the outputs.
@@ -743,12 +743,12 @@ class CreateInitializedAssertionPredicate {
   // Create the out nodes of a newly created Initialized Assertion Predicate If node which includes the projections and
   // the dedicated Halt node.
   IfTrueNode* create_if_proj_nodes(IfNode* if_node, IdealLoopTree* loop) {
-    IfTrueNode* succ_proj = new IfTrueNode(if_node);
+    IfTrueNode* success_proj = new IfTrueNode(if_node);
     IfFalseNode* fail_proj = new IfFalseNode(if_node);
-    _phase->register_control(succ_proj, loop, if_node);
+    _phase->register_control(success_proj, loop, if_node);
     _phase->register_control(fail_proj, loop, if_node);
     create_halt_node(fail_proj, loop);
-    return succ_proj;
+    return success_proj;
   }
  public:
   explicit CreateInitializedAssertionPredicate(PhaseIdealLoop* phase) : _phase(phase) {}
@@ -764,13 +764,13 @@ class CreateInitializedAssertionPredicate {
 void TemplateAssertionPredicate::create_initialized_predicate(Node* new_ctrl, PhaseIdealLoop* phase,
                                                               TemplateAssertionPredicateBool& template_bool,
                                                               AssertionPredicateType assertion_predicate_type,
-                                                              PredicateChain& predicate_chain) {
+                                                              PredicateInserter& predicate_inserter) {
   CreateInitializedAssertionPredicate create_initialized_assertion_predicate(phase);
   BoolNode* new_bool = template_bool.clone_remove_opaque_loop_nodes(new_ctrl, phase);
   InitializedAssertionPredicate initialized_assertion_predicate =
       create_initialized_assertion_predicate.create(_template_assertion_predicate, new_ctrl, new_bool,
                                                     assertion_predicate_type);
-  predicate_chain.insert_new_predicate(initialized_assertion_predicate);
+  predicate_inserter.insert(initialized_assertion_predicate);
 }
 
 Node* TemplateAssertionPredicateBools::create_last_value(Node* new_ctrl, OpaqueLoopInitNode* opaque_init) {

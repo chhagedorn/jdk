@@ -1310,7 +1310,6 @@ public:
                                           Deoptimization::DeoptReason reason, int opcode,
                                           bool rewire_uncommon_proj_phi_inputs = false);
 
-
  private:
   // Helper functions for create_new_if_for_predicate()
   void set_ctrl_of_nodes_with_same_ctrl(Node* node, ProjNode* old_ctrl, Node* new_ctrl);

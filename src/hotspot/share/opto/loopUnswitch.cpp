@@ -83,13 +83,13 @@ bool IdealLoopTree::policy_unswitching( PhaseIdealLoop *phase ) const {
   return phase->may_require_nodes(est_loop_clone_sz(2));
 }
 
-//------------------------------find_unswitching_candidate-----------------------------
-// Find candidate "if" for unswitching
+// Find invariant test in loop body that does not exit the loop. If multiple are found, we pick the first one in the
+// loop body. Return the candidate "if" for unswitching.
 IfNode* PhaseIdealLoop::find_unswitching_candidate(const IdealLoopTree *loop) const {
 
   // Find first invariant test that doesn't exit the loop
   LoopNode *head = loop->_head->as_Loop();
-  IfNode* unswitch_iff = nullptr;
+  IfNode* unswitching_candidate = nullptr;
   Node* n = head->in(LoopNode::LoopBackControl);
   while (n != head) {
     Node* n_dom = idom(n);
@@ -102,7 +102,7 @@ IfNode* PhaseIdealLoop::find_unswitching_candidate(const IdealLoopTree *loop) co
             // If condition is invariant and not a loop exit,
             // then found reason to unswitch.
             if (loop->is_invariant(bol) && !loop->is_loop_exit(iff)) {
-              unswitch_iff = iff;
+              unswitching_candidate = iff;
             }
           }
         }
@@ -110,16 +110,18 @@ IfNode* PhaseIdealLoop::find_unswitching_candidate(const IdealLoopTree *loop) co
     }
     n = n_dom;
   }
-  return unswitch_iff;
+  return unswitching_candidate;
 }
 
-//------------------------------do_unswitching-----------------------------
-// Clone loop with an invariant test (that does not exit) and
-// insert a clone of the test that selects which version to
-// execute.
-void PhaseIdealLoop::do_unswitching(IdealLoopTree *loop, Node_List &old_new) {
-  // Find first invariant test that doesn't exit the loop
-  IfNode* unswitching_candidate = find_unswitching_candidate((const IdealLoopTree *)loop);
+// Perform Loop Unswitching on the loop containing an invariant test that does not exit the loop. The loop is cloned
+// such that we have two identical loops next to each other - a fast and a slow loop. We modify the loops as follows:
+// - Fast loop: We remove the invariant test together with the false path and only leave the true path in the loop.
+// - Slow loop: We remove the invariant test together with the true path and only leave the false path in the loop.
+//
+// We insert a new If node before both loops that performs the removed invariant test. If the test is true at runtime,
+// we select the fast loop. Otherwise, we select the slow loop.
+void PhaseIdealLoop::do_unswitching(IdealLoopTree* loop, Node_List& old_new) {
+  IfNode* unswitching_candidate = find_unswitching_candidate(loop);
   assert(unswitching_candidate != nullptr, "should be at least one");
 
   LoopNode* head = loop->_head->as_Loop();
@@ -308,7 +310,7 @@ class UnswitchedLoop : public StackObj {
   NewParsePredicate* _new_parse_predicate;
   TemplateAssertionPredicateDataOutput* _node_in_target_loop;
   PhaseIdealLoop* _phase;
-  PredicateChain _predicate_chain;
+  PredicateInserter _predicate_inserter;
 
  public:
   UnswitchedLoop(IfProjNode* unswitch_if_proj, LoopNode* unswitched_loop_head, NewParsePredicate* new_parse_predicate,
@@ -317,19 +319,19 @@ class UnswitchedLoop : public StackObj {
         _new_parse_predicate(new_parse_predicate),
         _node_in_target_loop(node_in_target_loop),
         _phase(phase),
-        _predicate_chain(unswitched_loop_head, phase) {}
+        _predicate_inserter(unswitched_loop_head, phase) {}
 
   // Clone the Template Assertion Predicate to this loop.
   void clone_to(TemplateAssertionPredicate& template_assertion_predicate) {
     TemplateAssertionPredicate cloned_template =
         template_assertion_predicate.clone(_entry, _node_in_target_loop, _phase);
-    _predicate_chain.insert_new_predicate(cloned_template);
+    _predicate_inserter.insert(cloned_template);
   }
 
   // Clone the Parse Predicate to this loop.
   void clone_to(ParsePredicate& parse_predicate) {
     ParsePredicate cloned_parse_predicate = parse_predicate.clone(_entry, _new_parse_predicate, _phase);
-    _predicate_chain.insert_new_predicate(cloned_parse_predicate);
+    _predicate_inserter.insert(cloned_parse_predicate);
   }
 
 };
@@ -526,10 +528,8 @@ class OriginalLoop {
 #endif // ASSERT
 };
 
-//-------------------------create_slow_version_of_loop------------------------
-// Create a slow version of the loop by cloning the loop
-// and inserting an if to select fast-slow versions.
-// Return the inserted if.
+// Create a slow version of the loop by cloning the loop and inserting an If to select the fast or slow version.
+// Return the inserted loop selector If.
 IfNode* PhaseIdealLoop::create_slow_version_of_loop(IdealLoopTree* loop, Node_List& old_new,
                                                     IfNode* unswitching_candidate) {
   OriginalLoop original_loop(loop, &old_new);
@@ -537,4 +537,3 @@ IfNode* PhaseIdealLoop::create_slow_version_of_loop(IdealLoopTree* loop, Node_Li
   recompute_dom_depth();
   return loop_selector_if;
 }
-

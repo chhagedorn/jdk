@@ -350,34 +350,33 @@ class RuntimePredicate : public Predicate {
   static bool is_success_proj(Node* maybe_success_proj, Deoptimization::DeoptReason deopt_reason);
 };
 
-// This class represents a chain of predicates above a loop. We build the chain by inserting either existing predicates
-// at the loop or by inserting new predicates which also update control.
-class PredicateChain : public StackObj {
-  Node* _tail; // The current tail of this predicate chain which is initially the loop node itself.
+// This class can be used to insert predicates in the graph above a loop. It can either insert new predicates or skip
+// over existing predicates in the graph. The class acts as an iterator and always maintains a link to the current
+// control output where a new predicate could possibly be inserted.
+class PredicateInserter : public StackObj {
+  Node* _ctrl_out; // The current control output if a new predicate is inserted in the graph.
   PhaseIdealLoop* _phase;
 
  public:
-  PredicateChain(LoopNode* loop_node, PhaseIdealLoop* phase) : _tail(loop_node->skip_strip_mined()), _phase(phase) {}
+  PredicateInserter(LoopNode* loop_node, PhaseIdealLoop* phase) : _ctrl_out(loop_node->skip_strip_mined()), _phase(phase) {}
 
-  void insert_new_predicate(Predicate& new_predicate);
-  void insert_existing_predicate(Predicate& existing_predicate);
+  void insert(Predicate& new_predicate);
+  void skip(Predicate& existing_predicate);
 };
 
-// Class to create Assertion Predicates at the target loop by moving the templates from the source to the target loop
-// and creating initialized predicates from them.
+// The class offers different actions for Assertion Predicates belonging to a source loop.
 class AssertionPredicates : public StackObj {
   CountedLoopNode* _source_loop_head;
   PhaseIdealLoop* _phase;
 
   TemplateAssertionPredicate create_new_template(int if_opcode, int scale, Node* offset, Node* range,
-                                                 PredicateChain& predicate_chain);
+                                                 PredicateInserter& predicate_inserter);
   Node* create_stride(int stride_con);
 
  public:
   AssertionPredicates(CountedLoopNode* source_loop_head, PhaseIdealLoop* phase)
       : _source_loop_head(source_loop_head),
         _phase(phase) {}
-
 
   void clone_to_loop(CountedLoopNode* target_loop_head, TemplateAssertionPredicateDataOutput* node_in_target_loop);
   void move_to_loop(CountedLoopNode* target_loop_head, TemplateAssertionPredicateDataOutput* node_in_target_loop);
@@ -419,6 +418,8 @@ class TemplateAssertionPredicateBool : public StackObj {
  public:
   explicit TemplateAssertionPredicateBool(Node* source_bool);
 
+  // The last value bool could already be a constant (i.e. dead) when the CastII node between the Template Assertion
+  // Predicate and the OpaqueLoop* nodes was replaced by a constant. In this case, _source_bool is null.
   bool is_not_dead() const {
     return _source_bool != nullptr;
   }
@@ -443,7 +444,7 @@ class TemplateAssertionPredicate : public Predicate {
   void update_data_dependencies_to_clone(TemplateAssertionPredicateNode* cloned_template_assertion_predicate,
                                          TemplateAssertionPredicateDataOutput* node_in_target_loop, PhaseIdealLoop* phase);
   void create_initialized_predicate(Node* new_ctrl, PhaseIdealLoop* phase, TemplateAssertionPredicateBool &template_bool,
-                                    AssertionPredicateType assertion_predicate_type, PredicateChain& predicate_chain);
+                                    AssertionPredicateType assertion_predicate_type, PredicateInserter& predicate_inserter);
 
  public:
   TemplateAssertionPredicate(TemplateAssertionPredicateNode* template_assertion_predicate)
@@ -503,13 +504,13 @@ class TemplateAssertionPredicate : public Predicate {
   // Create an Initialized Assertion Predicate from this Template Assertion Predicate for the init and the last value.
   // This is done by cloning the Template Assertion Predicate bools and removing the OpaqueLoop* nodes (i.e. folding
   // them away and using their inputs instead).
-  void initialize(PhaseIdealLoop* phase, PredicateChain& predicate_chain) {
+  void initialize(PhaseIdealLoop* phase, PredicateInserter& predicate_inserter) {
     Node* new_ctrl = entry();
     if (_last_value_bool.is_not_dead()) {
       create_initialized_predicate(new_ctrl, phase, _last_value_bool, AssertionPredicateType::Last_value,
-                                   predicate_chain);
+                                   predicate_inserter);
     }
-    create_initialized_predicate(new_ctrl, phase, _init_value_bool, AssertionPredicateType::Init_value, predicate_chain);
+    create_initialized_predicate(new_ctrl, phase, _init_value_bool, AssertionPredicateType::Init_value, predicate_inserter);
   }
 
   // Kill this Template Assertion Predicate by marking it as useless. The Template Assertion Predicate will be removed

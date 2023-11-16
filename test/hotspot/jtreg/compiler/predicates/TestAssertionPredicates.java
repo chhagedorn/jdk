@@ -117,7 +117,6 @@
 
 /*
  * @test id=NoFlags
- * @key randomness
  * @bug 8288981
  * @run driver compiler.predicates.TestAssertionPredicates NoFlags
  */
