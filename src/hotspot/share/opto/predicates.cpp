@@ -868,8 +868,9 @@ void PredicateBlock::verify_block() {
 // anymore (i.e. entry to the first Regular Predicate in this block if any or `regular_predicate_proj` otherwise).
 Node* PredicateBlock::skip_regular_predicates(Node* regular_predicate_proj, Deoptimization::DeoptReason deopt_reason) {
   PredicateVisitor do_nothing_visitor;
-  PredicateInBlockIterator predicate_in_block_iterator(regular_predicate_proj, deopt_reason, &do_nothing_visitor);
-  return predicate_in_block_iterator.for_each();
+  RegularPredicateInBlockIterator regular_predicate_in_block_iterator(regular_predicate_proj, deopt_reason,
+                                                                      &do_nothing_visitor);
+  return regular_predicate_in_block_iterator.for_each();
 }
 
 // Applies the PredicateVisitor to each Regular Predicate in this block.

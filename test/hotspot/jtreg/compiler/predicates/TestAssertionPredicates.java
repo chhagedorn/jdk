@@ -44,6 +44,16 @@
  */
 
 /*
+ * @test id=NoLoopPredication
+ * @bug 8288981
+ * @requires vm.compiler2.enabled
+ * @run main/othervm -Xbatch -XX:-UseLoopPredicate
+ *                   -XX:CompileCommand=compileonly,compiler.predicates.TestAssertionPredicates::*
+ *                   -XX:CompileCommand=dontinline,compiler.predicates.TestAssertionPredicates::*
+ *                   compiler.predicates.TestAssertionPredicates NoLoopPredication
+ */
+
+/*
  * @test id=UseProfiledLoopPredicateFalse
  * @bug 8288981
  * @requires vm.compiler2.enabled
@@ -105,6 +115,12 @@
  *                   compiler.predicates.TestAssertionPredicates ZGCStressGCM
  */
 
+/*
+ * @test id=NoFlags
+ * @key randomness
+ * @bug 8288981
+ * @run driver compiler.predicates.TestAssertionPredicates NoFlags
+ */
 
 package compiler.predicates;
 
@@ -136,15 +152,7 @@ public class TestAssertionPredicates {
 
 
     public static void main(String[] args) {
-        try {
-            executeTests(args[0]);
-        } catch (ArrayIndexOutOfBoundsException e) {
-            // Expected
-        }
-    }
-
-    static void executeTests(String methods) {
-        switch (methods) {
+        switch (args[0]) {
             case "NoProfiledLoopPredicate" -> testWithPartialPeelingFirst();
             case "LoopMaxUnroll0" -> {
                 testPeeling();
@@ -208,8 +216,57 @@ public class TestAssertionPredicates {
                     testDataUpdatePeelingUnrolling();
                 }
             }
+            case "NoLoopPredication", "NoFlags" -> {
+                for (int i = 0; i < 10000; i++) {
+                    runAllTests();
+                }
+            }
             default -> throw new RuntimeException("invalid methods");
         }
+    }
+
+    static void runAllTests() {
+        testPeeling();
+        testUnswitchingThenPeeling();
+        testPeelingThenUnswitchingThenPeeling();
+        testPeelingThenUnswitchingThenPeelingThenPreMainPost();
+        testDyingRuntimePredicate();
+        testDyingNegatedRuntimePredicate();
+        testPeelMainLoopAfterUnrollingThenPreMainPost();
+        testPeelMainLoopAfterUnrolling2();
+        testUnrolling8();
+        testUnrolling16();
+        testPreMainPost();
+        testUnrolling2();
+        testUnrolling4();
+        testPeelingThenPreMainPost();
+        testUnswitchingThenPeelingThenPreMainPost();
+        runTestDontCloneParsePredicateUnswitching();
+        testDyingInitializedAssertionPredicate();
+        test8288981();
+        test8288941();
+        iFld = -1;
+        test8292507();
+        test8307131();
+        test8308392No1();
+        iFld = -50000;
+        test8308392No2();
+        test8308392No3();
+        test8308392No4();
+        test8308392No5();
+        test8308392No6();
+        test8308392No7();
+        iFld = 0;
+        test8308392No8();
+        runTest8308392No9();
+        test8308392No10();
+        testSplitIfCloneDownWithOpaqueAssertionPredicate();
+        testHaltNotRemovingAssertionPredicate8305428();
+        test8305428();
+        testDataUpdateUnroll();
+        testDataUpdateUnswitchUnroll();
+        testDataUpdatePeelingUnrolling();
+        testBackToBackLoopLimitCheckPredicate();
     }
 
     static void runTestDontCloneParsePredicateUnswitching() {
@@ -1103,7 +1160,7 @@ public class TestAssertionPredicates {
     static void runTest8308392No9() {
         try {
             test8308392No9();
-        } catch (ArithmeticException e) {
+        } catch (ArithmeticException | ArrayIndexOutOfBoundsException e) {
             // Expected.
         }
     }
@@ -1144,6 +1201,17 @@ public class TestAssertionPredicates {
             }
         }
         long n = p;
+    }
+
+    static void testBackToBackLoopLimitCheckPredicate() {
+        int i = 34;
+        if (flag) {}
+        while (i < 50) {
+            i++;
+        }
+        for (int j = 0; j < 4; j++) {
+            iArr[j] += 34;
+        }
     }
 
     static void dontInline() {
