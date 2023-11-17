@@ -1215,5 +1215,4 @@ public class TestAssertionPredicates {
 
     static void dontInline() {
     }
-
 }

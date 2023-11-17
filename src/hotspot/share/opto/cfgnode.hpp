@@ -324,6 +324,16 @@ class TemplateAssertionPredicateNode : public Node {
   virtual const Type* bottom_type() const { return Type::CONTROL; }
   virtual Node* Identity(PhaseGVN* phase);
   virtual const Type* Value(PhaseGVN* phase) const;
+
+  uint index_for_bool_input(const BoolNode* bool_input) const {
+    if (bool_input == in(TemplateAssertionPredicateNode::InitValue)) {
+      return TemplateAssertionPredicateNode::InitValue;
+    } else {
+      assert(bool_input == in(TemplateAssertionPredicateNode::LastValue), "must be a bool input");
+      return TemplateAssertionPredicateNode::LastValue;
+    }
+  }
+
   NOT_PRODUCT(void dump_spec(outputStream* st) const;)
 };
 

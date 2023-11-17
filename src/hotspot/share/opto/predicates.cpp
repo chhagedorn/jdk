@@ -272,7 +272,7 @@ class UpdateAndInitAssertionPredicates : public PredicateVisitor {
         _predicate_inserter(loop_head, phase) {}
 
   void visit(TemplateAssertionPredicate& template_assertion_predicate) override {
-    template_assertion_predicate.update_opaque_stride(_new_stride, &_phase->igvn());
+    template_assertion_predicate.replace_opaque_stride_input(_new_stride, &_phase->igvn());
     _predicate_inserter.skip(template_assertion_predicate);
     template_assertion_predicate.initialize(_phase, _predicate_inserter);
   }
@@ -328,28 +328,39 @@ class OpaqueLoopStrideVisitor : public StackObj {
   virtual void visit(OpaqueLoopStrideNode* opaque_stride) = 0;
 };
 
-// Stack used when performing DFS on Template Assertion Predicate bools. Each node in the stack maintains an input index
-// to the next node to visit in the DFS traversal. When a node is visited again in the stack (i.e. being on top again
-// after popping all other nodes above), we increment the index to visit the next unvisited input until all inputs are
-// visited. In that case, the node is dropped.
-class DFSStack : public StackObj {
+
+// Stack used when performing DFS on Template Assertion Predicate bools. The DFS traversal visits non-CFG inputs of a
+// node in increasing node index order (i.e. first visiting the input node at index 1). Each time a new node is visited,
+// it is inserted on top of the stack. Each node n in the stack maintains a node input index i, denoted as [n, i]:
+//
+// i = 0, [n, 0]:
+//     n is currently being visited in the DFS traversal and was newly added to the stack
+//
+// i > 0, [n, i]:
+//     Let node s be the next node being visited after node n in the DFS traversal. The following holds:
+//         n->in(i) = s
+class DFSNodeStack : public StackObj {
   Node_Stack _stack;
+  static const uint _no_inputs_visited_yet = 0;
 
  public:
-  explicit DFSStack(BoolNode* template_bool)
+  explicit DFSNodeStack(BoolNode* template_bool)
       : _stack(2) {
-    _stack.push(template_bool, 1);
+        _stack.push(template_bool, _no_inputs_visited_yet);
   }
 
-  // Push the next unvisited input of the current node on the top of the stack.
+  // Push the next unvisited input of the current node on top of the stack and return true. The visiting order of node
+  // inputs is in increasing node input index order. If there are no unvisited inputs left, do nothing and return false.
   bool push_next_unvisited_input() {
-    Node* current = _stack.node();
-    for (uint index = _stack.index(); index < current->req(); index++) {
-      Node* input = current->in(index);
+    Node* node_on_top = top();
+    increment_top_node_input_index();
+    const uint next_unvisited_input = _stack.index();
+    for (uint index = next_unvisited_input; index < node_on_top->req(); index++) {
+      Node* input = node_on_top->in(index);
       if (AssertionPredicateBoolOpcodes::is_valid(input)) {
         // We only care about related inputs.
         _stack.set_index(index);
-        _stack.push(input, 1);
+        _stack.push(input, _no_inputs_visited_yet);
         return true;
       }
     }
@@ -360,7 +371,7 @@ class DFSStack : public StackObj {
     return _stack.node();
   }
 
-  uint index_to_previously_visited_parent() const {
+  uint node_index_to_previously_visited_parent() const {
     return _stack.index();
   }
 
@@ -372,7 +383,7 @@ class DFSStack : public StackObj {
     _stack.pop();
   }
 
-  void increment_input_index() {
+  void increment_top_node_input_index() {
     _stack.set_index(_stack.index() + 1);
   }
 
@@ -392,9 +403,9 @@ class TransformOpaqueLoopNodes : public StackObj {
 // Class to clone an Assertion Predicate bool. The BoolNode and all the nodes up to but excluding the OpaqueLoop* nodes
 // are cloned. The OpaqueLoop* nodes are transformed by the provided strategy (e.g. cloned or replaced).
 class CloneAssertionPredicateBool : public StackObj {
-  DFSStack _stack;
+  DFSNodeStack _stack;
   PhaseIdealLoop* _phase;
-  uint _idx_before_cloning;
+  uint _index_before_cloning;
   Node* _ctrl_for_clones;
   DEBUG_ONLY(bool _found_init;)
 
@@ -408,19 +419,18 @@ class CloneAssertionPredicateBool : public StackObj {
     } else {
       transformed_node = transform_opaque_nodes->transform_opaque_stride(opaque_loop_node->as_OpaqueLoopStride());
     }
-    assert(transformed_node != opaque_loop_node, "OpaqueLoopNode must have been transformed");
+    assert(transformed_node != opaque_loop_node, "OpaqueLoop*Node must have been transformed");
     return transformed_node;
   }
 
   void pop_opaque_loop_node(Node* transformed_opaque_loop_node) {
     _stack.pop();
-    assert(_stack.is_not_empty(), "must not be empty when popping an OpaqueLoopNode");
+    assert(_stack.is_not_empty(), "must not be empty when popping an OpaqueLoop*Node");
     if (must_clone_top_node(transformed_opaque_loop_node)) {
       clone_top_node(transformed_opaque_loop_node);
     } else {
       set_req_of_clone_to_parent(transformed_opaque_loop_node);
     }
-    _stack.increment_input_index();
   }
 
   // Must only clone top node (i.e. child of 'previously_visited_parent') if not yet cloned (could visit this node a
@@ -428,26 +438,28 @@ class CloneAssertionPredicateBool : public StackObj {
   // to an OpaqueLoop* node and therefore needs to be cloned).
   bool must_clone_top_node(Node* previously_visited_parent) {
     Node* child_of_last_visited_parent = _stack.top();
-    const uint index_to_previously_visited_parent = _stack.index_to_previously_visited_parent();
-    return child_of_last_visited_parent->_idx < _idx_before_cloning &&
-           child_of_last_visited_parent->in(index_to_previously_visited_parent) != previously_visited_parent;
+    const uint node_index_to_previously_visited_parent = _stack.node_index_to_previously_visited_parent();
+    return child_of_last_visited_parent->_idx < _index_before_cloning &&
+           child_of_last_visited_parent->in(node_index_to_previously_visited_parent) != previously_visited_parent;
   }
 
   // Clone the node currently on top of the stack (i.e. a descendant of an OpaqueLoop* node) and set
-  // 'previously_visited_parent' as new input at the input index stored with the top node. Replace the
-  // current node on top with the cloned version.
+  // 'previously_visited_parent' (also a clone) as new input at the input index stored with the top node. Replace the
+  // current node on top with the newly cloned version.
   void clone_top_node(Node* previously_visited_parent) {
     Node* child_of_last_visited_parent = _stack.top();
-    const uint index_to_previously_visited_parent = _stack.index_to_previously_visited_parent();
+    const uint node_index_to_previously_visited_parent = _stack.node_index_to_previously_visited_parent();
     Node* clone = _phase->clone_and_register(child_of_last_visited_parent, _ctrl_for_clones);
-    clone->set_req(index_to_previously_visited_parent, previously_visited_parent);
+    clone->set_req(node_index_to_previously_visited_parent, previously_visited_parent);
     _stack.replace_top_with(clone);
   }
 
-  void set_req_of_clone_to_parent(Node* parent) const {
+  // Child of 'previously_visited_parent' (a clone) was already cloned before. We only need to rewire the child to
+  // 'previously_visited_parent'.
+  void set_req_of_clone_to_parent(Node* previously_visited_parent) const {
     Node* child_of_parent = _stack.top();
-    const uint index_to_previously_visited_parent = _stack.index_to_previously_visited_parent();
-    child_of_parent->set_req(index_to_previously_visited_parent, parent);
+    const uint index_to_previously_visited_parent = _stack.node_index_to_previously_visited_parent();
+    child_of_parent->set_req(index_to_previously_visited_parent, previously_visited_parent);
   }
 
   // Pop a node from the stack and clone the new node on top if the parent node was cloned or transformed before (i.e.
@@ -455,31 +467,31 @@ class CloneAssertionPredicateBool : public StackObj {
   // already cloned, check if the previously visited parent was also cloned. If so, we do not need to clone the new
   // node on top but can just connect it to the previously visited cloned parent. Finally, increment the input index
   // to visit the next unvisited input of the current top node.
-  void pop_node(Node* previously_visited_parent) {
+  void pop_node() {
+    Node* previously_visited_parent = _stack.top();
     _stack.pop();
     if (_stack.is_not_empty()) {
       if (must_clone_top_node(previously_visited_parent)) {
         clone_top_node(previously_visited_parent);
       } else if (is_cloned_node(previously_visited_parent)) {
         rewire_top_node_to(previously_visited_parent);
-      }
-      _stack.increment_input_index();
+      } // else: Node is not part on the chain to an OpaqueLoop* nod
     }
   }
 
   bool is_cloned_node(Node* node) const {
-    return node->_idx >= _idx_before_cloning;
+    return node->_idx >= _index_before_cloning;
   }
 
   void rewire_top_node_to(Node* previously_visited_parent) {
-    _stack.top()->set_req(_stack.index_to_previously_visited_parent(), previously_visited_parent);
+    _stack.top()->set_req(_stack.node_index_to_previously_visited_parent(), previously_visited_parent);
   }
 
  public:
   CloneAssertionPredicateBool(BoolNode* template_bool, Node* ctrl_for_clones, PhaseIdealLoop* phase)
       : _stack(template_bool),
         _phase(phase),
-        _idx_before_cloning(phase->C->unique()),
+        _index_before_cloning(phase->C->unique()),
         _ctrl_for_clones(ctrl_for_clones)
         DEBUG_ONLY(COMMA _found_init(false)) {}
 
@@ -493,16 +505,17 @@ class CloneAssertionPredicateBool : public StackObj {
         Node* transformed_node = transform_opaque_loop_node(current, transform_opaque_loop_nodes);
         pop_opaque_loop_node(transformed_node);
       } else if (!_stack.push_next_unvisited_input()) {
-        pop_node(current);
+        pop_node();
       }
     }
-    assert(current->is_Bool() && current->_idx >= _idx_before_cloning, "new BoolNode expected");
+    assert(current->is_Bool() && current->_idx >= _index_before_cloning, "new BoolNode expected");
     assert(_found_init, "OpaqueLoopInitNode must always be found");
     return current->as_Bool();
   }
 };
 
-// Class to clone OpaqueLoop* nodes without creating duplicated nodes.
+// This class caches a single OpaqueLoopInitNode and OpaqueLoopStrideNode. If the node is not cached, yet, we clone it
+// and store the clone in the cache to be return for subsequent calls.
 class CachedOpaqueLoopNodes {
   OpaqueLoopInitNode* _cached_opaque_new_init;
   OpaqueLoopStrideNode* _cached_new_opaque_stride;
@@ -516,14 +529,14 @@ class CachedOpaqueLoopNodes {
         _phase(phase),
         _new_ctrl(new_ctrl) {}
 
-  OpaqueLoopInitNode* clone_init(OpaqueLoopInitNode* opaque_init) {
+  OpaqueLoopInitNode* clone_if_not_cached(OpaqueLoopInitNode* opaque_init) {
     if (_cached_opaque_new_init == nullptr) {
       _cached_opaque_new_init = _phase->clone_and_register(opaque_init, _new_ctrl)->as_OpaqueLoopInit();
     }
     return _cached_opaque_new_init;
   }
 
-  OpaqueLoopStrideNode* clone_stride(OpaqueLoopStrideNode* opaque_stride) {
+  OpaqueLoopStrideNode* clone_if_not_cached(OpaqueLoopStrideNode* opaque_stride) {
     if (_cached_new_opaque_stride == nullptr) {
       _cached_new_opaque_stride = _phase->clone_and_register(opaque_stride, _new_ctrl)->as_OpaqueLoopStride();
     }
@@ -540,11 +553,11 @@ class CloneOpaqueLoopNodes : public TransformOpaqueLoopNodes {
       : _cached_opaque_loop_nodes(phase, new_ctrl) {}
 
   Node* transform_opaque_init(OpaqueLoopInitNode* opaque_init) override {
-    return _cached_opaque_loop_nodes.clone_init(opaque_init);
+    return _cached_opaque_loop_nodes.clone_if_not_cached(opaque_init);
   }
 
   Node* transform_opaque_stride(OpaqueLoopStrideNode* opaque_stride) override {
-    return _cached_opaque_loop_nodes.clone_stride(opaque_stride);
+    return _cached_opaque_loop_nodes.clone_if_not_cached(opaque_stride);
   }
 };
 
@@ -571,13 +584,13 @@ class CloneWithNewOpaqueInitInput : public TransformOpaqueLoopNodes {
         _cached_opaque_loop_nodes(phase, new_ctrl) {}
 
   Node* transform_opaque_init(OpaqueLoopInitNode* opaque_init) override {
-    Node* new_opaque_init = _cached_opaque_loop_nodes.clone_init(opaque_init);
+    Node* new_opaque_init = _cached_opaque_loop_nodes.clone_if_not_cached(opaque_init);
     _phase->igvn().replace_input_of(new_opaque_init, 1, _new_opaque_init_input);
     return new_opaque_init;
   }
 
   Node* transform_opaque_stride(OpaqueLoopStrideNode* opaque_stride) override {
-    return _cached_opaque_loop_nodes.clone_stride(opaque_stride);
+    return _cached_opaque_loop_nodes.clone_if_not_cached(opaque_stride);
   }
 };
 
@@ -608,20 +621,20 @@ class RemoveOpaqueLoopNodes : public TransformOpaqueLoopNodes {
 
 // Clones this Template Assertion Predicate bool. This includes all nodes from the BoolNode to the OpaqueLoop* nodes.
 // The OpaqueLoop* nodes are not cloned but replaced by their input nodes (i.e. folding the OpaqueLoop* nodes away).
-BoolNode* TemplateAssertionPredicateBool::clone_remove_opaque_loop_nodes(Node* new_ctrl, PhaseIdealLoop* phase) {
+BoolNode* TemplateAssertionPredicateBool::clone_and_fold_opaque_loop_nodes(Node* new_ctrl, PhaseIdealLoop* phase) {
   assert(is_not_dead(), "must not be dead");
   RemoveOpaqueLoopNodes remove_opaque_loop_nodes;
   CloneAssertionPredicateBool clone_assertion_predicate_bool(_source_bool, new_ctrl, phase);
   return clone_assertion_predicate_bool.clone(&remove_opaque_loop_nodes);
 }
 
-// This visitor updates the input of OpaqueLoopStride nodes in Template Assertion Predicate bools.
-class UpdateOpaqueStrideInput : public OpaqueLoopStrideVisitor {
+// This visitor replaces the input of OpaqueLoopStride nodes in Template Assertion Predicate bools with a new node.
+class ReplaceOpaqueStrideInput : public OpaqueLoopStrideVisitor {
   PhaseIterGVN* _igvn;
   Node* _new_opaque_stride_input;
 
  public:
-  UpdateOpaqueStrideInput(PhaseIterGVN* igvn, Node* new_opaque_stride_input)
+  ReplaceOpaqueStrideInput(PhaseIterGVN* igvn, Node* new_opaque_stride_input)
       : _igvn(igvn),
         _new_opaque_stride_input(new_opaque_stride_input) {}
 
@@ -632,7 +645,7 @@ class UpdateOpaqueStrideInput : public OpaqueLoopStrideVisitor {
 
 // This class looks for OpaqueLoopStride nodes in Template Assertion Predicate bools and visits them.
 class OpaqueLoopStrideNodes : public StackObj {
-  DFSStack _stack;
+  DFSNodeStack _stack;
 
  public:
   OpaqueLoopStrideNodes(BoolNode* template_bool) : _stack(template_bool) {}
@@ -642,34 +655,26 @@ class OpaqueLoopStrideNodes : public StackObj {
       Node* current = _stack.top();
       if (current->is_OpaqueLoopStride()) {
         action->visit(current->as_OpaqueLoopStride());
-        pop_visited_node();
+        _stack.pop();
       } else if (!_stack.push_next_unvisited_input()) {
-        pop_visited_node();
+        _stack.pop();
       }
     };
-  }
-
-  void pop_visited_node() {
-    _stack.pop();
-    if (_stack.is_not_empty()) {
-      _stack.increment_input_index();
-    }
   }
 };
 
 // Sets 'new_opaque_stride_input' as new input of the OpaqueLoopStride node of this Template Assertion Predicate bool.
-void TemplateAssertionPredicateBool::update_opaque_stride(Node* new_opaque_stride_input, PhaseIterGVN* igvn) {
+void TemplateAssertionPredicateBool::replace_opaque_stride_input(Node* new_opaque_stride_input, PhaseIterGVN* igvn) {
   assert(is_not_dead(), "must not be dead");
-  UpdateOpaqueStrideInput update_opaque_stride_input(igvn, new_opaque_stride_input);
+  ReplaceOpaqueStrideInput replace_opaque_stride_input(igvn, new_opaque_stride_input);
   OpaqueLoopStrideNodes opaque_loop_stride_nodes(_source_bool);
-  opaque_loop_stride_nodes.findAndVisit(&update_opaque_stride_input);
+  opaque_loop_stride_nodes.findAndVisit(&replace_opaque_stride_input);
 }
 
 #ifdef ASSERT
 // This visitor asserts that there are no OpaqueLoopStride nodes in Template Assertion Predicate bools.
 class VerifyNoOpaqueStride : public OpaqueLoopStrideVisitor {
  public:
-
   void visit(OpaqueLoopStrideNode* opaque_stride) override {
     assert(false, "should not find OpaqueLoopStrideNode");
   }
@@ -766,7 +771,7 @@ void TemplateAssertionPredicate::create_initialized_predicate(Node* new_ctrl, Ph
                                                               AssertionPredicateType assertion_predicate_type,
                                                               PredicateInserter& predicate_inserter) {
   CreateInitializedAssertionPredicate create_initialized_assertion_predicate(phase);
-  BoolNode* new_bool = template_bool.clone_remove_opaque_loop_nodes(new_ctrl, phase);
+  BoolNode* new_bool = template_bool.clone_and_fold_opaque_loop_nodes(new_ctrl, phase);
   InitializedAssertionPredicate initialized_assertion_predicate =
       create_initialized_assertion_predicate.create(_template_assertion_predicate, new_ctrl, new_bool,
                                                     assertion_predicate_type);

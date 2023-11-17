@@ -428,7 +428,7 @@ class CloneTemplateAssertionPredicateBoolDown {
   PhaseIdealLoop* _phase;
 
   // Check if 'n' belongs to the init or last value Template Assertion Predicate bool, including the OpaqueLoop* nodes.
-  bool is_part_of_template_assertion_predicate_bool(Node* n) {
+  static bool is_part_of_template_assertion_predicate_bool(Node* n) {
     if (AssertionPredicateBoolOpcodes::is_valid(n)) {
       ResourceMark rm;
       Unique_Node_List list;
@@ -438,18 +438,12 @@ class CloneTemplateAssertionPredicateBoolDown {
         const int opcode = next->Opcode();
         if (opcode == Op_OpaqueLoopInit || opcode == Op_OpaqueLoopStride) {
           return true;
-        } else {
-          push_inputs_if_related_node(list, next);
+        } else if (AssertionPredicateBoolOpcodes::is_valid(next)) {
+          push_non_null_inputs(list, next);
         }
       }
     }
     return false;
-  }
-
-  static void push_inputs_if_related_node(Unique_Node_List& list, const Node* n) {
-    if (AssertionPredicateBoolOpcodes::is_valid(n)) {
-      push_non_null_inputs(list, n);
-    }
   }
 
   static void push_non_null_inputs(Unique_Node_List& list, const Node* n) {
@@ -461,15 +455,24 @@ class CloneTemplateAssertionPredicateBoolDown {
     }
   }
 
-  void visit_outputs(Unique_Node_List& list, const Node* n) {
-    for (DUIterator_Fast jmax, j = n->fast_outs(jmax); j < jmax; j++) {
-      Node* out = n->fast_out(j);
-      if (out->is_TemplateAssertionPredicate()) {
-        clone_template_assertion_predicate_bool_and_replace(out->as_TemplateAssertionPredicate(), n->as_Bool());
-        --j;
-        --jmax;
+  //              OpaqueLoop*Node                                     cloned OpaqueLoop*Node
+  //                    |                                                       |
+  //                   ...                                                   cloned ...
+  //                    |                                                       |
+  //  template_assertion_predicate_bool_node      ===>      cloned template_assertion_predicate_bool_node
+  //                    |                                                       |
+  //         template_assertion_predicate                            template_assertion_predicate
+  void clone_template_assertion_predicate_bool(Node* n) {
+    Unique_Node_List list;
+    list.push(n);
+
+    for (uint i = 0; i < list.size(); i++) {
+      Node* next = list.at(i);
+      if (next->is_TemplateAssertionPredicate()) {
+        clone_template_assertion_predicate_bool_and_replace(next->as_TemplateAssertionPredicate(), n->as_Bool());
       } else {
-        list.push(out);
+        assert(!next->is_CFG(), "no CFG expected in Template Assertion Predicate bool outputs");
+        push_outputs(list, next);
       }
     }
   }
@@ -477,21 +480,16 @@ class CloneTemplateAssertionPredicateBoolDown {
   void clone_template_assertion_predicate_bool_and_replace(TemplateAssertionPredicateNode* template_assertion_predicate,
                                                            BoolNode* template_assertion_predicate_bool_node) {
     Node* new_ctrl = template_assertion_predicate->in(0);
-    const int bool_index = template_assertion_predicate_bool_index(template_assertion_predicate,
-                                                                   template_assertion_predicate_bool_node);
+    const uint bool_index = template_assertion_predicate->index_for_bool_input(template_assertion_predicate_bool_node);
     TemplateAssertionPredicateBool template_assertion_predicate_bool(template_assertion_predicate_bool_node);
     BoolNode* cloned_bool = template_assertion_predicate_bool.clone(new_ctrl, _phase);
     _phase->igvn().replace_input_of(template_assertion_predicate, bool_index, cloned_bool);
   }
 
-
-  static int template_assertion_predicate_bool_index(const TemplateAssertionPredicateNode* template_assertion_predicate_node,
-                                              const BoolNode* template_assertion_predicate_bool_node) {
-    if (template_assertion_predicate_bool_node
-        == template_assertion_predicate_node->in(TemplateAssertionPredicateNode::InitValue)) {
-      return TemplateAssertionPredicateNode::InitValue;
-    } else {
-      return TemplateAssertionPredicateNode::LastValue;
+  static void push_outputs(Unique_Node_List& list, const Node* n) {
+    for (DUIterator_Fast jmax, j = n->fast_outs(jmax); j < jmax; j++) {
+      Node* out = n->fast_out(j);
+      list.push(out);
     }
   }
 
@@ -502,23 +500,17 @@ class CloneTemplateAssertionPredicateBoolDown {
   // Predicate bool. In this case, we need to clone the bool and the entire input chain including the OpaqueLoop* nodes
   // down. This avoids creating the phi node inside the input chain. Otherwise, we could not find the OpaqueLoop* nodes
   // anymore when trying to access them for a Template Assertion Predicate (pattern matching does not expect phis).
-  void clone_if_related(Node* n) {
-    if (is_part_of_template_assertion_predicate_bool(n)) {
-      Unique_Node_List list;
-      list.push(n);
-
-      for (uint i = 0; i < list.size(); i++) {
-        Node* next = list.at(i);
-        assert(!next->is_CFG(), "not CFG expected");
-        visit_outputs(list, next);
-      }
+  void clone_if_part_of_template_assertion_predicate_bool(Node* n) {
+    if (!is_part_of_template_assertion_predicate_bool(n)) {
+      return;
     }
+    clone_template_assertion_predicate_bool(n);
   }
 };
 
 void PhaseIdealLoop::clone_template_assertion_predicate_bool_down_if_related(Node* n) {
   CloneTemplateAssertionPredicateBoolDown clone_down(this);
-  clone_down.clone_if_related(n);
+  clone_down.clone_if_part_of_template_assertion_predicate_bool(n);
 }
 
 //------------------------------register_new_node------------------------------

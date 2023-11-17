@@ -426,8 +426,8 @@ class TemplateAssertionPredicateBool : public StackObj {
 
   BoolNode* clone(Node* new_ctrl, PhaseIdealLoop* phase);
   BoolNode* clone_update_opaque_init(Node* new_ctrl, Node* new_opaque_init_input, PhaseIdealLoop* phase);
-  BoolNode* clone_remove_opaque_loop_nodes(Node* new_ctrl, PhaseIdealLoop* phase);
-  void update_opaque_stride(Node* new_opaque_stride_input, PhaseIterGVN* igvn);
+  BoolNode* clone_and_fold_opaque_loop_nodes(Node* new_ctrl, PhaseIdealLoop* phase);
+  void replace_opaque_stride_input(Node* new_opaque_stride_input, PhaseIterGVN* igvn);
   DEBUG_ONLY(void verify_no_opaque_stride());
 };
 
@@ -491,13 +491,13 @@ class TemplateAssertionPredicate : public Predicate {
     return create_and_init(new_ctrl, new_init_bool, new_last_value, node_in_target_loop, phase);
   }
 
-  // Update the input of the OpaqueLoopStrideNode of the last value bool of this Template Assertion Predicate to
+  // Replace the input of the OpaqueLoopStrideNode of the last value bool of this Template Assertion Predicate with
   // the provided 'new_opaque_stride_input'.
-  void update_opaque_stride(Node* new_opaque_stride_input, PhaseIterGVN* igvn) {
+  void replace_opaque_stride_input(Node* new_opaque_stride_input, PhaseIterGVN* igvn) {
     // Only last value bool has OpaqueLoopStrideNode.
     DEBUG_ONLY(_init_value_bool.verify_no_opaque_stride());
     if (_last_value_bool.is_not_dead()) {
-      _last_value_bool.update_opaque_stride(new_opaque_stride_input, igvn);
+      _last_value_bool.replace_opaque_stride_input(new_opaque_stride_input, igvn);
     }
   }
 
