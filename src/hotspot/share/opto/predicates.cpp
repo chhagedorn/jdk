@@ -71,7 +71,7 @@ class ParsePredicateUsefulMarker : public PredicateVisitor {
 // Mark all Parse Predicates 'loop' as useful. If 'loop' represents an outer strip mined loop, we can skip it because
 // we have already processed the predicates before when we visited its counted (inner) loop.
 void EliminateUselessParsePredicates::mark_parse_predicates_useful(IdealLoopTree* loop) {
-  if (loop->can_apply_loop_predication() && !loop->_head->is_OuterStripMinedLoop()) {
+  if (loop->can_apply_loop_predication()) {
     ParsePredicateUsefulMarker useful_marker;
     Node* entry = loop->_head->as_Loop()->skip_strip_mined()->in(LoopNode::EntryControl);
     PredicatesForLoop predicates_for_loop(entry, &useful_marker);
@@ -102,6 +102,7 @@ bool RuntimePredicate::is_success_proj(Node* maybe_success_proj) {
   }
 }
 
+// A Runtime Predicate must have an If or a RangeCheck node, while the If should not be a zero trip guard check.
 bool RuntimePredicate::may_be_runtime_predicate_if(Node* node) {
   if (node->is_IfProj()) {
     const Node* if_node = node->in(0);

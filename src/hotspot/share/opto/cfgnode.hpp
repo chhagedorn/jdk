@@ -25,7 +25,6 @@
 #ifndef SHARE_OPTO_CFGNODE_HPP
 #define SHARE_OPTO_CFGNODE_HPP
 
-#include "opaquenode.hpp"
 #include "opto/multnode.hpp"
 #include "opto/node.hpp"
 #include "opto/opcodes.hpp"
@@ -57,6 +56,7 @@ class       CatchProjNode;
 class     JProjNode;
 class       JumpProjNode;
 class     SCMemProjNode;
+class  OpaqueAssertionPredicateNode;
 class PhaseIdealLoop;
 enum class AssertionPredicateType;
 
@@ -309,12 +309,14 @@ class TemplateAssertionPredicateNode : public Node {
 
   TemplateAssertionPredicateNode(Node* control, BoolNode* bool_init_value, BoolNode* bool_last_value,
                                  int initialized_init_value_opcode, int initialized_last_value_opcode);
-  IfNode* create_initialized_assertion_predicate(Node* control, OpaqueAssertionPredicateNode* opaque_bool,
-                                                 AssertionPredicateType initialized_assertion_predicate_type) const;
 
   void mark_useless() {
     _useless = true;
   }
+
+  IfNode* create_initialized_assertion_predicate(Node* control, OpaqueAssertionPredicateNode* opaque_bool,
+                                                 AssertionPredicateType initialized_assertion_predicate_type) const;
+  uint index_for_bool_input(const BoolNode* bool_input) const;
 
   virtual int Opcode() const;
   virtual bool pinned() const { return true; }
@@ -324,15 +326,6 @@ class TemplateAssertionPredicateNode : public Node {
   virtual const Type* bottom_type() const { return Type::CONTROL; }
   virtual Node* Identity(PhaseGVN* phase);
   virtual const Type* Value(PhaseGVN* phase) const;
-
-  uint index_for_bool_input(const BoolNode* bool_input) const {
-    if (bool_input == in(TemplateAssertionPredicateNode::InitValue)) {
-      return TemplateAssertionPredicateNode::InitValue;
-    } else {
-      assert(bool_input == in(TemplateAssertionPredicateNode::LastValue), "must be a bool input");
-      return TemplateAssertionPredicateNode::LastValue;
-    }
-  }
 
   NOT_PRODUCT(void dump_spec(outputStream* st) const;)
 };
@@ -371,7 +364,7 @@ class IfNode : public MultiBranchNode {
   float _fcnt;                           // Frequency counter
 
  private:
-  AssertionPredicateType _assertion_predicate_type;
+  NOT_PRODUCT(AssertionPredicateType _assertion_predicate_type;)
 
   void init_node(Node* control, Node* bol) {
     init_class_id(Class_If);

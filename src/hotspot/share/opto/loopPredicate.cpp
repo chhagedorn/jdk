@@ -60,8 +60,7 @@ void PhaseIdealLoop::register_control(Node* n, IdealLoopTree *loop, Node* pred, 
   }
 }
 
-//------------------------------create_new_if_for_predicate------------------------
-// create a new if above the uct_if_pattern for the predicate to be promoted.
+// Creates a new if above a Parse Predicate with the same uct_if_pattern:
 //
 //          before                                after
 //        ----------                           ----------
@@ -1003,7 +1002,7 @@ void PhaseIdealLoop::loop_predication_follow_branches(Node *n, IdealLoopTree *lo
 bool PhaseIdealLoop::loop_predication_impl_helper(IdealLoopTree* loop, IfProjNode* if_success_proj,
                                                   ParsePredicateSuccessProj* parse_predicate_proj, CountedLoopNode* cl,
                                                   ConNode* zero, Invariance& invar, Deoptimization::DeoptReason reason) {
-  IfNode* iff  = if_success_proj->in(0)->as_If();
+  IfNode* iff = if_success_proj->in(0)->as_If();
   Node* test = iff->in(1);
   if (!test->is_Bool()) { // Conv2B, ...
     return false;
@@ -1138,15 +1137,12 @@ bool PhaseIdealLoop::loop_predication_impl_helper(IdealLoopTree* loop, IfProjNod
 }
 
 void PhaseIdealLoop::eliminate_old_range_check(IfProjNode* if_proj,
-                                               TemplateAssertionPredicateNode* template_assertion_predicate_node,
+                                               TemplateAssertionPredicateNode* template_assertion_predicate,
                                                const bool range_check_predicate) {
   ConINode* true_con = _igvn.intcon(1);
   set_ctrl(true_con, C->root());
   _igvn.replace_input_of(if_proj->in(0), 1, true_con);
-  // If a range check is eliminated, data dependent nodes (Load and range check CastII nodes) are now dependent on 2
-  // Hoisted Check Predicates (one for the start of the loop, one for the end) but we can only keep track of one control
-  // dependency: pin the data dependent nodes.
-  rewire_safe_outputs_to_dominator(if_proj, template_assertion_predicate_node, range_check_predicate);
+  rewire_safe_outputs_to_dominator(if_proj, template_assertion_predicate, range_check_predicate);
 }
 
 // Insert Hoisted Check Predicates for null checks and range checks and additional Template Assertion Predicates for
@@ -1156,10 +1152,6 @@ bool PhaseIdealLoop::loop_predication_impl(IdealLoopTree* loop) {
 
   if (head->unique_ctrl_out()->is_NeverBranch()) {
     // do nothing for infinite loops
-    return false;
-  }
-
-  if (head->is_OuterStripMinedLoop()) {
     return false;
   }
 
@@ -1358,5 +1350,9 @@ bool IdealLoopTree::loop_predication(PhaseIdealLoop* phase) {
 }
 
 bool IdealLoopTree::can_apply_loop_predication() {
-  return !_head->is_Root() && _head->is_Loop() && !_irreducible && !tail()->is_top();
+  return !_head->is_Root() &&
+         _head->is_Loop() &&
+         !_head->is_OuterStripMinedLoop() &&
+         !_irreducible &&
+         !tail()->is_top();
 }

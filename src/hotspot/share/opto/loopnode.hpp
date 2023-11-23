@@ -1694,7 +1694,7 @@ public:
 
   bool can_move_to_inner_loop(Node* n, LoopNode* n_loop, Node* x);
   void eliminate_old_range_check(IfProjNode* if_proj,
-                                 TemplateAssertionPredicateNode* template_assertion_predicate_node,
+                                 TemplateAssertionPredicateNode* template_assertion_predicate,
                                  bool range_check_predicate);
 };
 

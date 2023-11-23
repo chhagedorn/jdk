@@ -2460,7 +2460,7 @@ void LoopNode::verify_strip_mined(int expect_skeleton) const {
 }
 #endif
 
-// The visitor visits all Template Assertion Predicates and kills them by marking them as useless. They will be removed
+// The visitor visits all Template Assertion Predicates and kills them by marking them useless. They will be removed
 // during next round of IGVN.
 class KillTemplateAssertionPredicates : public PredicateVisitor {
   PhaseIterGVN* _igvn;
@@ -4295,7 +4295,7 @@ void PhaseIdealLoop::eliminate_useless_parse_predicates() {
     return; // no predicates left
   }
 
-  EliminateUselessParsePredicates eliminator( &_igvn, _ltree_root);
+  EliminateUselessParsePredicates eliminator(&_igvn, _ltree_root);
   eliminator.eliminate();
 }
 

@@ -2836,11 +2836,21 @@ IfNode* TemplateAssertionPredicateNode::create_initialized_assertion_predicate(
       create_if_node = _initialized_last_value_opcode == Op_If;
       break;
     default:
-      assert(false, "should not reach");
+      assert(false, "invalid Assertion Predicate type");
   }
   return create_if_node ?
          new IfNode(control, opaque_bool, PROB_MAX, COUNT_UNKNOWN NOT_PRODUCT(COMMA initialized_assertion_predicate_type)) :
          new RangeCheckNode(control, opaque_bool, PROB_MAX, COUNT_UNKNOWN NOT_PRODUCT(COMMA initialized_assertion_predicate_type));
+}
+
+
+uint TemplateAssertionPredicateNode::index_for_bool_input(const BoolNode* bool_input) const {
+  if (bool_input == in(TemplateAssertionPredicateNode::InitValue)) {
+    return TemplateAssertionPredicateNode::InitValue;
+  } else {
+    assert(bool_input == in(TemplateAssertionPredicateNode::LastValue), "must be a bool input");
+    return TemplateAssertionPredicateNode::LastValue;
+  }
 }
 
 Node* TemplateAssertionPredicateNode::Identity(PhaseGVN* phase) {

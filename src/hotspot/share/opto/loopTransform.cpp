@@ -22,7 +22,6 @@
  *
  */
 
-#include "compile.hpp"
 #include "precompiled.hpp"
 #include "compiler/compileLog.hpp"
 #include "gc/shared/barrierSet.hpp"
@@ -693,6 +692,7 @@ void PhaseIdealLoop::peeled_dom_test_elim(IdealLoopTree* loop, Node_List& old_ne
 //             exit
 //
 void PhaseIdealLoop::do_peeling(IdealLoopTree *loop, Node_List &old_new) {
+
   C->set_major_progress();
   // Peeling a 'main' loop in a pre/main/post situation obfuscates the
   // 'pre' loop from the main and the 'pre' can no longer have its
@@ -1615,7 +1615,7 @@ void PhaseIdealLoop::insert_vector_post_loop(IdealLoopTree *loop, Node_List &old
 
 //------------------------------insert_post_loop-------------------------------
 // Insert post loops.  Add a post loop to the given loop passed.
-Node *PhaseIdealLoop::insert_post_loop(IdealLoopTree* loop, Node_List& old_new, CountedLoopNode* main_head,
+Node* PhaseIdealLoop::insert_post_loop(IdealLoopTree* loop, Node_List& old_new, CountedLoopNode* main_head,
                                        CountedLoopEndNode* main_end, CountedLoopNode*& post_head) {
   IfNode* outer_main_end = main_end;
   IdealLoopTree* outer_loop = loop;
