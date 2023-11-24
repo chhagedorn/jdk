@@ -480,9 +480,9 @@ class CloneTemplateAssertionPredicateBoolDown {
   void clone_template_assertion_predicate_bool_and_replace(TemplateAssertionPredicateNode* template_assertion_predicate,
                                                            BoolNode* template_assertion_predicate_bool_node) {
     Node* new_ctrl = template_assertion_predicate->in(0);
-    const uint bool_index = template_assertion_predicate->index_for_bool_input(template_assertion_predicate_bool_node);
     TemplateAssertionPredicateBool template_assertion_predicate_bool(template_assertion_predicate_bool_node);
     BoolNode* cloned_bool = template_assertion_predicate_bool.clone(new_ctrl, _phase);
+    const uint bool_index = template_assertion_predicate->index_for_bool_input(template_assertion_predicate_bool_node);
     _phase->igvn().replace_input_of(template_assertion_predicate, bool_index, cloned_bool);
   }
 

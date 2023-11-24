@@ -1375,7 +1375,7 @@ public:
   // Create a slow version of the loop by cloning the loop
   // and inserting an if to select fast-slow versions.
   // Return the inserted if.
-  IfNode* create_slow_version_of_loop(IdealLoopTree* loop, Node_List &old_new, IfNode* unswitching_candidate);
+  IfNode* create_slow_version_of_loop(IdealLoopTree* loop, Node_List& old_new, IfNode* unswitching_candidate);
 
   // Clone loop with an invariant test (that does not exit) and
   // insert a clone of the test that selects which version to

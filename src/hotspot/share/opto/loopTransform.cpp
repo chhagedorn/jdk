@@ -2447,9 +2447,9 @@ void PhaseIdealLoop::do_range_check(IdealLoopTree *loop, Node_List &old_new) {
   }
 
   // Need to find the main-loop zero-trip guard
-  Node *ctrl = cl->skip_assertion_predicates();
-  Node *iffm = ctrl->in(0);
-  Node *opqzm = iffm->in(1)->in(1)->in(2);
+  Node* ctrl = cl->skip_assertion_predicates();
+  Node* iffm = ctrl->in(0);
+  Node* opqzm = iffm->in(1)->in(1)->in(2);
   assert(opqzm->in(1) == main_limit, "do not understand situation");
 
   // Find the pre-loop limit; we will expand its iterations to

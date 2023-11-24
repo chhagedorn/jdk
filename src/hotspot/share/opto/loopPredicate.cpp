@@ -95,7 +95,7 @@ void PhaseIdealLoop::register_control(Node* n, IdealLoopTree *loop, Node* pred, 
 // The continuation projection (if_cont) of the new_iff is returned which
 // is an IfTrue projection.
 IfTrueNode* PhaseIdealLoop::create_new_if_for_predicate(ParsePredicateSuccessProj* parse_predicate_success_proj,
-                                                        Node* new_entry, Deoptimization::DeoptReason reason,
+                                                        Node* new_entry, const Deoptimization::DeoptReason reason,
                                                         const int opcode, const bool rewire_uncommon_proj_phi_inputs) {
   assert(parse_predicate_success_proj->is_uncommon_trap_if_pattern(reason), "must be a uct if pattern!");
   ParsePredicateNode* parse_predicate = parse_predicate_success_proj->in(0)->as_ParsePredicate();

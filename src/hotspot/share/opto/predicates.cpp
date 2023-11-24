@@ -26,7 +26,6 @@
 #include "opto/addnode.hpp"
 #include "opto/callnode.hpp"
 #include "opto/castnode.hpp"
-#include "opto/opaquenode.hpp"
 #include "opto/predicates.hpp"
 #include "opto/rootnode.hpp"
 
@@ -322,13 +321,6 @@ TemplateAssertionPredicateBool::TemplateAssertionPredicateBool(Node* source_bool
   }
 #endif // ASSERT
 }
-
-// Visitor to visit an OpaqueLoopStride node of a Template Assertion Predicate bool.
-class OpaqueLoopStrideVisitor : public StackObj {
- public:
-  virtual void visit(OpaqueLoopStrideNode* opaque_stride) = 0;
-};
-
 
 // Stack used when performing DFS on Template Assertion Predicate bools. The DFS traversal visits non-CFG inputs of a
 // node in increasing node index order (i.e. first visiting the input node at index 1). Each time a new node is visited,
@@ -629,6 +621,12 @@ BoolNode* TemplateAssertionPredicateBool::clone_and_fold_opaque_loop_nodes(Node*
   return clone_assertion_predicate_bool.clone(&remove_opaque_loop_nodes);
 }
 
+// Visitor to visit an OpaqueLoopStride node of a Template Assertion Predicate bool.
+class OpaqueLoopStrideVisitor : public StackObj {
+ public:
+  virtual void visit(OpaqueLoopStrideNode* opaque_stride) = 0;
+};
+
 // This visitor replaces the input of OpaqueLoopStride nodes in Template Assertion Predicate bools with a new node.
 class ReplaceOpaqueStrideInput : public OpaqueLoopStrideVisitor {
   PhaseIterGVN* _igvn;
@@ -651,16 +649,16 @@ class OpaqueLoopStrideNodes : public StackObj {
  public:
   OpaqueLoopStrideNodes(BoolNode* template_bool) : _stack(template_bool) {}
 
-  void findAndVisit(OpaqueLoopStrideVisitor* action) {
+  void findAndVisit(OpaqueLoopStrideVisitor* visitor) {
     while (_stack.is_not_empty()) {
       Node* current = _stack.top();
       if (current->is_OpaqueLoopStride()) {
-        action->visit(current->as_OpaqueLoopStride());
+        visitor->visit(current->as_OpaqueLoopStride());
         _stack.pop();
       } else if (!_stack.push_next_unvisited_input()) {
         _stack.pop();
       }
-    };
+    }
   }
 };
 

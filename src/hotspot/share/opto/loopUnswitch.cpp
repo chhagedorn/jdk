@@ -85,10 +85,10 @@ bool IdealLoopTree::policy_unswitching( PhaseIdealLoop *phase ) const {
 
 // Find invariant test in loop body that does not exit the loop. If multiple are found, we pick the first one in the
 // loop body. Return the candidate "if" for unswitching.
-IfNode* PhaseIdealLoop::find_unswitching_candidate(const IdealLoopTree *loop) const {
+IfNode* PhaseIdealLoop::find_unswitching_candidate(const IdealLoopTree* loop) const {
 
   // Find first invariant test that doesn't exit the loop
-  LoopNode *head = loop->_head->as_Loop();
+  LoopNode* head = loop->_head->as_Loop();
   IfNode* unswitching_candidate = nullptr;
   Node* n = head->in(LoopNode::LoopBackControl);
   while (n != head) {
@@ -224,7 +224,8 @@ class NewFastLoopParsePredicate : public NewParsePredicate {
 // Class to create a new Parse Predicate for the slow loop.
 class NewSlowLoopParsePredicate : public NewParsePredicate {
  public:
-  ParsePredicateSuccessProj* create(PhaseIdealLoop* phase, Node* new_entry, ParsePredicateSuccessProj* old_parse_predicate_success_proj) override {
+  ParsePredicateSuccessProj* create(PhaseIdealLoop* phase, Node* new_entry,
+                                    ParsePredicateSuccessProj* old_parse_predicate_success_proj) override {
     ParsePredicateNode* parse_predicate = old_parse_predicate_success_proj->in(0)->as_ParsePredicate();
 #ifndef PRODUCT
     if (TraceLoopPredicate) {
@@ -393,8 +394,8 @@ class ClonePredicates : public PredicateVisitor {
   // Check if the original loop entry has any outside the loop body non-CFG dependencies. If that is the case, we cannot
   // clone the Parse Predicates for the following reason:
   //
-  // When peeling or partial peeling a loop, we could have non-CFG nodes N being pinned on some CFG nodes in the peeled
-  // section. If all CFG nodes in the peeled section are folded in the next IGVN phase, then the pinned non-CFG nodes N
+  // When peeling or partial peeling a loop, we could have non-CFG nodes Nx being pinned on some CFG nodes in the peeled
+  // section. If all CFG nodes in the peeled section are folded in the next IGVN phase, then the pinned non-CFG nodes Nx
   // end up at the loop entry of the original loop. If we still find Parse Predicates at that point (i.e. not decided to
   // remove all Parse Predicates and give up on further Loop Predication, yet), then these Parse Predicates can be cloned
   // to the fast and slow loop when unswitching this loop at some point:
@@ -410,15 +411,15 @@ class ClonePredicates : public PredicateVisitor {
   // This allows some more checks to be hoisted out of the fast and slow loop (i.e. creating Hoisted Check Predicates
   // between the loop head and the Unswitch If). If one of these new Hoisted Check Predicates fail at runtime, we
   // deoptimize and jump to the start of the loop in the interpreter, assuming that no statement was executed in the loop
-  // body, yet. However, the pinned statements N (N1, N2 in the figure above) could have already been executed with
-  // potentially visible side effects (i.e. storing a field). This is wrong. To fix that, we must move these pinned
-  // non-CFG nodes BELOW the Hoisted Check Predicates of the unswitched loops. This is done for nodes being part of the
-  // fast and slow loop body (i.e. part of the original loop to be unswitched). But we could also have non-CFG nodes that
-  // are not part of the loop body (i.e. only part of the originally peeled section). To force such a node to be executed
-  // after the newly created Hoisted Check Predicates of the fast/slow loop, we would need to clone it such that we can
-  // move the original node to the fast loop and the clone to the slow loop (or vice versa).to the slow and the fast loop.
-  // This, however, is not supported (yet). Therefore, we cannot clone the Parse Predicates to the fast and slow loop in
-  // this case.
+  // body, yet. However, the pinned statements Nx (N1, N2 in the figure above) originally belonging to the loop body
+  // could have already been executed with potentially visible side effects (i.e. storing a field). This is wrong.
+  // To fix that, we must move these pinned non-CFG nodes BELOW the Hoisted Check Predicates of the unswitched loops.
+  // This is done for nodes being part of the fast and slow loop body (i.e. part of the original loop to be unswitched).
+  // But we could also have non-CFG nodes that are not part of the current loop body anymore (i.e. only part of the
+  // originally peeled section). To force such a node to be executed after the newly created Hoisted Check Predicates
+  // of the fast/slow loop, we would need to clone it such that we can move the original node to the fast loop and the
+  // clone to the slow loop (or vice versa). This, however, is not supported (yet). Therefore, we cannot clone the
+  // Parse Predicates to the fast and slow loop to hoist additional checks from their loop bodies.
   static bool has_loop_entry_no_outside_loop_dependencies(Node* original_loop_entry, uint first_slow_loop_node_index) {
     const uint entry_outcnt = original_loop_entry->outcnt();
     assert(entry_outcnt >= 1, "must have at least unswitch If, fast, and slow loop head after cloning the loop");
@@ -480,6 +481,27 @@ class OriginalLoop {
   Node_List* _old_new;
   PhaseIdealLoop* _phase;
 
+  void fix_loop_entries(const UnswitchedLoopSelector& unswitched_loop_selector) {
+    _phase->replace_loop_entry(_strip_mined_loop_head, unswitched_loop_selector.fast_loop_proj());
+    LoopNode* slow_loop_strip_mined_head = _old_new->at(_strip_mined_loop_head->_idx)->as_Loop();
+    _phase->replace_loop_entry(slow_loop_strip_mined_head, unswitched_loop_selector.slow_loop_proj());
+  }
+
+#ifdef ASSERT
+  static void verify_unswitched_loops(LoopNode* fast_loop_head, UnswitchedLoopSelector& unswitched_loop_selector,
+                                      Node_List* old_new) {
+    verify_unswitched_loop(fast_loop_head, unswitched_loop_selector.fast_loop_proj());
+    verify_unswitched_loop(old_new->at(fast_loop_head->_idx)->as_Loop(), unswitched_loop_selector.slow_loop_proj());
+  }
+
+  static void verify_unswitched_loop(LoopNode* loop_head, IfProjNode* loop_selector_if_proj) {
+    Node* entry = loop_head->skip_strip_mined()->in(LoopNode::EntryControl);
+    Predicates predicates(entry);
+    // When skipping all predicates, we should end up at 'loop_selector_if_proj'.
+    assert(loop_selector_if_proj == predicates.entry(), "should end up at selector if");
+  }
+#endif // ASSERT
+
  public:
   OriginalLoop(IdealLoopTree* loop, Node_List* old_new)
       : _loop_head(loop->_head->as_Loop()),
@@ -505,27 +527,6 @@ class OriginalLoop {
     DEBUG_ONLY(verify_unswitched_loops(_loop_head, unswitched_loop_selector, _old_new);)
     return loop_selector_if;
   }
-
-  void fix_loop_entries(const UnswitchedLoopSelector& unswitched_loop_selector) {
-    _phase->replace_loop_entry(_strip_mined_loop_head, unswitched_loop_selector.fast_loop_proj());
-    LoopNode* slow_loop_strip_mined_head = _old_new->at(_strip_mined_loop_head->_idx)->as_Loop();
-    _phase->replace_loop_entry(slow_loop_strip_mined_head, unswitched_loop_selector.slow_loop_proj());
-  }
-
-#ifdef ASSERT
-  static void verify_unswitched_loops(LoopNode* fast_loop_head, UnswitchedLoopSelector& unswitched_loop_selector,
-                                      Node_List* old_new) {
-    verify_unswitched_loop(fast_loop_head, unswitched_loop_selector.fast_loop_proj());
-    verify_unswitched_loop(old_new->at(fast_loop_head->_idx)->as_Loop(), unswitched_loop_selector.slow_loop_proj());
-  }
-
-  static void verify_unswitched_loop(LoopNode* loop_head, IfProjNode* loop_selector_if_proj) {
-    Node* entry = loop_head->skip_strip_mined()->in(LoopNode::EntryControl);
-    Predicates predicates(entry);
-    // When skipping all predicates, we should end up at 'loop_selector_if_proj'.
-    assert(loop_selector_if_proj == predicates.entry(), "should end up at selector if");
-  }
-#endif // ASSERT
 };
 
 // Create a slow version of the loop by cloning the loop and inserting an If to select the fast or slow version.
