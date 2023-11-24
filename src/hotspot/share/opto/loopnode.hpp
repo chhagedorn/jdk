@@ -1347,6 +1347,11 @@ public:
  public:
   void register_control(Node* n, IdealLoopTree *loop, Node* pred, bool update_body = true);
 
+  void replace_loop_entry(LoopNode* loop_head, Node* new_entry) {
+    _igvn.replace_input_of(loop_head, LoopNode::EntryControl, new_entry);
+    set_idom(loop_head, new_entry, dom_depth(new_entry));
+  }
+
   // Construct a range check for a predicate if
   BoolNode* rc_predicate(IdealLoopTree* loop, Node* ctrl, int scale, Node* offset, Node* init, Node* limit,
                          jint stride, Node* range, bool upper, bool& overflow);
@@ -1386,8 +1391,7 @@ public:
 
   void eliminate_useless_zero_trip_guard();
 
-  bool has_control_dependencies_from_predicates(LoopNode* head) const;
-  void verify_fast_loop(LoopNode* head, const ProjNode* proj_true) const NOT_DEBUG_RETURN;
+  static bool has_control_dependencies_from_predicates(LoopNode* head);
  public:
   // Change the control input of expensive nodes to allow commoning by
   // IGVN when it is guaranteed to not result in a more frequent
@@ -1405,18 +1409,15 @@ public:
   // Create a slow version of the loop by cloning the loop
   // and inserting an if to select fast-slow versions.
   // Return the inserted if.
-  IfNode* create_slow_version_of_loop(IdealLoopTree *loop,
-                                        Node_List &old_new,
-                                        IfNode* unswitch_iff,
-                                        CloneLoopMode mode);
+  IfNode* create_slow_version_of_loop(IdealLoopTree* loop, Node_List& old_new, IfNode* unswitch_iff);
 
   // Clone loop with an invariant test (that does not exit) and
   // insert a clone of the test that selects which version to
   // execute.
-  void do_unswitching (IdealLoopTree *loop, Node_List &old_new);
+  void do_unswitching(IdealLoopTree* loop, Node_List& old_new);
 
   // Find candidate "if" for unswitching
-  IfNode* find_unswitching_candidate(const IdealLoopTree *loop) const;
+  IfNode* find_unswitching_candidate(const IdealLoopTree* loop) const;
 
   // Range Check Elimination uses this function!
   // Constrain the main loop iterations so the affine function:
@@ -1615,9 +1616,11 @@ private:
     _nodes_required = UINT_MAX;
   }
 
+ public:
   // Clone Parse Predicates to slow and fast loop when unswitching a loop
   void clone_parse_and_assertion_predicates_to_unswitched_loop(IdealLoopTree* loop, Node_List& old_new,
                                                                IfProjNode*& iffast_pred, IfProjNode*& ifslow_pred);
+ private:
   void clone_loop_predication_predicates_to_unswitched_loop(IdealLoopTree* loop, const Node_List& old_new,
                                                             const PredicateBlock* predicate_block,
                                                             Deoptimization::DeoptReason reason, IfProjNode*& iffast_pred,
