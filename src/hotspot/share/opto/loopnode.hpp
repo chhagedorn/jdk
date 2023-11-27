@@ -1330,7 +1330,7 @@ public:
                                       bool* p_short_scale, int depth);
 
   // Create a new if above the uncommon_trap_if_pattern for the predicate to be promoted
-  IfProjNode* create_new_if_for_predicate(ParsePredicateSuccessProj* parse_predicate_proj, Node* new_entry,
+  IfTrueNode* create_new_if_for_predicate(ParsePredicateSuccessProj* parse_predicate_success_proj, Node* new_entry,
                                           Deoptimization::DeoptReason reason, int opcode,
                                           bool rewire_uncommon_proj_phi_inputs = false);
 
@@ -1353,8 +1353,8 @@ public:
   }
 
   // Construct a range check for a predicate if
-  BoolNode* rc_predicate(IdealLoopTree* loop, Node* ctrl, int scale, Node* offset, Node* init, Node* limit,
-                         jint stride, Node* range, bool upper, bool& overflow);
+  BoolNode* rc_predicate(Node* ctrl, int scale, Node* offset, Node* init, Node* limit, jint stride, Node* range,
+                         bool upper, bool& overflow);
 
   // Implementation of the loop predication to promote checks outside the loop
   bool loop_predication_impl(IdealLoopTree *loop);
@@ -1409,7 +1409,7 @@ public:
   // Create a slow version of the loop by cloning the loop
   // and inserting an if to select fast-slow versions.
   // Return the inserted if.
-  IfNode* create_slow_version_of_loop(IdealLoopTree* loop, Node_List& old_new, IfNode* unswitch_iff);
+  IfNode* create_slow_version_of_loop(IdealLoopTree* loop, Node_List& old_new, IfNode* unswitching_candidate);
 
   // Clone loop with an invariant test (that does not exit) and
   // insert a clone of the test that selects which version to
