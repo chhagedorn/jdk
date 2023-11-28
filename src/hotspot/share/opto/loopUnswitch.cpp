@@ -139,8 +139,8 @@ void PhaseIdealLoop::do_unswitching(IdealLoopTree* loop, Node_List& old_new) {
     head->as_CountedLoop()->set_normal_loop();
   }
 
-  IfNode* loop_selector_if = create_slow_version_of_loop(loop, old_new, unswitching_candidate);
-  IfTrueNode* loop_selector_fast_loop_proj = loop_selector_if->proj_out(1)->as_IfTrue();
+  IfNode* loop_selector = create_slow_version_of_loop(loop, old_new, unswitching_candidate);
+  IfTrueNode* loop_selector_fast_loop_proj = loop_selector->proj_out(1)->as_IfTrue();
 
   // Increment unswitch count
   LoopNode* head_clone = old_new[head->_idx]->as_Loop();
@@ -161,7 +161,7 @@ void PhaseIdealLoop::do_unswitching(IdealLoopTree* loop, Node_List& old_new) {
         worklist.push(use);
       }
     }
-    IfProjNode* loop_selector_if_proj = loop_selector_if->proj_out(proj->_con)->as_IfProj();
+    IfProjNode* loop_selector_if_proj = loop_selector->proj_out(proj->_con)->as_IfProj();
     while (worklist.size() > 0) {
       Node* use = worklist.pop();
       Node* nuse = use->clone();
@@ -180,7 +180,7 @@ void PhaseIdealLoop::do_unswitching(IdealLoopTree* loop, Node_List& old_new) {
 
   IfNode* unswitching_candidate_clone = old_new[unswitching_candidate->_idx]->as_If();
   _igvn.rehash_node_delayed(unswitching_candidate_clone);
-  IfFalseNode* loop_selector_slow_loop_proj = loop_selector_if->proj_out(0)->as_IfFalse();
+  IfFalseNode* loop_selector_slow_loop_proj = loop_selector->proj_out(0)->as_IfFalse();
   dominated_by(loop_selector_slow_loop_proj, unswitching_candidate_clone);
 
   // Reoptimize loops
@@ -244,7 +244,7 @@ class UnswitchedLoopSelector {
   IdealLoopTree* _outer_loop;
   Node* _original_loop_entry;
   uint _dom_depth;
-  IfNode* _selector_if;
+  IfNode* _selector;
   IfTrueNode* _fast_loop_proj;
   IfFalseNode* _slow_loop_proj;
 
@@ -263,14 +263,14 @@ class UnswitchedLoopSelector {
   }
 
   IfTrueNode* create_fast_loop_proj() {
-    IfTrueNode* fast_loop_proj = new IfTrueNode(_selector_if);
-    _phase->register_node(fast_loop_proj, _outer_loop, _selector_if, _dom_depth);
+    IfTrueNode* fast_loop_proj = new IfTrueNode(_selector);
+    _phase->register_node(fast_loop_proj, _outer_loop, _selector, _dom_depth);
     return fast_loop_proj;
   }
 
   IfFalseNode* create_slow_loop_proj() {
-    IfFalseNode* slow_loop_proj = new IfFalseNode(_selector_if);
-    _phase->register_node(slow_loop_proj, _outer_loop, _selector_if, _dom_depth);
+    IfFalseNode* slow_loop_proj = new IfFalseNode(_selector);
+    _phase->register_node(slow_loop_proj, _outer_loop, _selector, _dom_depth);
     return slow_loop_proj;
   }
 
@@ -280,7 +280,7 @@ class UnswitchedLoopSelector {
         _outer_loop(loop->_head->as_Loop()->is_strip_mined() ? loop->_parent->_parent : loop->_parent),
         _original_loop_entry(loop->_head->as_Loop()->skip_strip_mined()->in(LoopNode::EntryControl)),
         _dom_depth(_phase->dom_depth(_original_loop_entry)),
-        _selector_if(create_selector_if(loop, unswitch_if_candidate)),
+        _selector(create_selector_if(loop, unswitch_if_candidate)),
         _fast_loop_proj(create_fast_loop_proj()),
         _slow_loop_proj(create_slow_loop_proj()) {}
 
@@ -289,11 +289,11 @@ class UnswitchedLoopSelector {
   }
 
   Node* entry() const {
-    return _selector_if->in(0);
+    return _selector->in(0);
   }
 
-  IfNode* selector_if() const {
-    return _selector_if;
+  IfNode* selector() const {
+    return _selector;
   }
 
   IfTrueNode* fast_loop_proj() const {
@@ -514,10 +514,10 @@ class OriginalLoop {
   // Unswitch on the invariant unswitching candidate If. Return the new if which switches between the slow and fast loop.
   IfNode* unswitch(IfNode* unswitching_candidate) {
     UnswitchedLoopSelector unswitched_loop_selector(unswitching_candidate, _loop);
-    IfNode* loop_selector_if = unswitched_loop_selector.selector_if();
+    IfNode* loop_selector = unswitched_loop_selector.selector();
     const uint first_slow_loop_node_index = _phase->C->unique();
     _phase->clone_loop(_loop, *_old_new, _phase->dom_depth(_loop_head),
-                       PhaseIdealLoop::CloneIncludesStripMined, loop_selector_if);
+                       PhaseIdealLoop::CloneIncludesStripMined, loop_selector);
     fix_loop_entries(unswitched_loop_selector);
 
     ClonePredicates clone_predicates(unswitched_loop_selector, _strip_mined_loop_head, first_slow_loop_node_index,
@@ -525,7 +525,7 @@ class OriginalLoop {
     PredicatesForLoop predicates_for_loop(unswitched_loop_selector.entry(), &clone_predicates);
     predicates_for_loop.for_each();
     DEBUG_ONLY(verify_unswitched_loops(_loop_head, unswitched_loop_selector, _old_new);)
-    return loop_selector_if;
+    return loop_selector;
   }
 };
 
@@ -534,7 +534,7 @@ class OriginalLoop {
 IfNode* PhaseIdealLoop::create_slow_version_of_loop(IdealLoopTree* loop, Node_List& old_new,
                                                     IfNode* unswitching_candidate) {
   OriginalLoop original_loop(loop, &old_new);
-  IfNode* loop_selector_if = original_loop.unswitch(unswitching_candidate);
+  IfNode* loop_selector = original_loop.unswitch(unswitching_candidate);
   recompute_dom_depth();
-  return loop_selector_if;
+  return loop_selector;
 }

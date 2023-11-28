@@ -384,12 +384,17 @@ class AssertionPredicates : public StackObj {
   void update(int new_stride_con);
 };
 
-// Utility class for querying Assertion Predicate bool opcodes.
-class AssertionPredicateBoolOpcodes : public StackObj {
+// A Template Assertion Predicate Bool represents the BoolNode for the initial value or the last value of a
+// Template Assertion Predicate and all the nodes up to and including the OpaqueLoop* nodes.
+class TemplateAssertionPredicateBool : public StackObj {
+  BoolNode* _source_bool;
+
  public:
-  // Is 'n' a node that could be part of an Assertion Predicate bool (i.e. could be found on the input chain of an
-  // Assertion Predicate bool up to and including the OpaqueLoop* nodes)?
-  static bool is_valid(const Node* n) {
+  explicit TemplateAssertionPredicateBool(Node* source_bool);
+
+  // Is 'n' a node that could be part of a Template Assertion Predicate Bool (i.e. could be found on the input chain of
+  // a Template Assertion Predicate BoolNode up to and including the OpaqueLoop* nodes)?
+  static bool could_be_part(const Node* n) {
     const int opcode = n->Opcode();
     return (opcode == Op_OpaqueLoopInit ||
             opcode == Op_OpaqueLoopStride ||
@@ -409,14 +414,6 @@ class AssertionPredicateBoolOpcodes : public StackObj {
             opcode == Op_ConvI2L ||
             opcode == Op_CastII);
   }
-};
-
-// Class that represents either the BoolNode for the initial value or the last value of a Template Assertion Predicate.
-class TemplateAssertionPredicateBool : public StackObj {
-  BoolNode* _source_bool;
-
- public:
-  explicit TemplateAssertionPredicateBool(Node* source_bool);
 
   // The last value bool could already be a constant (i.e. dead) when the CastII node between the Template Assertion
   // Predicate and the OpaqueLoop* nodes was replaced by a constant. In this case, _source_bool is null.

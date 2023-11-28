@@ -131,9 +131,9 @@ class Opaque4Node : public Node {
   virtual const Type* Value(PhaseGVN* phase) const;
 };
 
-// This node is used for Initialized Assertion Predicate bool nodes. Initialized Assertion Predicates must always evaluate
-// to true. Therefore, we get rid of them in product builds as they are useless. In debug builds we keep them as additional
-// verification code (i.e. removing this node and use the BoolNode input instead).
+// This node is used for Initialized Assertion Predicate BoolNodes. Initialized Assertion Predicates must always evaluate
+// to true. Therefore, we get rid of them in product builds as they are useless. In debug builds we keep them as
+// additional verification code (i.e. removing this node and use the BoolNode input instead).
 class OpaqueAssertionPredicateNode : public Node {
  public:
   OpaqueAssertionPredicateNode(BoolNode* bol) : Node(nullptr, bol) {}
