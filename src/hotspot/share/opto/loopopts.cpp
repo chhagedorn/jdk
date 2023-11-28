@@ -305,7 +305,7 @@ bool PhaseIdealLoop::loop_phi_backedge_type_contains_zero(const Node* phi_diviso
 // Replace the dominated test with an obvious true or false.  Place it on the
 // IGVN worklist for later cleanup.  Move control-dependent data Nodes on the
 // live path up to the dominating control.
-void PhaseIdealLoop::dominated_by(IfProjNode* prevdom, IfNode* iff, bool flip, bool exclude_loop_predicate) {
+void PhaseIdealLoop::dominated_by(IfProjNode* prevdom, IfNode* iff, bool flip, bool exclude_predicates) {
   if (VerifyLoopOptimizations && PrintOpto) { tty->print_cr("dominating test"); }
 
   // prevdom is the dominating projection of the dominating test.
@@ -349,7 +349,7 @@ void PhaseIdealLoop::dominated_by(IfProjNode* prevdom, IfNode* iff, bool flip, b
 
   ProjNode* dp_proj  = dp->as_Proj();
   ProjNode* unc_proj = iff->proj_out(1 - dp_proj->_con)->as_Proj();
-  if (exclude_loop_predicate &&
+  if (exclude_predicates &&
       (unc_proj->is_uncommon_trap_proj(Deoptimization::Reason_predicate) != nullptr ||
        unc_proj->is_uncommon_trap_proj(Deoptimization::Reason_profile_predicate) != nullptr ||
        unc_proj->is_uncommon_trap_proj(Deoptimization::Reason_range_check) != nullptr)) {
@@ -359,22 +359,26 @@ void PhaseIdealLoop::dominated_by(IfProjNode* prevdom, IfNode* iff, bool flip, b
     return; // Let IGVN transformation change control dependence.
   }
 
-  IdealLoopTree* old_loop = get_loop(dp);
+  rewire_safe_outputs_to_dominator(dp, prevdom);
+}
 
-  for (DUIterator_Fast imax, i = dp->fast_outs(imax); i < imax; i++) {
-    Node* cd = dp->fast_out(i); // Control-dependent node
+void PhaseIdealLoop::rewire_safe_outputs_to_dominator(Node* source, Node* dominator) {
+  IdealLoopTree* old_loop = get_loop(source);
+
+  for (DUIterator_Fast imax, i = source->fast_outs(imax); i < imax; i++) {
+    Node* out = source->fast_out(i); // Control-dependent node
     // Do not rewire Div and Mod nodes which could have a zero divisor to avoid skipping their zero check.
-    if (cd->depends_only_on_test() && _igvn.no_dependent_zero_check(cd)) {
-      assert(cd->in(0) == dp, "");
-      _igvn.replace_input_of(cd, 0, prevdom);
-      set_early_ctrl(cd, false);
-      IdealLoopTree* new_loop = get_loop(get_ctrl(cd));
+    if (out->depends_only_on_test() && _igvn.no_dependent_zero_check(out)) {
+      assert(out->in(0) == source, "must be control dependent on source");
+      _igvn.replace_input_of(out, 0, dominator);
+      set_early_ctrl(out, false);
+      IdealLoopTree* new_loop = get_loop(get_ctrl(out));
       if (old_loop != new_loop) {
         if (!old_loop->_child) {
-          old_loop->_body.yank(cd);
+          old_loop->_body.yank(out);
         }
         if (!new_loop->_child) {
-          new_loop->_body.push(cd);
+          new_loop->_body.push(out);
         }
       }
       --i;
@@ -774,9 +778,6 @@ Node *PhaseIdealLoop::conditional_move( Node *region ) {
     }
   }//for
   Node* bol = iff->in(1);
-  if (bol->Opcode() == Op_Opaque4) {
-    return nullptr; // Ignore loop predicate checks (the Opaque4 ensures they will go away)
-  }
   assert(bol->Opcode() == Op_Bool, "Unexpected node");
   int cmp_op = bol->in(1)->Opcode();
   if (cmp_op == Op_SubTypeCheck) { // SubTypeCheck expansion expects an IfNode
@@ -1652,6 +1653,7 @@ void PhaseIdealLoop::try_sink_out_of_loop(Node* n) {
       !n->is_MergeMem() &&
       !n->is_CMove() &&
       n->Opcode() != Op_Opaque4 &&
+      n->Opcode() != Op_OpaqueAssertionPredicate &&
       !n->is_Type()) {
     Node *n_ctrl = get_ctrl(n);
     IdealLoopTree *n_loop = get_loop(n_ctrl);
@@ -1946,14 +1948,14 @@ Node* PhaseIdealLoop::clone_iff(PhiNode* phi) {
     if (b->is_Phi()) {
       _igvn.replace_input_of(phi, i, clone_iff(b->as_Phi()));
     } else {
-      assert(b->is_Bool() || b->Opcode() == Op_Opaque4, "");
+      assert(b->is_Bool() || b->Opcode() == Op_Opaque4 || b->Opcode() == Op_OpaqueAssertionPredicate, "");
     }
   }
 
   Node* n = phi->in(1);
   Node* sample_opaque = nullptr;
   Node *sample_bool = nullptr;
-  if (n->Opcode() == Op_Opaque4) {
+  if (n->Opcode() == Op_Opaque4 || n->Opcode() == Op_OpaqueAssertionPredicate) {
     sample_opaque = n;
     sample_bool = n->in(1);
     assert(sample_bool->is_Bool(), "wrong type");

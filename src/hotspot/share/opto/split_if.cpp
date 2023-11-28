@@ -322,7 +322,7 @@ bool PhaseIdealLoop::clone_cmp_down(Node* n, const Node* blk1, const Node* blk2)
           assert( bol->is_Bool(), "" );
           if (bol->outcnt() == 1) {
             Node* use = bol->unique_out();
-            if (use->Opcode() == Op_Opaque4) {
+            if (use->Opcode() == Op_Opaque4 || use->Opcode() == Op_OpaqueAssertionPredicate) {
               if (use->outcnt() == 1) {
                 Node* iff = use->unique_out();
                 assert(iff->is_If(), "unexpected node type");
@@ -333,8 +333,9 @@ bool PhaseIdealLoop::clone_cmp_down(Node* n, const Node* blk1, const Node* blk2)
               }
             } else {
               // We might see an Opaque1 from a loop limit check here
-              assert(use->is_If() || use->is_CMove() || use->Opcode() == Op_Opaque1 || use->is_AllocateArray(), "unexpected node type");
-              Node *use_c = (use->is_If() || use->is_AllocateArray()) ? use->in(0) : get_ctrl(use);
+              bool is_control_use = use->is_If() || use->is_AllocateArray() || use->is_TemplateAssertionPredicate();
+              assert(is_control_use || use->is_CMove() || use->Opcode() == Op_Opaque1, "unexpected node type");
+              Node *use_c = (is_control_use) ? use->in(0) : get_ctrl(use);
               if (use_c == blk1 || use_c == blk2) {
                 assert(use->is_CMove(), "unexpected node type");
                 continue;
@@ -352,7 +353,20 @@ bool PhaseIdealLoop::clone_cmp_down(Node* n, const Node* blk1, const Node* blk2)
             for (DUIterator j = bol->outs(); bol->has_out(j); j++) {
               Node* u = bol->out(j);
               // Uses are either IfNodes, CMoves or Opaque4
-              if (u->Opcode() == Op_Opaque4) {
+              if (u->is_TemplateAssertionPredicate()) {
+                TemplateAssertionPredicateNode* template_assertion_predicate = u->as_TemplateAssertionPredicate();
+                assert(bol->outcnt() == 1, "must be unique");
+                Node* cloned_bool = bol->clone();
+                uint template_bool_input;
+                if (template_assertion_predicate->in(TemplateAssertionPredicateNode::InitValue) == bol) {
+                  template_bool_input = TemplateAssertionPredicateNode::InitValue;
+                } else {
+                  template_bool_input = TemplateAssertionPredicateNode::LastValue;
+                }
+                register_new_node(cloned_bool, template_assertion_predicate);
+                _igvn.replace_input_of(template_assertion_predicate, template_bool_input, cloned_bool);
+                --j;
+              } else if (u->Opcode() == Op_Opaque4 || u->Opcode() == Op_OpaqueAssertionPredicate) {
                 assert(u->in(1) == bol, "bad input");
                 for (DUIterator_Last kmin, k = u->last_outs(kmin); k >= kmin; --k) {
                   Node* iff = u->last_out(k);
@@ -454,8 +468,8 @@ class CloneTemplateAssertionPredicateBoolDown {
 
     for (uint i = 0; i < list.size(); i++) {
       Node* next = list.at(i);
-      if (is_template_assertion_predicate(next)) {
-        clone_template_assertion_predicate_bool_and_replace(next);
+      if (next->is_TemplateAssertionPredicate()) {
+        clone_template_assertion_predicate_bool_and_replace(next->as_TemplateAssertionPredicate(), n->as_Bool());
       } else {
         assert(!next->is_CFG(), "no CFG expected in Template Assertion Predicate bool outputs");
         push_outputs(list, next);
@@ -463,16 +477,13 @@ class CloneTemplateAssertionPredicateBoolDown {
     }
   }
 
-  static bool is_template_assertion_predicate(Node* n) {
-    return n->is_If() && n->in(1)->Opcode() == Op_Opaque4;
-  }
-
-  void clone_template_assertion_predicate_bool_and_replace(Node* template_assertion_predicate) {
+  void clone_template_assertion_predicate_bool_and_replace(TemplateAssertionPredicateNode* template_assertion_predicate,
+                                                           BoolNode* template_assertion_predicate_bool_node) {
     Node* new_ctrl = template_assertion_predicate->in(0);
-    Node* opaque4_node = template_assertion_predicate->in(1);
-    TemplateAssertionPredicateBool template_assertion_predicate_bool(opaque4_node->in(1));
+    TemplateAssertionPredicateBool template_assertion_predicate_bool(template_assertion_predicate_bool_node);
     BoolNode* cloned_bool = template_assertion_predicate_bool.clone(new_ctrl, _phase);
-    _phase->igvn().replace_input_of(opaque4_node, 1, cloned_bool);
+    const uint bool_index = template_assertion_predicate->index_for_bool_input(template_assertion_predicate_bool_node);
+    _phase->igvn().replace_input_of(template_assertion_predicate, bool_index, cloned_bool);
   }
 
   static void push_outputs(Unique_Node_List& list, const Node* n) {

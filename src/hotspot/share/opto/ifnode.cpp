@@ -47,6 +47,24 @@
 extern uint explicit_null_checks_elided;
 #endif
 
+IfNode::IfNode(Node* control, Node* bol, float p, float fcnt)
+    : MultiBranchNode(2),
+      _prob(p),
+      _fcnt(fcnt)
+      NOT_PRODUCT(COMMA _assertion_predicate_type(AssertionPredicateType::None)) {
+  init_node(control, bol);
+}
+
+#ifndef PRODUCT
+IfNode::IfNode(Node* control, Node* bol, float p, float fcnt, AssertionPredicateType assertion_predicate_type)
+    : MultiBranchNode(2),
+      _prob(p),
+      _fcnt(fcnt),
+      _assertion_predicate_type(assertion_predicate_type) {
+  init_node(control, bol);
+}
+#endif // NOT_PRODUCT
+
 //=============================================================================
 //------------------------------Value------------------------------------------
 // Return a tuple for whichever arm of the IF is reachable
@@ -1783,8 +1801,18 @@ bool IfNode::is_zero_trip_guard() const {
 
 #ifndef PRODUCT
 //------------------------------dump_spec--------------------------------------
-void IfNode::dump_spec(outputStream *st) const {
-  st->print("P=%f, C=%f",_prob,_fcnt);
+void IfNode::dump_spec(outputStream* st) const {
+  switch (_assertion_predicate_type) {
+    case AssertionPredicateType::Init_value:
+      st->print("#Init Value Assertion Predicate ");
+      break;
+    case AssertionPredicateType::Last_value:
+      st->print("#Last Value Assertion Predicate ");
+      break;
+    default:
+      break;
+  }
+  st->print("P=%f, C=%f",_prob, _fcnt);
 }
 #endif
 
@@ -2066,6 +2094,9 @@ void ParsePredicateNode::dump_spec(outputStream* st) const {
       break;
     default:
       fatal("unknown kind");
+  }
+  if (_useless) {
+    st->print("#useless ");
   }
 }
 

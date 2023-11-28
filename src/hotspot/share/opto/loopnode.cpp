@@ -170,64 +170,68 @@ Node *PhaseIdealLoop::get_early_ctrl_for_expensive(Node *n, Node* earliest) {
   }
 
   while (1) {
-    Node *next = ctl;
+    Node* next = ctl;
     // Moving the node out of a loop on the projection of a If
     // confuses loop predication. So once we hit a Loop in a If branch
     // that doesn't branch to an UNC, we stop. The code that process
     // expensive nodes will notice the loop and skip over it to try to
     // move the node further up.
-    if (ctl->is_CountedLoop() && ctl->in(1) != nullptr && ctl->in(1)->in(0) != nullptr && ctl->in(1)->in(0)->is_If()) {
-      if (!ctl->in(1)->as_Proj()->is_uncommon_trap_if_pattern()) {
-        break;
-      }
-      next = idom(ctl->in(1)->in(0));
-    } else if (ctl->is_Proj()) {
-      // We only move it up along a projection if the projection is
-      // the single control projection for its parent: same code path,
-      // if it's a If with UNC or fallthrough of a call.
-      Node* parent_ctl = ctl->in(0);
-      if (parent_ctl == nullptr) {
-        break;
-      } else if (parent_ctl->is_CountedLoopEnd() && parent_ctl->as_CountedLoopEnd()->loopnode() != nullptr) {
-        next = parent_ctl->as_CountedLoopEnd()->loopnode()->init_control();
-      } else if (parent_ctl->is_If()) {
-        if (!ctl->as_Proj()->is_uncommon_trap_if_pattern()) {
-          break;
-        }
-        assert(idom(ctl) == parent_ctl, "strange");
-        next = idom(parent_ctl);
-      } else if (ctl->is_CatchProj()) {
-        if (ctl->as_Proj()->_con != CatchProjNode::fall_through_index) {
-          break;
-        }
-        assert(parent_ctl->in(0)->in(0)->is_Call(), "strange graph");
-        next = parent_ctl->in(0)->in(0)->in(0);
-      } else {
-        // Check if parent control has a single projection (this
-        // control is the only possible successor of the parent
-        // control). If so, we can try to move the node above the
-        // parent control.
-        int nb_ctl_proj = 0;
-        for (DUIterator_Fast imax, i = parent_ctl->fast_outs(imax); i < imax; i++) {
-          Node *p = parent_ctl->fast_out(i);
-          if (p->is_Proj() && p->is_CFG()) {
-            nb_ctl_proj++;
-            if (nb_ctl_proj > 1) {
-              break;
+
+    PredicateEntryIterator predicate_iterator(ctl->is_CountedLoop() ? ctl->in(LoopNode::EntryControl) : ctl);
+    if (predicate_iterator.has_next()) {
+      // Skip all predicates to not confuse Loop Predication.
+      do {
+        next = predicate_iterator.next_predicate_entry();
+      } while (predicate_iterator.has_next());
+      assert(is_dominator(next, ctl), "must be dominating after skipping predicates");
+    } else if (ctl->is_CountedLoop()) {
+      // Loop without predicates.
+      assert(idom(ctl) == ctl->in(LoopNode::EntryControl), "entry to loop must be dominator");
+      next = ctl->in(LoopNode::EntryControl);
+    } else {
+      if (ctl->is_Proj()) {
+        // We only move it up along a projection if the projection is
+        // the single control projection for its parent: same code path,
+        // if it's a If with UNC or fallthrough of a call.
+        Node* parent_ctl = ctl->in(0);
+        if (parent_ctl->is_CountedLoopEnd() && parent_ctl->as_CountedLoopEnd()->loopnode() != nullptr) {
+          next = parent_ctl->as_CountedLoopEnd()->loopnode()->init_control();
+        } else if (parent_ctl->is_If()) {
+          assert(idom(ctl) == parent_ctl, "strange");
+          next = idom(parent_ctl);
+        } else if (ctl->is_CatchProj()) {
+          if (ctl->as_Proj()->_con != CatchProjNode::fall_through_index) {
+            break;
+          }
+          assert(parent_ctl->in(0)->in(0)->is_Call(), "strange graph");
+          next = parent_ctl->in(0)->in(0)->in(0);
+        } else {
+          // Check if parent control has a single projection (this
+          // control is the only possible successor of the parent
+          // control). If so, we can try to move the node above the
+          // parent control.
+          int nb_ctl_proj = 0;
+          for (DUIterator_Fast imax, i = parent_ctl->fast_outs(imax); i < imax; i++) {
+            Node* p = parent_ctl->fast_out(i);
+            if (p->is_Proj() && p->is_CFG()) {
+              nb_ctl_proj++;
+              if (nb_ctl_proj > 1) {
+                break;
+              }
             }
           }
-        }
 
-        if (nb_ctl_proj > 1) {
-          break;
+          if (nb_ctl_proj > 1) {
+            break;
+          }
+          assert(parent_ctl->is_Start() || parent_ctl->is_MemBar() || parent_ctl->is_Call() ||
+                 BarrierSet::barrier_set()->barrier_set_c2()->is_gc_barrier_node(parent_ctl), "unexpected node");
+          assert(idom(ctl) == parent_ctl, "strange");
+          next = idom(parent_ctl);
         }
-        assert(parent_ctl->is_Start() || parent_ctl->is_MemBar() || parent_ctl->is_Call() ||
-               BarrierSet::barrier_set()->barrier_set_c2()->is_gc_barrier_node(parent_ctl), "unexpected node");
-        assert(idom(ctl) == parent_ctl, "strange");
-        next = idom(parent_ctl);
+      } else {
+        next = idom(ctl);
       }
-    } else {
-      next = idom(ctl);
     }
     if (next->is_Root() || next->is_Start() || dom_depth(next) < min_dom_depth) {
       break;
@@ -1071,9 +1075,9 @@ bool PhaseIdealLoop::create_loop_nest(IdealLoopTree* loop, Node_List &old_new) {
 
     if (UseLoopPredicate) {
       add_parse_predicate(Deoptimization::Reason_predicate, inner_head, outer_ilt, cloned_sfpt);
-    }
-    if (UseProfiledLoopPredicate) {
-      add_parse_predicate(Deoptimization::Reason_profile_predicate, inner_head, outer_ilt, cloned_sfpt);
+      if (UseProfiledLoopPredicate) {
+        add_parse_predicate(Deoptimization::Reason_profile_predicate, inner_head, outer_ilt, cloned_sfpt);
+      }
     }
     add_parse_predicate(Deoptimization::Reason_loop_limit_check, inner_head, outer_ilt, cloned_sfpt);
   }
@@ -1802,6 +1806,7 @@ bool PhaseIdealLoop::is_counted_loop(Node* x, IdealLoopTree*&loop, BasicType iv_
 
   Node *init_control = x->in(LoopNode::EntryControl);
 
+  const PredicateBlock loop_limit_check_predicate_block(init_control, Deoptimization::Reason_loop_limit_check);
   int sov = check_stride_overflow(stride_m, limit_t, iv_bt);
   // If sov==0, limit's type always satisfies the condition, for
   // example, when it is an array length.
@@ -1812,9 +1817,7 @@ bool PhaseIdealLoop::is_counted_loop(Node* x, IdealLoopTree*&loop, BasicType iv_
     assert(!x->as_Loop()->is_loop_nest_inner_loop(), "loop was transformed");
     // Generate loop's limit check.
     // Loop limit check predicate should be near the loop.
-    const Predicates predicates(init_control);
-    const PredicateBlock* loop_limit_check_predicate_block = predicates.loop_limit_check_predicate_block();
-    if (!loop_limit_check_predicate_block->has_parse_predicate()) {
+    if (!loop_limit_check_predicate_block.has_parse_predicate()) {
       // The limit check predicate is not generated if this method trapped here before.
 #ifdef ASSERT
       if (TraceLoopLimitCheck) {
@@ -1826,8 +1829,7 @@ bool PhaseIdealLoop::is_counted_loop(Node* x, IdealLoopTree*&loop, BasicType iv_
       return false;
     }
 
-    ParsePredicateNode* loop_limit_check_parse_predicate = loop_limit_check_predicate_block->parse_predicate();
-    if (!is_dominator(get_ctrl(limit), loop_limit_check_parse_predicate->in(0))) {
+    if (!is_dominator(get_ctrl(limit), loop_limit_check_predicate_block.entry())) {
       return false;
     }
 
@@ -1855,9 +1857,7 @@ bool PhaseIdealLoop::is_counted_loop(Node* x, IdealLoopTree*&loop, BasicType iv_
       // 'ne' can be replaced with 'gt' only when init > limit.
       bt = BoolTest::gt;
     } else {
-      const Predicates predicates(init_control);
-      const PredicateBlock* loop_limit_check_predicate_block = predicates.loop_limit_check_predicate_block();
-      if (!loop_limit_check_predicate_block->has_parse_predicate()) {
+      if (!loop_limit_check_predicate_block.has_parse_predicate()) {
         // The limit check predicate is not generated if this method trapped here before.
 #ifdef ASSERT
         if (TraceLoopLimitCheck) {
@@ -1869,10 +1869,8 @@ bool PhaseIdealLoop::is_counted_loop(Node* x, IdealLoopTree*&loop, BasicType iv_
         return false;
       }
 
-      ParsePredicateNode* loop_limit_check_parse_predicate = loop_limit_check_predicate_block->parse_predicate();
-      Node* parse_predicate_entry = loop_limit_check_parse_predicate->in(0);
-      if (!is_dominator(get_ctrl(limit), parse_predicate_entry) ||
-          !is_dominator(get_ctrl(init_trip), parse_predicate_entry)) {
+      if (!is_dominator(get_ctrl(limit), loop_limit_check_predicate_block.entry()) ||
+          !is_dominator(get_ctrl(init_trip), loop_limit_check_predicate_block.entry())) {
         return false;
       }
 
@@ -2260,11 +2258,37 @@ void LoopNode::verify_strip_mined(int expect_skeleton) const {
 }
 #endif
 
+// The visitor visits all Template Assertion Predicates and kills them by marking them useless. They will be removed
+// during next round of IGVN.
+class KillTemplateAssertionPredicates : public PredicateVisitor {
+  PhaseIterGVN* _igvn;
+ public:
+  using PredicateVisitor::visit;
+
+  KillTemplateAssertionPredicates(PhaseIterGVN* igvn) : _igvn(igvn) {}
+
+  void visit(TemplateAssertionPredicate& template_assertion_predicate) override {
+    template_assertion_predicate.kill(_igvn);
+  }
+};
+
 //=============================================================================
 //------------------------------Ideal------------------------------------------
 // Return a node which is more "ideal" than the current node.
 // Attempt to convert into a counted-loop.
-Node *CountedLoopNode::Ideal(PhaseGVN *phase, bool can_reshape) {
+Node* CountedLoopNode::Ideal(PhaseGVN* phase, bool can_reshape) {
+  if (can_reshape && phase->type(in(LoopBackControl)) == Type::TOP) {
+    // Since this loop is collapsing, we also need to remove the associated Template Assertion Predicates above this loop
+    // (no more loop opts for this loop). Otherwise, the Template Assertion Predicates could wrongly end up at the loop
+    // entry of another counted loop which did not have any predicates before (could happen for example, when partially
+    // peeling a loop which loses its Parse Predicates due to nodes in between which are later optimized away + converting
+    // this loop into a counted loop). When further splitting this counted loop during loop opts into sub loops, we
+    // erroneously create Initialized Assertion Predicates for the sub loops with the init and stride values of the
+    // previously collapsed loop. These can then fail at runtime because they check the wrong values.
+    KillTemplateAssertionPredicates kill_template_assertion_predicates(phase->is_IterGVN());
+    PredicatesForLoop predicates_for_loop(skip_strip_mined()->in(EntryControl), &kill_template_assertion_predicates);
+    predicates_for_loop.for_each();
+  }
   return RegionNode::Ideal(phase, can_reshape);
 }
 
@@ -2581,14 +2605,14 @@ SafePointNode* CountedLoopNode::outer_safepoint() const {
   return l->outer_safepoint();
 }
 
-Node* CountedLoopNode::skip_assertion_predicates_with_halt() {
+Node* CountedLoopNode::skip_assertion_predicates() {
   Node* ctrl = in(LoopNode::EntryControl);
   if (is_main_loop()) {
     ctrl = skip_strip_mined()->in(LoopNode::EntryControl);
   }
-  if (is_main_loop() || is_post_loop()) {
-    AssertionPredicatesWithHalt assertion_predicates(ctrl);
-    return assertion_predicates.entry();
+  if (ctrl != nullptr && (is_main_loop() || is_post_loop())) {
+    const Predicates predicates(ctrl);
+    return predicates.entry();
   }
   return ctrl;
 }
@@ -4062,109 +4086,15 @@ void PhaseIdealLoop::log_loop_tree() {
   }
 }
 
-// Eliminate all Parse and Template Assertion Predicates that are not associated with a loop anymore. The eliminated
-// predicates will be removed during the next round of IGVN.
-void PhaseIdealLoop::eliminate_useless_predicates() {
-  if (C->parse_predicate_count() == 0 && C->template_assertion_predicate_count() == 0) {
-    return; // No predicates left.
-  }
-
-  eliminate_useless_parse_predicates();
-  eliminate_useless_template_assertion_predicates();
-}
-
-// Eliminate all Parse Predicates that do not belong to a loop anymore by marking them useless. These will be removed
-// during the next round of IGVN.
+// Eliminate all Parse Predicates which have no connection to a loop head. These cannot be used anymore at this point and
+// might block other optimizations.
 void PhaseIdealLoop::eliminate_useless_parse_predicates() {
-  mark_all_parse_predicates_useless();
-  if (C->has_loops()) {
-    mark_loop_associated_parse_predicates_useful();
-  }
-  add_useless_parse_predicates_to_igvn_worklist();
-}
-
-void PhaseIdealLoop::mark_all_parse_predicates_useless() const {
-  for (int i = 0; i < C->parse_predicate_count(); i++) {
-    C->parse_predicate(i)->mark_useless();
-  }
-}
-
-void PhaseIdealLoop::mark_loop_associated_parse_predicates_useful() {
-  for (LoopTreeIterator iterator(_ltree_root); !iterator.done(); iterator.next()) {
-    IdealLoopTree* loop = iterator.current();
-    if (loop->can_apply_loop_predication()) {
-      mark_useful_parse_predicates_for_loop(loop);
-    }
-  }
-}
-
-void PhaseIdealLoop::mark_useful_parse_predicates_for_loop(IdealLoopTree* loop) {
-  Node* entry = loop->_head->as_Loop()->skip_strip_mined()->in(LoopNode::EntryControl);
-  const Predicates predicates(entry);
-  ParsePredicateIterator iterator(predicates);
-  while (iterator.has_next()) {
-    iterator.next()->mark_useful();
-  }
-}
-
-void PhaseIdealLoop::add_useless_parse_predicates_to_igvn_worklist() {
-  for (int i = 0; i < C->parse_predicate_count(); i++) {
-    ParsePredicateNode* parse_predicate_node = C->parse_predicate(i);
-    if (parse_predicate_node->is_useless()) {
-      _igvn._worklist.push(parse_predicate_node);
-    }
-  }
-}
-
-
-// Eliminate all Template Assertion Predicates that do not belong to their originally associated loop anymore by
-// replacing the Opaque4 node of the If node with true. These nodes will be removed during the next round of IGVN.
-void PhaseIdealLoop::eliminate_useless_template_assertion_predicates() {
-  Unique_Node_List useful_predicates;
-  if (C->has_loops()) {
-    collect_useful_template_assertion_predicates(useful_predicates);
-  }
-  eliminate_useless_template_assertion_predicates(useful_predicates);
-}
-
-void PhaseIdealLoop::collect_useful_template_assertion_predicates(Unique_Node_List& useful_predicates) {
-  for (LoopTreeIterator iterator(_ltree_root); !iterator.done(); iterator.next()) {
-    IdealLoopTree* loop = iterator.current();
-    if (loop->can_apply_loop_predication()) {
-      collect_useful_template_assertion_predicates_for_loop(loop, useful_predicates);
-    }
-  }
-}
-
-void PhaseIdealLoop::collect_useful_template_assertion_predicates_for_loop(IdealLoopTree* loop,
-                                                                           Unique_Node_List &useful_predicates) {
-  Node* entry = loop->_head->as_Loop()->skip_strip_mined()->in(LoopNode::EntryControl);
-  const Predicates predicates(entry);
-  if (UseProfiledLoopPredicate) {
-    const PredicateBlock* profiled_loop_predicate_block = predicates.profiled_loop_predicate_block();
-    if (profiled_loop_predicate_block->has_parse_predicate()) {
-      IfProjNode* parse_predicate_proj = profiled_loop_predicate_block->parse_predicate_success_proj();
-      get_assertion_predicates(parse_predicate_proj, useful_predicates, true);
-    }
+  if (C->parse_predicate_count() == 0) {
+    return; // no predicates left
   }
 
-  if (UseLoopPredicate) {
-    const PredicateBlock* loop_predicate_block = predicates.loop_predicate_block();
-    if (loop_predicate_block->has_parse_predicate()) {
-      IfProjNode* parse_predicate_proj = loop_predicate_block->parse_predicate_success_proj();
-      get_assertion_predicates(parse_predicate_proj, useful_predicates, true);
-    }
-  }
-}
-
-void PhaseIdealLoop::eliminate_useless_template_assertion_predicates(Unique_Node_List& useful_predicates) {
-  for (int i = 0; i < C->template_assertion_predicate_count(); i++) {
-    Node* opaque4 = C->template_assertion_predicate_opaq_node(i);
-    assert(opaque4->Opcode() == Op_Opaque4, "must be");
-    if (!useful_predicates.member(opaque4)) { // not in the useful list
-      _igvn.replace_node(opaque4, opaque4->in(2));
-    }
-  }
+  EliminateUselessParsePredicates eliminator(&_igvn, _ltree_root);
+  eliminator.eliminate();
 }
 
 // If a post or main loop is removed due to an assert predicate, the opaque that guards the loop is not needed anymore
@@ -4512,7 +4442,7 @@ void PhaseIdealLoop::build_and_optimize() {
   // Some parser-inserted loop predicates could never be used by loop
   // predication or they were moved away from loop during some optimizations.
   // For example, peeling. Eliminate them before next loop optimizations.
-  eliminate_useless_predicates();
+  eliminate_useless_parse_predicates();
 
 #ifndef PRODUCT
   C->verify_graph_edges();
@@ -4970,6 +4900,11 @@ bool IdealLoopTree::verify_tree(IdealLoopTree* loop_verify) const {
     assert(ctrl != nullptr && ctrl->is_CFG(), "sane loop in-ctrl");
     assert(back != nullptr && back->is_CFG(), "sane loop backedge");
     cl->loopexit(); // assert implied
+
+    if (cl->is_main_loop() || cl->is_post_loop()) {
+      // Should only find Assertion Predicates in main or post loop
+      DEBUG_ONLY(VerifyOnlyAssertionPredicates::verify(ctrl);)
+    }
   }
 
   // Broken part of VerifyLoopOptimizations (E)
@@ -5703,7 +5638,7 @@ Node* CountedLoopNode::is_canonical_loop_entry() {
   if (!is_main_loop() && !is_post_loop()) {
     return nullptr;
   }
-  Node* ctrl = skip_assertion_predicates_with_halt();
+  Node* ctrl = skip_assertion_predicates();
 
   if (ctrl == nullptr || (!ctrl->is_IfTrue() && !ctrl->is_IfFalse())) {
     return nullptr;
@@ -5749,7 +5684,7 @@ CountedLoopEndNode* CountedLoopNode::find_pre_loop_end() {
     return nullptr;
   }
 
-  Node* p_f = skip_assertion_predicates_with_halt()->in(0)->in(0);
+  Node* p_f = skip_assertion_predicates()->in(0)->in(0);
   if (!p_f->is_IfFalse() || !p_f->in(0)->is_CountedLoopEnd()) {
     return nullptr;
   }
@@ -6182,29 +6117,14 @@ void PhaseIdealLoop::build_loop_late_post_work(Node *n, bool pinned) {
     // Move the node above predicates as far up as possible so a
     // following pass of loop predication doesn't hoist a predicate
     // that depends on it above that node.
-    Node* new_ctrl = least;
-    for (;;) {
-      if (!new_ctrl->is_Proj()) {
+    PredicateEntryIterator predicate_iterator(least);
+    while (predicate_iterator.has_next()) {
+      Node* next_predicate_entry = predicate_iterator.next_predicate_entry();
+      if (is_dominator(next_predicate_entry, early) && next_predicate_entry != early) {
         break;
       }
-      CallStaticJavaNode* call = new_ctrl->as_Proj()->is_uncommon_trap_if_pattern();
-      if (call == nullptr) {
-        break;
-      }
-      int req = call->uncommon_trap_request();
-      Deoptimization::DeoptReason trap_reason = Deoptimization::trap_request_reason(req);
-      if (trap_reason != Deoptimization::Reason_loop_limit_check &&
-          trap_reason != Deoptimization::Reason_predicate &&
-          trap_reason != Deoptimization::Reason_profile_predicate) {
-        break;
-      }
-      Node* c = new_ctrl->in(0)->in(0);
-      if (is_dominator(c, early) && c != early) {
-        break;
-      }
-      new_ctrl = c;
+      least = next_predicate_entry;
     }
-    least = new_ctrl;
   }
   // Try not to place code on a loop entry projection
   // which can inhibit range check elimination.
