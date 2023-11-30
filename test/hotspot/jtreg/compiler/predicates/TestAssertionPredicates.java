@@ -34,6 +34,17 @@
  */
 
 /*
+ * @test id=NoTieredCompilation
+ * @bug 8288981
+ * @summary Test all possible cases in which Assertion Predicates are required such that the graph is not left in a
+ *          broken state to trigger assertions. Additional tests ensure the correctness of the implementation.
+ * @run main/othervm -Xbatch -XX:-TieredCompilation
+ *                   -XX:CompileCommand=compileonly,compiler.predicates.TestAssertionPredicates::*
+ *                   -XX:CompileCommand=dontinline,compiler.predicates.TestAssertionPredicates::*
+ *                   compiler.predicates.TestAssertionPredicates NoTieredCompilation
+ */
+
+/*
  * @test id=Xcomp
  * @bug 8288981
  * @run main/othervm -Xcomp
@@ -126,6 +137,7 @@ package compiler.predicates;
 public class TestAssertionPredicates {
     static int[] iArr = new int[100];
     static int[] iArr2 = new int[100];
+    static int[] iArr3 = new int[300];
     static int[] iArrNull = null;
     static int[][] iArr2D = new int[10][10];
     static short[] sArr = new short[10];
@@ -152,6 +164,18 @@ public class TestAssertionPredicates {
 
     public static void main(String[] args) {
         switch (args[0]) {
+            case "Xbatch" -> {
+                for (int i = 0; i < 100000; i++) {
+                    flag = !flag;
+                    testHaltNotRemovingAssertionPredicate8305428();
+                    test8305428();
+                }
+            }
+            case "NoTieredCompilation" -> {
+                for (int i = 0; i < 1000; i++) {
+                    test8320920();
+                }
+            }
             case "NoProfiledLoopPredicate" -> testWithPartialPeelingFirst();
             case "LoopMaxUnroll0" -> {
                 testPeeling();
@@ -198,13 +222,6 @@ public class TestAssertionPredicates {
                 runTest8308392No9();
                 test8308392No10();
                 testSplitIfCloneDownWithOpaqueAssertionPredicate();
-            }
-            case "Xbatch" -> {
-                for (int i = 0; i < 100000; i++) {
-                    flag = !flag;
-                    testHaltNotRemovingAssertionPredicate8305428();
-                    test8305428();
-                }
             }
             case "ZGCStressGCM" -> {
                 for (int i = 0; i < 50_000_000; i++) {
@@ -262,6 +279,7 @@ public class TestAssertionPredicates {
         testSplitIfCloneDownWithOpaqueAssertionPredicate();
         testHaltNotRemovingAssertionPredicate8305428();
         test8305428();
+        test8320920();
         testDataUpdateUnroll();
         testDataUpdateUnswitchUnroll();
         testDataUpdatePeelingUnrolling();
@@ -932,6 +950,21 @@ public class TestAssertionPredicates {
                     iArr[j] = 3;
             }
         } while (++j < 100);
+    }
+
+
+    static void test8320920() {
+        int i = 1;
+        do {
+            for (int j = 83; j > i; j--) {
+                iFld = 3;
+            }
+            for (int j = 5; j < 83; j++) {
+                for (int k = i; k < 2; k++)
+                    ;
+            }
+            iArr3[i - 1] = 34;
+        } while (++i < 300);
     }
 
     // -Xcomp -XX:CompileCommand=compileonly,Test::*
