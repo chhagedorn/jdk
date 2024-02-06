@@ -319,10 +319,10 @@ void PhaseIdealLoop::dominated_by(IfProjNode* prevdom, IfNode* iff, bool flip, b
          iff->Opcode() == Op_LongCountedLoopEnd ||
          iff->Opcode() == Op_RangeCheck ||
          iff->Opcode() == Op_ParsePredicate,
-        "Check this code when new subtype is added");
+         "Check this code when new subtype is added");
 
   int pop = prevdom->Opcode();
-  assert( pop == Op_IfFalse || pop == Op_IfTrue, "" );
+  assert(pop == Op_IfFalse || pop == Op_IfTrue, "");
   if (flip) {
     if (pop == Op_IfTrue)
       pop = Op_IfFalse;
@@ -330,7 +330,7 @@ void PhaseIdealLoop::dominated_by(IfProjNode* prevdom, IfNode* iff, bool flip, b
       pop = Op_IfTrue;
   }
   // 'con' is set to true or false to kill the dominated test.
-  Node *con = _igvn.makecon(pop == Op_IfTrue ? TypeInt::ONE : TypeInt::ZERO);
+  Node* con = _igvn.makecon(pop == Op_IfTrue ? TypeInt::ONE : TypeInt::ZERO);
   set_ctrl(con, C->root()); // Constant gets a new use
   // Hack the dominated test
   _igvn.replace_input_of(iff, 1, con);
@@ -349,14 +349,18 @@ void PhaseIdealLoop::dominated_by(IfProjNode* prevdom, IfNode* iff, bool flip, b
   if (dp == nullptr)
     return;
 
-  IdealLoopTree* old_loop = get_loop(dp);
+  rewire_safe_outputs_to_dominator(dp, prevdom, pin_array_access_nodes);
+}
 
-  for (DUIterator_Fast imax, i = dp->fast_outs(imax); i < imax; i++) {
-    Node* cd = dp->fast_out(i); // Control-dependent node
+void PhaseIdealLoop::rewire_safe_outputs_to_dominator(Node* source, Node* dominator, const bool pin_array_access_nodes) {
+  IdealLoopTree* old_loop = get_loop(source);
+
+  for (DUIterator_Fast imax, i = source->fast_outs(imax); i < imax; i++) {
+    Node* out = source->fast_out(i); // Control-dependent node
     // Do not rewire Div and Mod nodes which could have a zero divisor to avoid skipping their zero check.
-    if (cd->depends_only_on_test() && _igvn.no_dependent_zero_check(cd)) {
-      assert(cd->in(0) == dp, "");
-      _igvn.replace_input_of(cd, 0, prevdom);
+    if (out->depends_only_on_test() && _igvn.no_dependent_zero_check(out)) {
+      assert(out->in(0) == source, "must be control dependent on source");
+      _igvn.replace_input_of(out, 0, dominator);
       if (pin_array_access_nodes) {
         // Because of Loop Predication, Loads and range check Cast nodes that are control dependent on this range
         // check (that is about to be removed) now depend on multiple dominating Hoisted Check Predicates. After the
@@ -364,21 +368,21 @@ void PhaseIdealLoop::dominated_by(IfProjNode* prevdom, IfNode* iff, bool flip, b
         // in the graph. To ensure that these Loads/Casts do not float above any of the dominating checks (even when the
         // lowest dominating check is later replaced by yet another dominating check), we need to pin them at the lowest
         // dominating check.
-        Node* clone = cd->pin_array_access_node();
+        Node* clone = out->pin_array_access_node();
         if (clone != nullptr) {
-          clone = _igvn.register_new_node_with_optimizer(clone, cd);
-          _igvn.replace_node(cd, clone);
-          cd = clone;
+          clone = _igvn.register_new_node_with_optimizer(clone, out);
+          _igvn.replace_node(out, clone);
+          out = clone;
         }
       }
-      set_early_ctrl(cd, false);
-      IdealLoopTree* new_loop = get_loop(get_ctrl(cd));
+      set_early_ctrl(out, false);
+      IdealLoopTree* new_loop = get_loop(get_ctrl(out));
       if (old_loop != new_loop) {
         if (!old_loop->_child) {
-          old_loop->_body.yank(cd);
+          old_loop->_body.yank(out);
         }
         if (!new_loop->_child) {
-          new_loop->_body.push(cd);
+          new_loop->_body.push(out);
         }
       }
       --i;
@@ -778,9 +782,6 @@ Node *PhaseIdealLoop::conditional_move( Node *region ) {
     }
   }//for
   Node* bol = iff->in(1);
-  if (bol->Opcode() == Op_Opaque4) {
-    return nullptr; // Ignore loop predicate checks (the Opaque4 ensures they will go away)
-  }
   assert(bol->Opcode() == Op_Bool, "Unexpected node");
   int cmp_op = bol->in(1)->Opcode();
   if (cmp_op == Op_SubTypeCheck) { // SubTypeCheck expansion expects an IfNode
@@ -1948,14 +1949,14 @@ Node* PhaseIdealLoop::clone_iff(PhiNode* phi) {
     if (b->is_Phi()) {
       _igvn.replace_input_of(phi, i, clone_iff(b->as_Phi()));
     } else {
-      assert(b->is_Bool() || b->Opcode() == Op_Opaque4, "");
+      assert(b->is_Bool() || b->Opcode() == Op_Opaque4 || b->Opcode() == Op_OpaqueAssertionPredicate, "");
     }
   }
 
   Node* n = phi->in(1);
   Node* sample_opaque = nullptr;
   Node *sample_bool = nullptr;
-  if (n->Opcode() == Op_Opaque4) {
+  if (n->Opcode() == Op_Opaque4 || n->Opcode() == Op_OpaqueAssertionPredicate) {
     sample_opaque = n;
     sample_bool = n->in(1);
     assert(sample_bool->is_Bool(), "wrong type");

@@ -60,6 +60,7 @@ class Opaque1Node : public Node {
 class OpaqueLoopInitNode : public Opaque1Node {
   public:
   OpaqueLoopInitNode(Compile* C, Node *n) : Opaque1Node(C, n) {
+    init_class_id(Class_OpaqueLoopInit);
   }
   virtual int Opcode() const;
 };
@@ -67,6 +68,7 @@ class OpaqueLoopInitNode : public Opaque1Node {
 class OpaqueLoopStrideNode : public Opaque1Node {
   public:
   OpaqueLoopStrideNode(Compile* C, Node *n) : Opaque1Node(C, n) {
+    init_class_id(Class_OpaqueLoopStride);
   }
   virtual int Opcode() const;
 };
@@ -127,6 +129,19 @@ class Opaque4Node : public Node {
   virtual int Opcode() const;
   virtual const Type *bottom_type() const { return TypeInt::BOOL; }
   virtual const Type* Value(PhaseGVN* phase) const;
+};
+
+// This node is used for Initialized Assertion Predicate bool nodes. Initialized Assertion Predicates must always evaluate
+// to true. Therefore, we get rid of them in product builds as they are useless. In debug builds we keep them as additional
+// verification code (i.e. removing this node and use the BoolNode input instead).
+class OpaqueAssertionPredicateNode : public Node {
+ public:
+  OpaqueAssertionPredicateNode(BoolNode* bol) : Node(nullptr, bol) {}
+
+  virtual int Opcode() const;
+  virtual Node* Identity(PhaseGVN* phase);
+  virtual const Type* Value(PhaseGVN* phase) const;
+  virtual const Type* bottom_type() const { return TypeInt::BOOL; }
 };
 
 

@@ -39,6 +39,7 @@
 #include "opto/narrowptrnode.hpp"
 #include "opto/mulnode.hpp"
 #include "opto/phaseX.hpp"
+#include "opto/predicates.hpp"
 #include "opto/regalloc.hpp"
 #include "opto/regmask.hpp"
 #include "opto/runtime.hpp"
@@ -2808,6 +2809,53 @@ Node* GotoNode::Identity(PhaseGVN* phase) {
 
 const RegMask &GotoNode::out_RegMask() const {
   return RegMask::Empty;
+}
+
+TemplateAssertionPredicateNode::TemplateAssertionPredicateNode(Node* control, BoolNode* bool_init_value,
+                                                               BoolNode* bool_last_value,
+                                                               int initialized_init_value_opcode,
+                                                               int initialized_last_value_opcode)
+    : Node(control, bool_init_value, bool_last_value),
+      _initialized_init_value_opcode(initialized_init_value_opcode),
+      _initialized_last_value_opcode(initialized_last_value_opcode),
+      _useless(false) {
+  assert(initialized_init_value_opcode == Op_If || initialized_init_value_opcode == Op_RangeCheck, "invalid opcode");
+  assert(initialized_last_value_opcode == Op_If || initialized_last_value_opcode == Op_RangeCheck, "invalid opcode");
+  init_class_id(Class_TemplateAssertionPredicate);
+  init_flags(Flag_is_macro);
+}
+
+IfNode* TemplateAssertionPredicateNode::create_initialized_assertion_predicate(
+    Node* control, OpaqueAssertionPredicateNode* opaque_bool, AssertionPredicateType initialized_assertion_predicate_type) {
+  bool create_if_node = true;
+  switch (initialized_assertion_predicate_type) {
+    case AssertionPredicateType::Init_value:
+      create_if_node = _initialized_init_value_opcode == Op_If;
+      break;
+    case AssertionPredicateType::Last_value:
+      create_if_node = _initialized_last_value_opcode == Op_If;
+      break;
+    default:
+      assert(false, "should not reach");
+  }
+  return create_if_node ?
+         new IfNode(control, opaque_bool, PROB_MAX, COUNT_UNKNOWN NOT_PRODUCT(COMMA initialized_assertion_predicate_type)) :
+         new RangeCheckNode(control, opaque_bool, PROB_MAX, COUNT_UNKNOWN NOT_PRODUCT(COMMA initialized_assertion_predicate_type));
+}
+
+Node* TemplateAssertionPredicateNode::Identity(PhaseGVN* phase) {
+  if (phase->C->post_loop_opts_phase() || _useless || in(InitValue)->is_ConI() || in(LastValue)->is_ConI()) {
+    // Useless or a BoolNode folded to a constant. In the latter case, the Hoisted Check Predicate is either always true
+    // or always false. In both cases, we can remove this node because we do not need to create Assertion Predicates from.
+    return in(0);
+  } else {
+    phase->C->record_for_post_loop_opts_igvn(this);
+    return this;
+  }
+}
+
+const Type* TemplateAssertionPredicateNode::Value(PhaseGVN* phase) const {
+  return phase->type(in(0));
 }
 
 //=============================================================================

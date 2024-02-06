@@ -134,6 +134,8 @@ class NegNode;
 class NegVNode;
 class NeverBranchNode;
 class Opaque1Node;
+class OpaqueLoopInitNode;
+class OpaqueLoopStrideNode;
 class OuterStripMinedLoopNode;
 class OuterStripMinedLoopEndNode;
 class Node;
@@ -167,6 +169,7 @@ class State;
 class StoreNode;
 class SubNode;
 class SubTypeCheckNode;
+class TemplateAssertionPredicateNode;
 class Type;
 class TypeNode;
 class UnlockNode;
@@ -784,9 +787,12 @@ public:
     DEFINE_CLASS_ID(ClearArray, Node, 14)
     DEFINE_CLASS_ID(Halt,     Node, 15)
     DEFINE_CLASS_ID(Opaque1,  Node, 16)
+      DEFINE_CLASS_ID(OpaqueLoopInit, Opaque1, 0)
+      DEFINE_CLASS_ID(OpaqueLoopStride, Opaque1, 1)
     DEFINE_CLASS_ID(Move,     Node, 17)
     DEFINE_CLASS_ID(LShift,   Node, 18)
     DEFINE_CLASS_ID(Neg,      Node, 19)
+    DEFINE_CLASS_ID(TemplateAssertionPredicate, Node, 20)
 
     _max_classes  = ClassMask_Neg
   };
@@ -953,6 +959,8 @@ public:
   DEFINE_CLASS_QUERY(NegV)
   DEFINE_CLASS_QUERY(NeverBranch)
   DEFINE_CLASS_QUERY(Opaque1)
+  DEFINE_CLASS_QUERY(OpaqueLoopInit)
+  DEFINE_CLASS_QUERY(OpaqueLoopStride)
   DEFINE_CLASS_QUERY(OuterStripMinedLoop)
   DEFINE_CLASS_QUERY(OuterStripMinedLoopEnd)
   DEFINE_CLASS_QUERY(Parm)
@@ -984,6 +992,7 @@ public:
   DEFINE_CLASS_QUERY(StoreVector)
   DEFINE_CLASS_QUERY(StoreVectorScatter)
   DEFINE_CLASS_QUERY(ShiftV)
+  DEFINE_CLASS_QUERY(TemplateAssertionPredicate)
   DEFINE_CLASS_QUERY(Unlock)
 
   #undef DEFINE_CLASS_QUERY
@@ -1041,7 +1050,7 @@ public:
 
   bool for_post_loop_opts_igvn() const { return (_flags & Flag_for_post_loop_opts_igvn) != 0; }
 
-  // Is 'n' possibly a loop entry (i.e. a Parse Predicate projection)?
+  // Is 'n' possibly a loop entry before loop opts (i.e. a Parse Predicate projection)?
   static bool may_be_loop_entry(Node* n) {
     return n != nullptr && n->is_IfProj() && n->in(0)->is_ParsePredicate();
   }

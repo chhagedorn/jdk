@@ -25,6 +25,7 @@
 #ifndef SHARE_OPTO_CFGNODE_HPP
 #define SHARE_OPTO_CFGNODE_HPP
 
+#include "opaquenode.hpp"
 #include "opto/multnode.hpp"
 #include "opto/node.hpp"
 #include "opto/opcodes.hpp"
@@ -57,6 +58,7 @@ class     JProjNode;
 class       JumpProjNode;
 class     SCMemProjNode;
 class PhaseIdealLoop;
+enum class AssertionPredicateType;
 
 // The success projection of a Parse Predicate is always an IfTrueNode and the uncommon projection an IfFalseNode
 typedef IfTrueNode ParsePredicateSuccessProj;
@@ -289,6 +291,41 @@ public:
   virtual const RegMask &out_RegMask() const;
 };
 
+// This node represents a Template Assertion Predicate with two bools as input which can be used to create and
+// Initialized Assertion Predicate from (more information can be found in the summary at predicates.hpp).
+class TemplateAssertionPredicateNode : public Node {
+  int _initialized_init_value_opcode;
+  int _initialized_last_value_opcode;
+  bool _useless; // If this node becomes useless, it can be cleaned up by Identity().
+
+  virtual uint size_of() const {return sizeof(*this);}
+ public:
+  // Named bool inputs
+  enum {
+    InitValue = 1,
+    LastValue = 2
+  };
+
+  TemplateAssertionPredicateNode(Node* control, BoolNode* bool_init_value, BoolNode* bool_last_value,
+                                 int initialized_init_value_opcode, int initialized_last_value_opcode);
+
+  IfNode* create_initialized_assertion_predicate(Node* control, OpaqueAssertionPredicateNode* opaque_bool,
+                                                 AssertionPredicateType initialized_assertion_predicate_type);
+
+  void mark_useless() {
+    _useless = true;
+  }
+
+  virtual int Opcode() const;
+  virtual bool pinned() const { return true; }
+  virtual bool is_CFG() const { return true; }
+  virtual uint hash() const { return NO_HASH; }  // CFG nodes do not hash
+  virtual bool depends_only_on_test() const { return false; }
+  virtual const Type* bottom_type() const { return Type::CONTROL; }
+  virtual Node* Identity(PhaseGVN* phase);
+  virtual const Type* Value(PhaseGVN* phase) const;
+};
+
 //------------------------------CProjNode--------------------------------------
 // control projection for node that produces multiple control-flow paths
 class CProjNode : public ProjNode {
@@ -318,11 +355,23 @@ public:
 //------------------------------IfNode-----------------------------------------
 // Output selected Control, based on a boolean test
 class IfNode : public MultiBranchNode {
+ public:
+  float _prob;                           // Probability of true path being taken.
+  float _fcnt;                           // Frequency counter
+
+ private:
+  AssertionPredicateType _assertion_predicate_type;
+
+  void init_node(Node* control, Node* bol) {
+    init_class_id(Class_If);
+    init_req(0, control);
+    init_req(1, bol);
+  }
+
   // Size is bigger to hold the probability field.  However, _prob does not
   // change the semantics so it does not appear in the hash & cmp functions.
   virtual uint size_of() const { return sizeof(*this); }
 
-private:
   // Helper methods for fold_compares
   bool cmpi_folds(PhaseIterGVN* igvn, bool fold_ne = false);
   bool is_ctrl_folds(Node* ctrl, PhaseIterGVN* igvn);
@@ -413,14 +462,9 @@ public:
   // Magic manifest probabilities such as 0.83, 0.7, ... can be found in
   // gen_subtype_check() and catch_inline_exceptions().
 
-  float _prob;                  // Probability of true path being taken.
-  float _fcnt;                  // Frequency counter
-  IfNode( Node *control, Node *b, float p, float fcnt )
-    : MultiBranchNode(2), _prob(p), _fcnt(fcnt) {
-    init_class_id(Class_If);
-    init_req(0,control);
-    init_req(1,b);
-  }
+  IfNode(Node* control, Node* bol, float p, float fcnt);
+  NOT_PRODUCT(IfNode(Node* control, Node* bol, float p, float fcnt, AssertionPredicateType assertion_predicate_type);)
+
   virtual int Opcode() const;
   virtual bool pinned() const { return true; }
   virtual const Type *bottom_type() const { return TypeTuple::IFBOTH; }
@@ -448,12 +492,18 @@ public:
 class RangeCheckNode : public IfNode {
 private:
   int is_range_check(Node* &range, Node* &index, jint &offset);
-
 public:
-  RangeCheckNode(Node* control, Node *b, float p, float fcnt)
-    : IfNode(control, b, p, fcnt) {
+  RangeCheckNode(Node* control, Node* bol, float p, float fcnt)
+      : IfNode(control, bol, p, fcnt) {
     init_class_id(Class_RangeCheck);
   }
+
+#ifndef PRODUCT
+  RangeCheckNode(Node* control, Node* bol, float p, float fcnt, AssertionPredicateType assertion_predicate_type)
+      : IfNode(control, bol, p, fcnt, assertion_predicate_type) {
+    init_class_id(Class_RangeCheck);
+  }
+#endif // NOT_PRODUCT
 
   virtual int Opcode() const;
   virtual Node* Ideal(PhaseGVN *phase, bool can_reshape);
@@ -461,7 +511,7 @@ public:
 
 // Special node that denotes a Parse Predicate added during parsing. A Parse Predicate serves as placeholder to later
 // create Regular Predicates (Runtime Predicates with possible Assertion Predicates) above it. Together they form a
-// Predicate Block. The Parse Predicate and Regular Predicates share the same uncommon trap.
+// Predicate Block. The Parse Predicate and Runtime Predicates share the same uncommon trap.
 // There are three kinds of Parse Predicates:
 // Loop Parse Predicate, Profiled Loop Parse Predicate (both used by Loop Predication), and Loop Limit Check Parse
 // Predicate (used for integer overflow checks when creating a counted loop).
@@ -488,6 +538,11 @@ class ParsePredicateNode : public IfNode {
 
   void mark_useful() {
     _useless = false;
+  }
+
+  // Return the uncommon trap If projection of this Parse Predicate.
+  ParsePredicateUncommonProj* uncommon_proj() const {
+    return proj_out(0)->as_IfFalse();
   }
 
   Node* uncommon_trap() const;
