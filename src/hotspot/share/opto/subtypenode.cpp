@@ -32,14 +32,86 @@
 #include "opto/subnode.hpp"
 #include "opto/subtypenode.hpp"
 
+// Class to perform a static sub type check. If there is no improvement, SubTypeCheckNode::bottom_type() is returned.
+class StaticSubType : public StackObj {
+  const TypeKlassPtr* const _super_klass;
+  const TypeKlassPtr* const _sub_klass;
+
+ public:
+  explicit StaticSubType(const TypeKlassPtr* const super_klass, const TypeKlassPtr* sub_klass) :
+      _super_klass(super_klass),
+      _sub_klass(sub_klass) {}
+  NONCOPYABLE(StaticSubType);
+
+  // Do actual sub type check.
+  const TypeInt* check() const {
+    if (_sub_klass == nullptr) {
+      return no_improvement();
+    }
+
+    const TypeInt* result = check(_super_klass);
+    if (result == no_improvement() && _super_klass->isa_instklassptr()) {
+      return check_with_instance_klass();
+    }
+    return result;
+  }
+
+ private:
+  // Return bottom type of SubTypeCheckNode.
+  static const TypeInt* no_improvement() {
+    return TypeInt::CC;
+  }
+
+  // Is _sub_klass <: super_klass?
+  const TypeInt* check(const TypeKlassPtr* super_klass) const {
+    switch (Compile::current()->static_subtype_check(super_klass, _sub_klass, false)) {
+      case Compile::SSC_always_false:
+        return TypeInt::CC_GT;
+      case Compile::SSC_always_true:
+        return TypeInt::CC_EQ;
+      case Compile::SSC_easy_test:
+      case Compile::SSC_full_test:
+        return no_improvement();
+      default:
+        ShouldNotReachHere();
+    }
+  }
+
+  // Special check with instance klasses where we can make use of unique concrete sub klasses (if any).
+  const TypeInt* check_with_instance_klass() const {
+    const TypeInstKlassPtr* instance_super_klass = _super_klass->is_instklassptr();
+    ciInstanceKlass* unique_concrete_subklass = instance_super_klass->find_unique_concrete_subklass();
+    if (unique_concrete_subklass == nullptr) {
+      return no_improvement();
+    }
+
+    return check_with_concrete_instance_sub_klass(unique_concrete_subklass, instance_super_klass);
+  }
+
+  // Check if _sub_klass <: "unique concrete sub klass of _super_klass".
+  const TypeInt* check_with_concrete_instance_sub_klass(ciInstanceKlass* unique_concrete_sub_klass_of_super_klass,
+                                                        const TypeInstKlassPtr* instance_super_klass) const {
+    const TypeInstKlassPtr* improved_super_klass =
+        instance_super_klass->unique_concrete_subklass_ptr(unique_concrete_sub_klass_of_super_klass);
+    const TypeInt* result = check(improved_super_klass);
+    if (result != no_improvement()) {
+      // Only add compilation dependency if there is a win (i.e. sub type check can be removed). Otherwise, we could
+      // unnecessarily be recompiling this method without any improvement here when a new sub class is loaded which
+      // would invalidate the unique concrete sub class constraint.
+      instance_super_klass->add_unique_concrete_subklass_dependency(unique_concrete_sub_klass_of_super_klass);
+    }
+    return result;
+  }
+};
+
 const Type* SubTypeCheckNode::sub(const Type* sub_t, const Type* super_t) const {
-  const TypeKlassPtr* superk = super_t->isa_klassptr();
+  const TypeKlassPtr* super_klass = super_t->is_klassptr();
   assert(sub_t != Type::TOP && !TypePtr::NULL_PTR->higher_equal(sub_t), "should be not null");
-  const TypeKlassPtr* subk = sub_t->isa_klassptr() ? sub_t->is_klassptr() : sub_t->is_oopptr()->as_klass_type();
+  const TypeKlassPtr* sub_klass = sub_t->isa_klassptr() ? sub_t->is_klassptr() : sub_t->is_oopptr()->as_klass_type();
 
   // Oop can't be a subtype of abstract type that has no subclass.
-  if (sub_t->isa_oopptr() && superk->isa_instklassptr() && superk->klass_is_exact()) {
-    ciKlass* superklass = superk->exact_klass();
+  if (sub_t->isa_oopptr() && super_klass->isa_instklassptr() && super_klass->klass_is_exact()) {
+    ciKlass* superklass = super_klass->exact_klass();
     if (!superklass->is_interface() && superklass->is_abstract() &&
         !superklass->as_instance_klass()->has_subklass()) {
       Compile::current()->dependencies()->assert_leaf_type(superklass);
@@ -47,21 +119,8 @@ const Type* SubTypeCheckNode::sub(const Type* sub_t, const Type* super_t) const 
     }
   }
 
-  if (subk != nullptr) {
-    switch (Compile::current()->static_subtype_check(superk, subk, false)) {
-      case Compile::SSC_always_false:
-        return TypeInt::CC_GT;
-      case Compile::SSC_always_true:
-        return TypeInt::CC_EQ;
-      case Compile::SSC_easy_test:
-      case Compile::SSC_full_test:
-        break;
-      default:
-        ShouldNotReachHere();
-    }
-  }
-
-  return bottom_type();
+  StaticSubType static_sub_type(super_klass, sub_klass);
+  return static_sub_type.check();
 }
 
 Node *SubTypeCheckNode::Ideal(PhaseGVN* phase, bool can_reshape) {

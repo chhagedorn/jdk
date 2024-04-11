@@ -6046,33 +6046,51 @@ bool TypeInstKlassPtr::maybe_java_subtype_of_helper(const TypeKlassPtr* other, b
 }
 
 const TypeKlassPtr* TypeInstKlassPtr::try_improve() const {
-  if (!UseUniqueSubclasses) {
-    return this;
+  const TypeKlassPtr* improved_super_klass = this;
+  ciInstanceKlass* unique_concrete_subklass = find_unique_concrete_subklass();
+  if (unique_concrete_subklass != nullptr) {
+    improved_super_klass = unique_concrete_subklass_ptr(unique_concrete_subklass);
+    add_unique_concrete_subklass_dependency(unique_concrete_subklass);
   }
-  ciKlass* k = klass();
+  return improved_super_klass;
+}
+
+// Returns the unique concrete sub klass if there is one. Otherwise, return null.
+// This method does not add a compilation dependency. This is the responsibility
+// of the caller if the sub klass is actually used.
+ciInstanceKlass* TypeInstKlassPtr::find_unique_concrete_subklass() const {
+  if (!UseUniqueSubclasses) {
+    return nullptr;
+  }
+  ciKlass* klass = this->klass();
   Compile* C = Compile::current();
-  Dependencies* deps = C->dependencies();
-  assert((deps != nullptr) == (C->method() != nullptr && C->method()->code_size() > 0), "sanity");
+  Dependencies* dependencies = C->dependencies();
+  assert((dependencies != nullptr) == (C->method() != nullptr && C->method()->code_size() > 0), "sanity");
   const TypeInterfaces* interfaces = _interfaces;
-  if (k->is_loaded()) {
-    ciInstanceKlass* ik = k->as_instance_klass();
-    bool klass_is_exact = ik->is_final();
-    if (!klass_is_exact &&
-        deps != nullptr) {
-      ciInstanceKlass* sub = ik->unique_concrete_subklass();
-      if (sub != nullptr) {
-        if (_interfaces->eq(sub)) {
-          deps->assert_abstract_with_unique_concrete_subtype(ik, sub);
-          k = ik = sub;
-          klass_is_exact = sub->is_final();
-          return TypeKlassPtr::make(klass_is_exact ? Constant : _ptr, k, _offset);
-        }
+  if (klass->is_loaded()) {
+    ciInstanceKlass* instance_klass = klass->as_instance_klass();
+    bool klass_is_exact = instance_klass->is_final();
+    if (!klass_is_exact && dependencies != nullptr) {
+      ciInstanceKlass* unique_concrete_subklass = instance_klass->unique_concrete_subklass();
+      if (unique_concrete_subklass != nullptr && _interfaces->eq(unique_concrete_subklass)) {
+        return unique_concrete_subklass;
       }
     }
   }
-  return this;
+  return nullptr;
 }
 
+const TypeInstKlassPtr* TypeInstKlassPtr::unique_concrete_subklass_ptr(ciInstanceKlass* unique_concrete_subklass) const {
+  assert(unique_concrete_subklass != nullptr, "must exist");
+  const bool is_exact = unique_concrete_subklass->is_final();
+  return TypeInstKlassPtr::make(is_exact ? Constant : _ptr, unique_concrete_subklass, _offset);
+}
+
+void TypeInstKlassPtr::add_unique_concrete_subklass_dependency(ciInstanceKlass* unique_concrete_subklass) const {
+  Dependencies* dependencies = Compile::current()->dependencies();
+  assert(dependencies != nullptr, "must exist");
+  dependencies->assert_abstract_with_unique_concrete_subtype(klass(), unique_concrete_subklass);
+}
 
 const TypeAryKlassPtr *TypeAryKlassPtr::make(PTR ptr, const Type* elem, ciKlass* k, int offset) {
   return (TypeAryKlassPtr*)(new TypeAryKlassPtr(ptr, elem, k, offset))->hashcons();

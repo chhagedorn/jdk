@@ -1691,6 +1691,9 @@ public:
   virtual const TypeInstKlassPtr* with_offset(intptr_t offset) const;
 
   virtual const TypeKlassPtr* try_improve() const;
+  ciInstanceKlass* find_unique_concrete_subklass() const;
+  const TypeInstKlassPtr* unique_concrete_subklass_ptr(ciInstanceKlass* unique_concrete_subklass) const;
+  void add_unique_concrete_subklass_dependency(ciInstanceKlass* unique_concrete_subklass) const;
 
   // Convenience common pre-built types.
   static const TypeInstKlassPtr* OBJECT; // Not-null object klass or below
