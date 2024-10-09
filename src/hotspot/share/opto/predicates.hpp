@@ -229,6 +229,8 @@ class Predicate : public StackObj {
   // Return the tail node of the predicate. Runtime Predicates can either have a true of false projection as success
   // projection while Parse Predicates and Assertion Predicates always have a true projection as success projection.
   virtual IfProjNode* tail() const = 0;
+
+  virtual void accept(PredicateVisitor& predicate_visitor) const = 0;
 };
 
 // Generic predicate visitor that does nothing. Subclass this visitor to add customized actions for each predicate.
@@ -246,6 +248,11 @@ class PredicateVisitor : StackObj {
   virtual bool should_continue() const {
     return true;
   }
+};
+
+class NodeInLoopBody : public StackObj {
+ public:
+  virtual bool check(Node* node) const = 0;
 };
 
 // Class to represent Assertion Predicates with a HaltNode instead of an UCT (i.e. either an Initialized Assertion
@@ -335,6 +342,17 @@ class ParsePredicate : public Predicate {
     assert(is_valid(), "must be valid");
     return _success_proj;
   }
+
+  ParsePredicateSuccessProj* clone_to_unswitched_loop(Node* new_control, bool is_false_path_loop,
+                                                      PhaseIdealLoop* phase) const;
+
+  void kill() const {
+    _parse_predicate_node->mark_useless();
+  }
+
+  virtual void accept(PredicateVisitor& predicate_visitor) const override {
+    return predicate_visitor.visit(*this);
+  }
 };
 
 // Class to represent a Runtime Predicate which always has an associated UCT on the failing path.
@@ -366,18 +384,30 @@ class RuntimePredicate : public Predicate {
     return _success_proj;
   }
 
+  virtual void accept(PredicateVisitor& predicate_visitor) const override {
+    return predicate_visitor.visit(*this);
+  }
+
   static bool is_predicate(Node* node, Deoptimization::DeoptReason deopt_reason);
 };
 
 // Class to represent a Template Assertion Predicate.
 class TemplateAssertionPredicate : public Predicate {
-  IfTrueNode* _success_proj;
-  IfNode* _if_node;
+  IfTrueNode* const _success_proj;
+  IfNode* const _if_node;
+  const AssertionPredicateType _assertion_predicate_type;
+
+  IfTrueNode* create_predicate_if(Node* new_control, Opaque4Node* new_opaque, PhaseIdealLoop* phase) const;
+
+  Opaque4Node* opaque_node() const {
+    return _if_node->in(1)->as_Opaque4();
+  }
 
  public:
   explicit TemplateAssertionPredicate(IfTrueNode* success_proj)
       : _success_proj(success_proj),
-        _if_node(success_proj->in(0)->as_If()) {
+        _if_node(success_proj->in(0)->as_If()),
+        _assertion_predicate_type(_if_node->assertion_predicate_type()) {
     assert(is_predicate(success_proj), "must be valid");
   }
 
@@ -391,6 +421,29 @@ class TemplateAssertionPredicate : public Predicate {
 
   IfTrueNode* tail() const override {
     return _success_proj;
+  }
+
+  AssertionPredicateType assertion_predicate_type() const {
+    return _assertion_predicate_type;
+  }
+
+  IfTrueNode* clone(Node* new_control, PhaseIdealLoop* phase) const;
+  IfTrueNode* clone_with_new_init(Node* new_control, Node* new_init, PhaseIdealLoop* phase) const;
+  IfTrueNode* initialize(Node* new_control, Node* new_init, Node* new_stride, PhaseIdealLoop* phase) const;
+
+  void rewire_loop_data_dependencies(IfTrueNode* target_predicate, const NodeInLoopBody& _data_in_loop_body,
+                                     PhaseIdealLoop* phase) const;
+
+  void kill(PhaseIterGVN& igvn) const {
+    igvn.replace_input_of(_if_node, 1, igvn.intcon(1));
+  }
+
+  void update_stride(Node* new_stride) {
+
+  }
+
+  virtual void accept(PredicateVisitor& predicate_visitor) const override {
+    return predicate_visitor.visit(*this);
   }
 
   static bool is_predicate(Node* node);
@@ -401,11 +454,13 @@ class TemplateAssertionPredicate : public Predicate {
 class InitializedAssertionPredicate : public Predicate {
   IfTrueNode* _success_proj;
   IfNode* _if_node;
+  const AssertionPredicateType _assertion_predicate_type;
 
  public:
   explicit InitializedAssertionPredicate(IfTrueNode* success_proj)
       : _success_proj(success_proj),
-        _if_node(success_proj->in(0)->as_If()) {
+        _if_node(success_proj->in(0)->as_If()),
+        _assertion_predicate_type(_if_node->assertion_predicate_type()) {
     assert(is_predicate(success_proj), "must be valid");
   }
 
@@ -419,6 +474,14 @@ class InitializedAssertionPredicate : public Predicate {
 
   IfTrueNode* tail() const override {
     return _success_proj;
+  }
+
+  AssertionPredicateType assertion_predicate_type() const {
+    return _assertion_predicate_type;
+  }
+
+  virtual void accept(PredicateVisitor& predicate_visitor) const override {
+    return predicate_visitor.visit(*this);
   }
 
   static bool is_predicate(Node* node);
@@ -444,7 +507,7 @@ class TemplateAssertionExpression : public StackObj {
 
  public:
   Opaque4Node* clone(Node* new_ctrl, PhaseIdealLoop* phase);
-  Opaque4Node* clone_and_replace_init(Node* new_init, Node* new_ctrl, PhaseIdealLoop* phase);
+  Opaque4Node* clone_and_replace_init(Node* new_control, Node* new_init, PhaseIdealLoop* phase);
   Opaque4Node* clone_and_replace_init_and_stride(Node* new_control, Node* new_init, Node* new_stride,
                                                  PhaseIdealLoop* phase);
 };
@@ -837,14 +900,6 @@ class PredicateBlock : public StackObj {
     return _parse_predicate.entry() != _entry;
   }
 
-  // Returns either:
-  // - The entry to the Parse Predicate if present.
-  // - The last Runtime Predicate success projection if Parse Predicate is not present.
-  // - The entry to this Regular Predicate Block if the block is empty.
-  Node* skip_parse_predicate() const {
-    return _parse_predicate.entry();
-  }
-
 #ifndef PRODUCT
   void dump() const;
   void dump(const char* prefix) const;
@@ -902,4 +957,223 @@ class Predicates : public StackObj {
 #endif // NOT PRODUCT
 };
 
+class PredicateCollector : public PredicateVisitor {
+
+  class GenericPredicateCollector : public PredicateVisitor {
+    GrowableArray<const Predicate*>& _predicates;
+    bool _collect_parse_predicate;
+
+   public:
+    explicit GenericPredicateCollector(GrowableArray<const Predicate*>& predicates)
+        : _predicates(predicates),
+          _collect_parse_predicate(false) {}
+    NONCOPYABLE(GenericPredicateCollector);
+
+    void enable_parse_predicates() {
+      _collect_parse_predicate = true;
+    }
+
+    void visit(const ParsePredicate& parse_predicate) override {
+      if (_collect_parse_predicate) {
+        _predicates.push(&parse_predicate);
+      }
+    }
+
+    void visit(const TemplateAssertionPredicate& template_assertion_predicate) override {
+        _predicates.push(&template_assertion_predicate);
+    }
+  };
+
+  class LastValueAssertionPredicateCollector : public PredicateVisitor {
+    GrowableArray<const Predicate*>& _predicates;
+
+   public:
+    explicit LastValueAssertionPredicateCollector(GrowableArray<const Predicate*>& predicates)
+        : _predicates(predicates) {}
+    NONCOPYABLE(LastValueAssertionPredicateCollector);
+
+    void visit(const TemplateAssertionPredicate& template_assertion_predicate) override {
+      if (template_assertion_predicate.assertion_predicate_type() == AssertionPredicateType::LastValue) {
+        _predicates.push(&template_assertion_predicate);
+      }
+    }
+
+    void visit(const InitializedAssertionPredicate& initialized_assertion_predicate) override {
+      if (initialized_assertion_predicate.assertion_predicate_type() == AssertionPredicateType::LastValue) {
+        _predicates.push(&initialized_assertion_predicate);
+      }
+    }
+  };
+
+  GrowableArray<const Predicate*> _predicates;
+  bool _has_collected = false;
+
+ public:
+  void collect_template_assertion_predicates(Node* start_node) {
+    GenericPredicateCollector predicate_collector(_predicates);
+    collect(start_node, predicate_collector);
+  }
+
+  void collect_parse_and_template_assertion_predicates(Node* start_node) {
+    GenericPredicateCollector predicate_collector(_predicates);
+    predicate_collector.enable_parse_predicates();
+    collect(start_node, predicate_collector);
+  }
+
+  void collect_last_value_assertion_predicates(Node* start_node) {
+    LastValueAssertionPredicateCollector predicate_collector(_predicates);
+    collect(start_node, predicate_collector);
+  }
+
+ private:
+  void collect(Node* start_node, PredicateVisitor& predicate_collector) {
+#ifdef ASSERT
+    assert(!_has_collected && _predicates.is_empty(), "cannot collect twice");
+    _has_collected = true;
+#endif
+    PredicateIterator predicate_iterator(start_node);
+    predicate_iterator.for_each(predicate_collector);
+  }
+
+ public:
+  void for_each_in_reverse(PredicateVisitor& predicate_visitor) const {
+    assert(_has_collected, "must have collected before walking");
+    for (int i = _predicates.length() - 1; i >= 0; i--) {
+      _predicates.at(i)->accept(predicate_visitor);
+    }
+  }
+};
+
+// The class offers different actions for Assertion Predicates belonging to a source loop.
+class AssertionPredicates : public StackObj {
+  CountedLoopNode* _source_loop_head;
+  PhaseIdealLoop* _phase;
+
+  TemplateAssertionPredicate create_new_template(int if_opcode, int scale, Node* offset, Node* range);
+  Node* create_stride(int stride_con);
+
+ public:
+  AssertionPredicates(CountedLoopNode* source_loop_head, PhaseIdealLoop* phase)
+      : _source_loop_head(source_loop_head),
+        _phase(phase) {}
+
+  void move_and_init_to_original_loop(CountedLoopNode* target_loop_head); // Peeling, Main Loop
+  void clone_and_init_to_cloned_loop(CountedLoopNode* target_loop_head); // Post loop
+  void clone_to_cloned_loop(CountedLoopNode* target_loop_head); // Unswitching
+  void clone_to_orig_loop(CountedLoopNode* target_loop_head); // Unswitching
+  void update(int new_stride_con); // Unrolling
+  void create(int if_opcode, int scale, Node* offset, Node* range); // Range Check Elimination
+
+};
+
+class NodeInOriginalLoopBody : public NodeInLoopBody {
+  const uint _first_node_index_in_cloned_loop_body;
+  const Node_List& _old_new;
+
+ public:
+  NodeInOriginalLoopBody(const uint first_node_index_in_cloned_loop_body, const Node_List& old_new)
+      : _first_node_index_in_cloned_loop_body(first_node_index_in_cloned_loop_body),
+        _old_new(old_new) {}
+  NONCOPYABLE(NodeInOriginalLoopBody);
+
+  // Check if 'node' is not a cloned node (i.e. < _first_node_index_in_cloned_loop_body) and if we've created a
+  // clone from 'node' (i.e. _old_new entry is non-null). Then we know that 'node' belongs to the original loop body.
+  bool check(Node* node) const override {
+    if (node->_idx < _first_node_index_in_cloned_loop_body) {
+      Node* cloned_node = _old_new[node->_idx];
+      return cloned_node != nullptr && cloned_node->_idx >= _first_node_index_in_cloned_loop_body;
+    } else {
+      return false;
+    }
+  }
+};
+
+class NodeInClonedLoopBody : public NodeInLoopBody {
+  const uint _first_node_index_in_cloned_loop_body;
+
+ public:
+  NodeInClonedLoopBody(const uint first_node_index_in_cloned_loop_body)
+      : _first_node_index_in_cloned_loop_body(first_node_index_in_cloned_loop_body) {}
+  NONCOPYABLE(NodeInClonedLoopBody);
+
+  // Check if 'node' is a clone. This can easily be achieved by comparing it's node index to the first node index
+  // inside the cloned loop body (all of them are clones).
+  bool check(Node* node) const override {
+    return node->_idx >= _first_node_index_in_cloned_loop_body;
+  }
+};
+
+
+
+// ORIG:
+//class CloneAndInitTemplateAssertionPredicates : public PredicateVisitor {
+//  Node* const _init;
+//  Node* const _stride;
+//  Node* const _old_loop_entry;
+//  Node* _new_control;
+//  PhaseIdealLoop* const _phase;
+//  const NodeInLoopBody& _data_in_loop_body;
+//
+// public:
+//  CloneAndInitTemplateAssertionPredicates(Node* const init, Node* const stride, Node* const new_control, PhaseIdealLoop* const phase,
+//                                          const NodeInLoopBody& data_in_loop_body)
+//      : _init(init),
+//        _stride(stride),
+//        _old_loop_entry(new_control),
+//        _new_control(new_control),
+//        _phase(phase),
+//        _data_in_loop_body(data_in_loop_body) {}
+//
+// public:
+//  using PredicateVisitor::visit;
+//
+//  void visit(TemplateAssertionPredicate& template_assertion_predicate) override {
+//    IfNode* template_head = template_assertion_predicate.head();
+//    IfTrueNode* template_tail = template_assertion_predicate.tail();
+//    IfTrueNode* initialized_predicate = create_initialized_assertion_predicate(template_head, _init, _stride,
+//                                                                               _new_control);
+//    fix_data_dependencies(template_tail, initialized_predicate);
+//
+//    _new_control = initialized_predicate;
+//  }
+//
+// private:
+//  // Create an Initialized Assertion Predicate from the template_assertion_predicate
+//  IfTrueNode* create_initialized_assertion_predicate(IfNode* template_assertion_predicate, Node* new_init,
+//                                                     Node* new_stride, Node* control) {
+//    assert(_phase->assertion_predicate_has_loop_opaque_node(template_assertion_predicate),
+//           "must find OpaqueLoop* nodes for Template Assertion Predicate");
+//    InitializedAssertionPredicateCreator initialized_assertion_predicate(template_assertion_predicate, new_init,
+//                                                                         new_stride, _phase);
+//    IfTrueNode* success_proj = initialized_assertion_predicate.create(control);
+//    assert(!_phase->assertion_predicate_has_loop_opaque_node(success_proj->in(0)->as_If()),
+//           "Initialized Assertion Predicates do not have OpaqueLoop* nodes in the bool expression anymore");
+//    return success_proj;
+//  }
+//
+//
+//  // Rewire any control inputs from the old Assertion Predicates above the peeled iteration down to the initialized
+//  // Assertion Predicates above the peeled loop.
+//  void fix_data_dependencies(const IfTrueNode* template_tail,
+//                             IfTrueNode* initialized_predicate) const {
+//    for (DUIterator i = template_tail->outs(); template_tail->has_out(i); i++) {
+//      Node* output = template_tail->out(i);
+//      if (!output->is_CFG() && _data_in_loop_body.check(output)) {
+//        _phase->igvn().replace_input_of(output, 0, initialized_predicate);
+//        --i; // correct for just deleted predicate->out(i)
+//      }
+//    }
+//  }
+//
+// public:
+//  bool has_created_new_nodes() const {
+//    return _new_control != _old_loop_entry;
+//  }
+//
+//  Node* last_created_node() const {
+//    assert(has_created_new_nodes(), "should only be queried if new nodes have been created");
+//    assert(_new_control->outcnt() == 0, "no outputs, yet");
+//    return _new_control;
+//  }
+//};
 #endif // SHARE_OPTO_PREDICATES_HPP

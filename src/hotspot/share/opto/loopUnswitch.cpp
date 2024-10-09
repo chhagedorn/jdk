@@ -220,6 +220,57 @@ class UnswitchedLoopSelector : public StackObj {
   }
 };
 
+
+class ClonePredicatesForUnswitchedLoops : public PredicateVisitor {
+  Node* _new_control_true_path_loop;
+  Node* _new_control_false_path_loop;
+  const NodeInOriginalLoopBody _node_in_true_path_loop_body;
+  const NodeInClonedLoopBody _node_in_false_path_loop_body;
+  PhaseIdealLoop* const _phase;
+
+ public:
+  ClonePredicatesForUnswitchedLoops(const UnswitchedLoopSelector& unswitched_loop_selector,
+                                    const uint first_node_index_in_cloned_loop, const Node_List& old_new,
+                                    PhaseIdealLoop* phase)
+      : _new_control_true_path_loop(unswitched_loop_selector.true_path_loop_proj()),
+        _new_control_false_path_loop(unswitched_loop_selector.false_path_loop_proj()),
+        _node_in_true_path_loop_body(first_node_index_in_cloned_loop, old_new),
+        _node_in_false_path_loop_body(first_node_index_in_cloned_loop),
+        _phase(phase) {}
+
+  using PredicateVisitor::visit;
+
+  Node* true_path_loop_entry() const {
+    return _new_control_true_path_loop;
+  }
+
+  Node* false_path_loop_entry() const {
+    return _new_control_false_path_loop;
+  }
+
+  void visit(const ParsePredicate& parse_predicate) override {
+    _new_control_true_path_loop = parse_predicate.clone_to_unswitched_loop(_new_control_true_path_loop, false, _phase);
+    _new_control_false_path_loop = parse_predicate.clone_to_unswitched_loop(_new_control_false_path_loop, true, _phase);
+    parse_predicate.kill();
+  }
+
+  void visit(const TemplateAssertionPredicate& template_assertion_predicate) override {
+    visit(template_assertion_predicate, _node_in_true_path_loop_body, _new_control_true_path_loop);
+    visit(template_assertion_predicate, _node_in_false_path_loop_body, _new_control_false_path_loop);
+    template_assertion_predicate.kill(_phase->igvn());
+  }
+
+ private:
+  void visit(const TemplateAssertionPredicate& template_assertion_predicate, const NodeInLoopBody& node_in_loop_body,
+             Node*& new_control) {
+    IfTrueNode* success_proj = template_assertion_predicate.clone(new_control, _phase);
+    TemplateAssertionPredicate new_template(success_proj);
+    new_template.rewire_loop_data_dependencies(success_proj, node_in_loop_body, _phase);
+    new_control = success_proj;
+  }
+};
+
+
 // Class to unswitch the original loop and create Predicates at the new unswitched loop versions. The newly cloned loop
 // becomes the false-path-loop while original loop becomes the true-path-loop.
 class OriginalLoop : public StackObj {
@@ -237,10 +288,11 @@ class OriginalLoop : public StackObj {
   NONCOPYABLE(OriginalLoop);
 
  private:
-  void fix_loop_entries(IfProjNode* true_path_loop_entry, IfProjNode* false_path_loop_entry) {
-    _phase->replace_loop_entry(_loop_head, true_path_loop_entry);
+  void fix_loop_entries(const ClonePredicatesForUnswitchedLoops& clone_predicates_for_unswitched_loops) {
+    _phase->replace_loop_entry(_loop_head, clone_predicates_for_unswitched_loops.true_path_loop_entry());
     LoopNode* false_path_loop_strip_mined_head = old_to_new(_loop_head)->as_Loop();
-    _phase->replace_loop_entry(false_path_loop_strip_mined_head, false_path_loop_entry);
+    _phase->replace_loop_entry(false_path_loop_strip_mined_head,
+                               clone_predicates_for_unswitched_loops.false_path_loop_entry());
   }
 
   Node* old_to_new(const Node* old) const {
@@ -280,18 +332,27 @@ class OriginalLoop : public StackObj {
   // Unswitch the original loop on the invariant loop selector by creating a true-path-loop and a false-path-loop.
   // Remove the unswitch candidate If from both unswitched loop versions which are now covered by the loop selector If.
   void unswitch(const UnswitchedLoopSelector& unswitched_loop_selector) {
+    const uint first_slow_loop_node_index = _phase->C->unique();
     _phase->clone_loop(_loop, _old_new, _phase->dom_depth(_loop_head),
                        PhaseIdealLoop::CloneIncludesStripMined, unswitched_loop_selector.selector());
 
     // At this point, the selector If projections are the corresponding loop entries.
     // clone_parse_and_assertion_predicates_to_unswitched_loop() could clone additional predicates after the selector
     // If projections. The loop entries are updated accordingly.
-    IfProjNode* true_path_loop_entry = unswitched_loop_selector.true_path_loop_proj();
-    IfProjNode* false_path_loop_entry = unswitched_loop_selector.false_path_loop_proj();
-    _phase->clone_parse_and_assertion_predicates_to_unswitched_loop(_loop, _old_new,
-                                                                    true_path_loop_entry, false_path_loop_entry);
+    IfTrueNode* true_path_loop_entry = unswitched_loop_selector.true_path_loop_proj();
+    IfFalseNode* false_path_loop_entry = unswitched_loop_selector.false_path_loop_proj();
+    ClonePredicatesForUnswitchedLoops clone_predicates_for_unswitched_loops(unswitched_loop_selector,
+                                                                            first_slow_loop_node_index, _old_new,
+                                                                            _phase);
+    PredicateCollector collector;
+    collector.collect_parse_and_template_assertion_predicates(_loop_head->in(LoopNode::EntryControl));
+    collector.for_each_in_reverse(clone_predicates_for_unswitched_loops);
 
-    fix_loop_entries(true_path_loop_entry, false_path_loop_entry);
+
+//    _phase->clone_parse_and_assertion_predicates_to_unswitched_loop(_loop, _old_new,
+//                                                                    true_path_loop_entry, false_path_loop_entry);
+
+    fix_loop_entries(clone_predicates_for_unswitched_loops);
 
     DEBUG_ONLY(verify_unswitched_loop_versions(_loop->_head->as_Loop(), unswitched_loop_selector);)
 

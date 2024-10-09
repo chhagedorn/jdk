@@ -952,18 +952,18 @@ private:
                                               Node* zero_trip_guard_proj_post, const Node_List& old_new);
   Node* clone_template_assertion_predicate(IfNode* iff, Node* new_init, Node* predicate, Node* uncommon_proj, Node* control,
                                            IdealLoopTree* outer_loop, Node* new_control);
+ public:
   IfTrueNode* create_initialized_assertion_predicate(IfNode* template_assertion_predicate, Node* new_init,
                                                      Node* new_stride, Node* control);
-  static void count_opaque_loop_nodes(Node* n, uint& init, uint& stride);
   static bool assertion_predicate_has_loop_opaque_node(IfNode* iff);
+ private:
+  static void count_opaque_loop_nodes(Node* n, uint& init, uint& stride);
   static void get_assertion_predicates(Node* predicate, Unique_Node_List& list, bool get_opaque = false);
   void update_main_loop_assertion_predicates(Node* ctrl, CountedLoopNode* loop_head, Node* init, int stride_con);
   void copy_assertion_predicates_to_post_loop(LoopNode* main_loop_head, CountedLoopNode* post_loop_head,
                                               Node* stride);
-  void initialize_assertion_predicates_for_peeled_loop(const PredicateBlock* predicate_block, LoopNode* outer_loop_head,
-                                                       int dd_outer_loop_head, Node* init, Node* stride,
-                                                       IdealLoopTree* outer_loop, uint idx_before_clone,
-                                                       const Node_List& old_new);
+  void initialize_assertion_predicates_for_peeled_loop(Node* peeled_iteration_entry, CountedLoopNode* remaining_loop_head,
+                                                       uint idx_before_clone, const Node_List& old_new);
   void insert_loop_limit_check_predicate(ParsePredicateSuccessProj* loop_limit_check_parse_proj, Node* cmp_limit,
                                          Node* bol);
   void log_loop_tree();
