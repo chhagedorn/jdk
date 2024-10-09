@@ -548,8 +548,8 @@ void AssertionPredicateIfCreator::create_halt_node(IfFalseNode* fail_proj, Ideal
   _phase->register_control(halt, loop, fail_proj);
 }
 
-// Creates an init and last value Template Assertion Predicate from a Parse Predicate with an UCT on the failing path.
-// Returns the success projection of the latter.
+// Creates an init and last value Template Assertion Predicate connected together from a Parse Predicate with an UCT on
+// the failing path. Returns the success projection of the last value Template Assertion Predicate.
 IfTrueNode* TemplateAssertionPredicateCreator::create_with_uncommon_trap(Node* new_control,
                                                                          ParsePredicateSuccessProj* parse_predicate_success_proj,
                                                                          const Deoptimization::DeoptReason deopt_reason,
@@ -622,8 +622,8 @@ IfTrueNode* TemplateAssertionPredicateCreator::create_if_node_with_halt(
                                                             NOT_PRODUCT(COMMA assertion_predicate_type));
 }
 
-// Creates an init and last value Template Assertion Predicate connected together and returns the success projection
-// of the latter.
+// Creates an init and last value Template Assertion Predicate connected together with a Halt node on the failing path.
+// Returns the success projection of the last value Template Assertion Predicate latter.
 IfTrueNode* TemplateAssertionPredicateCreator::create_with_halt(Node* new_control) {
   OpaqueLoopInitNode* opaque_init = create_opaque_init(new_control);
   bool does_overflow;
