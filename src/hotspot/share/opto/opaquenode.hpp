@@ -91,23 +91,36 @@ public:
   IfNode* if_node() const;
 };
 
-// Input 1 is a check that we know implicitly is always true or false
-// but the compiler has no way to prove. If during optimizations, that
-// check becomes true or false, the Opaque4 node is replaced by that
-// constant true or false. Input 2 is the constant value we know the
-// test takes. After loop optimizations, we replace input 1 by input 2
-// so the control that depends on that test can be removed and there's
-// no overhead at runtime. Used for instance by
-// GraphKit::must_be_not_null().
-class Opaque4Node : public Node {
+// This node is used in the context of intrinsics. We sometimes implicitly know that an object is non-null even though
+// the compiler cannot prove it. We therefore add a corresponding cast to propagate this implicit knowledge. However,
+// this cast could become top during optimizations (input to cast becomes null) and the data path is folded. To ensure
+// that the control path is also properly folded, we insert an If node with such a OpaqueNotNullNode as condition.
+// During macro expansion, we replace the OpaqueNotNullNode with true such that the actually unneeded check is folded
+// and does not end up in the emitted code. Also see GraphKit::must_be_not_null() for more details.
+class OpaqueNotNullNode : public Node {
   public:
-  Opaque4Node(Compile* C, Node* tst, Node* final_tst) : Node(nullptr, tst, final_tst) {
-    init_class_id(Class_Opaque4);
+  OpaqueNotNullNode(Compile* C, Node* tst, Node* final_tst) : Node(nullptr, tst, final_tst) {
+    init_class_id(Class_OpaqueNotNull);
     init_flags(Flag_is_macro);
     C->add_macro_node(this);
   }
 
   virtual int Opcode() const;
+  virtual const Type* Value(PhaseGVN* phase) const;
+  virtual const Type* bottom_type() const { return TypeInt::BOOL; }
+};
+
+// This node is used for Initialized Assertion Predicate BoolNodes. Initialized Assertion Predicates must always evaluate
+// to true. Therefore, we get rid of them in product builds during macro expansion as they are useless. In debug builds
+// we keep them as additional verification code (i.e. removing this node and use the BoolNode input instead).
+class OpaqueTemplateAssertionPredicateNode : public Node {
+ public:
+  OpaqueTemplateAssertionPredicateNode(BoolNode* bol) : Node(nullptr, bol) {
+    init_class_id(Class_OpaqueTemplateAssertionPredicate);
+  }
+
+  virtual int Opcode() const;
+  virtual Node* Identity(PhaseGVN* phase);
   virtual const Type* Value(PhaseGVN* phase) const;
   virtual const Type* bottom_type() const { return TypeInt::BOOL; }
 };
