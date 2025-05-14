@@ -23,4 +23,27 @@
 
 package compiler.lib.template_framework;
 
-record HookInsertToken(Hook hook, RenderableTemplate renderableTemplate) implements Token {}
+import java.util.Objects;
+import java.util.function.Supplier;
+
+/**
+ * Represents a zero-argument {@link RenderableTemplate}, already filled with arguments, ready for
+ * instantiation either as a {@link Token} inside another {@link UnfilledTemplate} or
+ * with {@link #render}.
+ */
+public final class ZeroArgsTemplate extends RenderableTemplate implements TemplateBinding.Bindable {
+    private final Supplier<TemplateBody> function;
+
+    public ZeroArgsTemplate(Supplier<TemplateBody> function) {
+        this.function = function;
+    }
+
+    @Override
+    TemplateBody instantiate() {
+        return function.get();
+    }
+
+    @Override
+    void visitArguments(ArgumentVisitor visitor) {
+    }
+}

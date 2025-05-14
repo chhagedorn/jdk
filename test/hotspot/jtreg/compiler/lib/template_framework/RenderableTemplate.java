@@ -27,42 +27,17 @@ package compiler.lib.template_framework;
  * Represents a Template with filled arguments, ready for instantiation, either
  * as a {@link Token} inside another {@link UnfilledTemplate} or with {@link #render}.
  */
-public sealed abstract class FilledTemplate implements Token
-                                            permits FilledTemplate.ZeroArgs,
-                                                    FilledTemplate.OneArgs,
-                                                    FilledTemplate.TwoArgs,
-                                                    FilledTemplate.ThreeArgs
-{
-    private FilledTemplate() {}
-
+public sealed abstract class RenderableTemplate implements Token permits ZeroArgsTemplate,
+                                                    RenderableTemplate.OneArgs,
+                                                    RenderableTemplate.TwoArgs,
+                                                    RenderableTemplate.ThreeArgs {
     /**
-     * Represents a zero-argument {@link FilledTemplate}, already filled with arguments, ready for
-     * instantiation either as a {@link Token} inside another {@link UnfilledTemplate} or
-     * with {@link #render}.
-     */
-    public static final class ZeroArgs extends FilledTemplate implements Token, TemplateBinding.Bindable {
-        private final UnfilledTemplate.ZeroArgs zeroArgs;
-
-        ZeroArgs(UnfilledTemplate.ZeroArgs zeroArgs) {
-            this.zeroArgs = zeroArgs;
-        }
-
-        @Override
-        public TemplateBody instantiate() {
-            return zeroArgs.instantiate();
-        }
-
-        @Override
-        public void visitArguments(ArgumentVisitor visitor) {}
-    }
-
-    /**
-     * Represents a one-argument {@link FilledTemplate}, already filled with arguments, ready for instantiation
+     * Represents a one-argument {@link RenderableTemplate}, already filled with arguments, ready for instantiation
      * either as a {@link Token} inside another {@link UnfilledTemplate} or with {@link #render}.
      *
      * @param <A> The type of the (first) argument.
      */
-    public static final class OneArgs<A> extends FilledTemplate implements Token {
+    static final class OneArgs<A> extends RenderableTemplate {
         private final UnfilledTemplate.OneArgs<A> oneArgs;
         private final A a;
 
@@ -72,24 +47,24 @@ public sealed abstract class FilledTemplate implements Token
         }
 
         @Override
-        public TemplateBody instantiate() {
+        TemplateBody instantiate() {
             return oneArgs.instantiate(a);
         }
 
         @Override
-        public void visitArguments(ArgumentVisitor visitor) {
+        void visitArguments(ArgumentVisitor visitor) {
             visitor.visit(oneArgs.arg0Name(), a);
         }
     }
 
     /**
-     * Represents a two-argument {@link FilledTemplate}, already filled with arguments, ready for instantiation
+     * Represents a two-argument {@link RenderableTemplate}, already filled with arguments, ready for instantiation
      * either as a {@link Token} inside another {@link UnfilledTemplate} or with {@link #render}.
      *
      * @param <A> The type of the first argument.
      * @param <B> The type of the second argument.
      */
-    public static final class TwoArgs<A, B> extends FilledTemplate implements Token {
+    static final class TwoArgs<A, B> extends RenderableTemplate {
         private final UnfilledTemplate.TwoArgs<A, B> twoArgs;
         private final A a;
         private final B b;
@@ -101,26 +76,26 @@ public sealed abstract class FilledTemplate implements Token
         }
 
         @Override
-        public TemplateBody instantiate() {
+        TemplateBody instantiate() {
             return twoArgs.instantiate(a, b);
         }
 
         @Override
-        public void visitArguments(ArgumentVisitor visitor) {
+        void visitArguments(ArgumentVisitor visitor) {
             visitor.visit(twoArgs.arg0Name(), a);
             visitor.visit(twoArgs.arg1Name(), b);
         }
     }
 
     /**
-     * Represents a three-argument {@link FilledTemplate}, already filled with arguments, ready for instantiation
+     * Represents a three-argument {@link RenderableTemplate}, already filled with arguments, ready for instantiation
      * either as a {@link Token} inside another {@link UnfilledTemplate} or with {@link #render}.
      *
      * @param <A> The type of the first argument.
      * @param <B> The type of the second argument.
      * @param <C> The type of the second argument.
      */
-    public static final class ThreeArgs<A, B, C> extends FilledTemplate implements Token {
+    static final class ThreeArgs<A, B, C> extends RenderableTemplate {
         private final UnfilledTemplate.ThreeArgs<A, B, C> threeArgs;
         private final A a;
         private final B b;
@@ -134,12 +109,12 @@ public sealed abstract class FilledTemplate implements Token
         }
 
         @Override
-        public TemplateBody instantiate() {
+        TemplateBody instantiate() {
             return threeArgs.instantiate(a, b, c);
         }
 
         @Override
-        public void visitArguments(ArgumentVisitor visitor) {
+        void visitArguments(ArgumentVisitor visitor) {
             visitor.visit(threeArgs.arg0Name(), a);
             visitor.visit(threeArgs.arg1Name(), b);
             visitor.visit(threeArgs.arg2Name(), c);
@@ -156,21 +131,21 @@ public sealed abstract class FilledTemplate implements Token
     abstract void visitArguments(ArgumentVisitor visitor);
 
     /**
-     * Renders the {@link FilledTemplate} to a {@link String}.
+     * Renders the {@link RenderableTemplate} to a {@link String}.
      *
-     * @return The {@link FilledTemplate} rendered to a {@link String}.
+     * @return The {@link RenderableTemplate} rendered to a {@link String}.
      */
-    public final String render() {
+    public String render() {
         return Renderer.render(this);
     }
 
     /**
-     * Renders the {@link FilledTemplate} to a {@link String}.
+     * Renders the {@link RenderableTemplate} to a {@link String}.
      *
      * @param fuel The amount of fuel provided for recursive Template instantiations.
-     * @return The {@link FilledTemplate} rendered to a {@link String}.
+     * @return The {@link RenderableTemplate} rendered to a {@link String}.
      */
-    public final String render(float fuel) {
+    public String render(float fuel) {
         return Renderer.render(this, fuel);
     }
 }

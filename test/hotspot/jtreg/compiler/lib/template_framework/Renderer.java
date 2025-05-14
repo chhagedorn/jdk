@@ -23,12 +23,9 @@
 
 package compiler.lib.template_framework;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 import java.util.regex.MatchResult;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 /**
  * The {@link Renderer} class is used to keep track of the states during a nested
@@ -49,9 +46,9 @@ class Renderer {
     private static Renderer renderer = null;
 
     private int nextTemplateFrameId;
-    private TemplateFrame baseTemplateFrame;
+    private final TemplateFrame baseTemplateFrame;
     private TemplateFrame currentTemplateFrame;
-    private CodeFrame baseCodeFrame;
+    private final CodeFrame baseCodeFrame;
     private CodeFrame currentCodeFrame;
 
     // We do not want any other instances, so we keep it private.
@@ -70,18 +67,18 @@ class Renderer {
         return renderer;
     }
 
-    static String render(FilledTemplate filledTemplate) {
-        return render(filledTemplate, Template.DEFAULT_FUEL);
+    static String render(RenderableTemplate renderableTemplate) {
+        return render(renderableTemplate, Template.DEFAULT_FUEL);
     }
 
-    static String render(FilledTemplate filledTemplate, float fuel) {
+    static String render(RenderableTemplate renderableTemplate, float fuel) {
         // Check nobody else is using the Renderer.
         if (renderer != null) {
             throw new RendererException("Nested render not allowed. Please only use 'fillWith' inside Templates, and call 'render' only once at the end.");
         }
         try {
             renderer = new Renderer(fuel);
-            renderer.renderFilledTemplate(filledTemplate);
+            renderer.renderTemplate(renderableTemplate);
             renderer.checkFrameConsistencyAfterRendering();
             return renderer.collectCode();
         } finally {
@@ -137,7 +134,7 @@ class Renderer {
 
     /**
      * Formats values to {@link String} with the goal of using them in Java code.
-     * By default we use the overrides of {@link Object#toString}.
+     * By default, we use the overrides of {@link Object#toString}.
      * But for some boxed primitives we need to create a special formatting.
      */
     static String format(Object value) {
@@ -146,7 +143,7 @@ class Renderer {
             case Integer i -> i.toString();
             // We need to append the "L" so that the values are not interpreted as ints,
             // and then javac might complain that the values are too large for an int.
-            case Long l -> l.toString() + "L";
+            case Long l -> l + "L";
             // Some Float and Double values like Infinity and NaN need a special representation.
             case Float f -> formatFloat(f);
             case Double d -> formatDouble(d);
@@ -156,7 +153,7 @@ class Renderer {
 
     private static String formatFloat(Float f) {
         if (Float.isFinite(f)) {
-            return f.toString() + "f";
+            return f + "f";
         } else if (f.isNaN()) {
             return "Float.intBitsToFloat(" + Float.floatToRawIntBits(f) + " /* NaN */)";
         } else if (f.isInfinite()) {
@@ -186,12 +183,12 @@ class Renderer {
         }
     }
 
-    private void renderFilledTemplate(FilledTemplate filledTemplate) {
+    private void renderTemplate(RenderableTemplate renderableTemplate) {
         TemplateFrame templateFrame = TemplateFrame.make(currentTemplateFrame, nextTemplateFrameId++);
         currentTemplateFrame = templateFrame;
 
-        filledTemplate.visitArguments((name, value) -> addHashtagReplacement(name, format(value)));
-        TemplateBody body = filledTemplate.instantiate();
+        renderableTemplate.visitArguments((name, value) -> addHashtagReplacement(name, format(value)));
+        TemplateBody body = renderableTemplate.instantiate();
         renderTokenList(body.tokens());
 
         if (currentTemplateFrame != templateFrame) {
@@ -202,9 +199,7 @@ class Renderer {
 
     private void renderToken(Token token) {
         switch (token) {
-            case StringToken(String s) -> {
-                currentCodeFrame.addString(templateString(s));
-            }
+            case StringToken(String s) -> currentCodeFrame.addString(templateString(s));
             case NothingToken() -> {
                 // Nothing.
             }
@@ -212,7 +207,7 @@ class Renderer {
                 CodeFrame outerCodeFrame = currentCodeFrame;
 
                 // We need a CodeFrame to which the hook can insert code. That way, name
-                // definitions at the hook cannot excape the hookCodeFrame.
+                // definitions at the hook cannot escape the hookCodeFrame.
                 CodeFrame hookCodeFrame = CodeFrame.make(outerCodeFrame);
                 hookCodeFrame.addHook(hook);
 
@@ -230,7 +225,7 @@ class Renderer {
                 currentCodeFrame.addCode(hookCodeFrame.getCode());
                 currentCodeFrame.addCode(innerCodeFrame.getCode());
             }
-            case HookInsertToken(Hook hook, FilledTemplate t) -> {
+            case HookInsertToken(Hook hook, RenderableTemplate t) -> {
                 // Switch to hook CodeFrame.
                 CodeFrame callerCodeFrame = currentCodeFrame;
                 CodeFrame hookCodeFrame = codeFrameForHook(hook);
@@ -243,26 +238,24 @@ class Renderer {
                 // the hookCodeFrame, and are not limited to the CodeFrame for the FilledTemplate.
                 currentCodeFrame = CodeFrame.makeTransparentForNames(hookCodeFrame);
 
-                renderFilledTemplate(t);
+                renderTemplate(t);
 
                 hookCodeFrame.addCode(currentCodeFrame.getCode());
 
                 // Switch back from hook CodeFrame to caller CodeFrame.
                 currentCodeFrame = callerCodeFrame;
             }
-            case FilledTemplate t -> {
+            case RenderableTemplate t -> {
                 // Use a nested CodeFrame.
                 CodeFrame callerCodeFrame = currentCodeFrame;
                 currentCodeFrame = CodeFrame.make(currentCodeFrame);
 
-                renderFilledTemplate(t);
+                renderTemplate(t);
 
                 callerCodeFrame.addCode(currentCodeFrame.getCode());
                 currentCodeFrame = callerCodeFrame;
             }
-            case AddNameToken(Name name) -> {
-                currentCodeFrame.addName(name);
-            }
+            case AddNameToken(Name name) -> currentCodeFrame.addName(name);
         }
     }
 

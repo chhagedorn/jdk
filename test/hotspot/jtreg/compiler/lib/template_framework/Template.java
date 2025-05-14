@@ -148,12 +148,12 @@ import java.util.List;
  *
  * <p>
  * Given a {@link UnfilledTemplate}, one must apply the required number of arguments, i.e. fill
- * the Template, to arrive at a {@link FilledTemplate}. Note: {@link Template#make(Supplier)},
- * i.e. the making a Template with zero arguments directly returns a {@link FilledTemplate},
+ * the Template, to arrive at a {@link RenderableTemplate}. Note: {@link Template#make(Supplier)},
+ * i.e. the making a Template with zero arguments directly returns a {@link RenderableTemplate},
  * because there are no arguments to be filled.
  *
  * <p>
- * The {@link FilledTemplate} can then be used to render to String, or for nesting inside other
+ * The {@link RenderableTemplate} can then be used to render to String, or for nesting inside other
  * Templates.
  *
  * <p>
@@ -172,11 +172,11 @@ import java.util.List;
  *
  * <p>
  * To render a Template to a {@link String}, one first has to apply the arguments (e.g. with
- * {@link UnfilledTemplate.TwoArgs#fillWith}) and then the resulting {@link FilledTemplate} can either be used as a
- * {@link Token} inside another {@link Template#body}, or rendered to a {@link String} with {@link FilledTemplate#render}.
+ * {@link UnfilledTemplate.TwoArgs#fillWith}) and then the resulting {@link RenderableTemplate} can either be used as a
+ * {@link Token} inside another {@link Template#body}, or rendered to a {@link String} with {@link RenderableTemplate#render}.
  *
  * <p>
- * A {@link FilledTemplate} can be used directly as a {@link Token} inside the {@link Template#body} to
+ * A {@link RenderableTemplate} can be used directly as a {@link Token} inside the {@link Template#body} to
  * nest the Templates. Alternatively, code can be {@link Hook#insert}ed to where a {@link Hook}
  * was {@link Hook#set} earlier (in some outer scope of the code). For example, while generating code in
  * a method, one can reach out to the scope of the class, and insert a new field, or define a utility method.
@@ -201,10 +201,10 @@ import java.util.List;
  * More examples for these functionalities can be found in {@link TestTutorial}, {@link TestSimple}, and
  * {@link TestAdvanced}.
  */
-public interface Template {
+abstract public class Template {
 
     /**
-     * Creates a {@link FilledTemplate} with no arguments.
+     * Creates a {@link RenderableTemplate} with no arguments.
      * See {@link #body} for more details about how to construct a Template with {@link Token}s.
      *
      * <p>
@@ -218,10 +218,10 @@ public interface Template {
      * }
      *
      * @param body The {@link TemplateBody} created by {@link Template#body}.
-     * @return A {@link FilledTemplate} with zero arguments.
+     * @return A {@link RenderableTemplate} with zero arguments.
      */
-    static FilledTemplate.ZeroArgs make(Supplier<TemplateBody> body) {
-        return new UnfilledTemplate.ZeroArgs(body).fillWithNothing();
+    public static ZeroArgsTemplate make(Supplier<TemplateBody> body) {
+        return new ZeroArgsTemplate(body);
     }
 
     /**
@@ -247,7 +247,7 @@ public interface Template {
      * @param arg0Name The name of the (first) argument for hashtag replacement.
      * @return A {@link UnfilledTemplate} with one argument.
      */
-    static <A> UnfilledTemplate.OneArgs<A> make(String arg0Name, Function<A, TemplateBody> body) {
+    public static <A> UnfilledTemplate.OneArgs<A> make(String arg0Name, Function<A, TemplateBody> body) {
         return new UnfilledTemplate.OneArgs<>(arg0Name, body);
     }
 
@@ -276,7 +276,7 @@ public interface Template {
      * @param arg1Name The name of the second argument for hashtag replacement.
      * @return A {@link UnfilledTemplate} with two arguments.
      */
-    static <A, B> UnfilledTemplate.TwoArgs<A, B> make(String arg0Name, String arg1Name, BiFunction<A, B, TemplateBody> body) {
+    public static <A, B> UnfilledTemplate.TwoArgs<A, B> make(String arg0Name, String arg1Name, BiFunction<A, B, TemplateBody> body) {
         return new UnfilledTemplate.TwoArgs<>(arg0Name, arg1Name, body);
     }
 
@@ -293,7 +293,7 @@ public interface Template {
      * @param arg2Name The name of the third argument for hashtag replacement.
      * @return A {@link UnfilledTemplate} with three arguments.
      */
-    static <A, B, C> UnfilledTemplate.ThreeArgs<A, B, C> make(String arg0Name, String arg1Name, String arg2Name, UnfilledTemplate.TriFunction<A, B, C, TemplateBody> body) {
+    public static <A, B, C> UnfilledTemplate.ThreeArgs<A, B, C> make(String arg0Name, String arg1Name, String arg2Name, UnfilledTemplate.TriFunction<A, B, C, TemplateBody> body) {
         return new UnfilledTemplate.ThreeArgs<>(arg0Name, arg1Name, arg2Name, body);
     }
 
@@ -319,7 +319,7 @@ public interface Template {
      * @return The {@link TemplateBody} which captures the list of validated {@link Token}s.
      * @throws IllegalArgumentException if the list of tokens contains an unexpected object.
      */
-    static TemplateBody body(Object... tokens) {
+    public static TemplateBody body(Object... tokens) {
         return new TemplateBody(Token.parse(tokens));
     }
 
@@ -343,7 +343,7 @@ public interface Template {
      * @param name The {@link String} name of the name.
      * @return The dollar replacement for the {@code 'name'}.
      */
-    static String $(String name) {
+    public static String $(String name) {
         return Renderer.getCurrent().$(name);
     }
 
@@ -365,7 +365,7 @@ public interface Template {
      *         inside a {@link Template#body}.
      * @throws RendererException if there is a duplicate hashtag {@code key}.
      */
-    static Token let(String key, Object value) {
+    public static Token let(String key, Object value) {
         Renderer.getCurrent().addHashtagReplacement(key, value);
         return new NothingToken();
     }
@@ -391,13 +391,13 @@ public interface Template {
      *         inside a {@link Template#body}.
      * @throws RendererException if there is a duplicate hashtag {@code key}.
      */
-    static <T> TemplateBody let(String key, T value, Function<T, TemplateBody> function) {
+    public static <T> TemplateBody let(String key, T value, Function<T, TemplateBody> function) {
         Renderer.getCurrent().addHashtagReplacement(key, value);
         return function.apply(value);
     }
 
     /**
-     * Default amount of fuel for {@link FilledTemplate#render}. It guides the nesting depth of Templates.
+     * Default amount of fuel for {@link RenderableTemplate#render}. It guides the nesting depth of Templates.
      */
     public final static float DEFAULT_FUEL = 100.0f;
 
@@ -416,7 +416,7 @@ public interface Template {
      * <p>
      * Example of a recursive Template, which checks the remaining {@link #fuel} at every level,
      * and terminates if it reaches zero. It also demonstrates the use of {@link TemplateBinding} for
-     * the recursive use of Templates. We {@link FilledTemplate#render} with {@code 30} total fuel, and spending {@code 5} fuel at each recursion level.
+     * the recursive use of Templates. We {@link RenderableTemplate#render} with {@code 30} total fuel, and spending {@code 5} fuel at each recursion level.
      * {@snippet lang=java :
      * var binding = new TemplateBinding<UnfilledTemplate.OneArgs<Integer>>();
      * var template = Template.make("depth", (Integer depth) -> body(
@@ -434,7 +434,7 @@ public interface Template {
      *
      * @return The amount of fuel left for nested Template use.
      */
-    static float fuel() {
+    public static float fuel() {
         return Renderer.getCurrent().fuel();
     }
 
@@ -445,7 +445,7 @@ public interface Template {
      * @param fuelCost The amount of fuel used for the current Template.
      * @return A token for convenient use in {@link Template#body}.
      */
-    static Token setFuelCost(float fuelCost) {
+    public static Token setFuelCost(float fuelCost) {
         Renderer.getCurrent().setFuelCost(fuelCost);
         return new NothingToken();
     }
@@ -459,7 +459,7 @@ public interface Template {
      * @param name The {@link Name} to be added to the current code frame.
      * @return The token that performs the defining action.
      */
-    static Token addName(Name name) {
+    public static Token addName(Name name) {
         return new AddNameToken(name);
     }
 
@@ -470,7 +470,7 @@ public interface Template {
      * @param onlyMutable Determines if we weigh the mutable names or all.
      * @return The weight of names for the specified parameters.
      */
-    static long weighNames(Name.Type type, boolean onlyMutable) {
+    public static long weighNames(Name.Type type, boolean onlyMutable) {
         return Renderer.getCurrent().weighNames(type, onlyMutable);
     }
 
@@ -481,7 +481,7 @@ public interface Template {
      * @param onlyMutable Determines if we sample from the mutable names or all.
      * @return The sampled name.
      */
-    static Name sampleName(Name.Type type, boolean onlyMutable) {
+    public static Name sampleName(Name.Type type, boolean onlyMutable) {
         return Renderer.getCurrent().sampleName(type, onlyMutable);
     }
 }

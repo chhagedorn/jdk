@@ -40,10 +40,8 @@ public class TemplateBinding<T extends TemplateBinding.Bindable> {
     /**
      * A collection of Bindable types.
      */
-    public sealed interface Bindable permits UnfilledTemplate.OneArgs,
-                                             UnfilledTemplate.TwoArgs,
-                                             UnfilledTemplate.ThreeArgs,
-                                             FilledTemplate.ZeroArgs {}
+    public sealed interface Bindable permits UnfilledTemplate,
+                                             ZeroArgsTemplate {}
 
     /**
      * Creates a new {@link TemplateBinding} that has no Template bound to it yet.
