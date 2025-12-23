@@ -26,12 +26,11 @@ package compiler.lib.ir_framework.driver.irmatching.irrule.constraint.raw;
 
 import compiler.lib.ir_framework.CompilePhase;
 import compiler.lib.ir_framework.IR;
-import compiler.lib.ir_framework.IRNode;
 import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.driver.irmatching.irrule.checkattribute.parsing.RawIRNode;
 import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.Constraint;
-import compiler.lib.ir_framework.driver.irmatching.parser.VMInfo;
 import compiler.lib.ir_framework.driver.SuccessOnlyConstraintException;
+import compiler.lib.ir_framework.driver.network.VmInfo;
 import compiler.lib.ir_framework.shared.Comparison;
 import compiler.lib.ir_framework.shared.TestFormat;
 import compiler.lib.ir_framework.shared.TestFormatException;
@@ -94,7 +93,7 @@ public class RawCountsConstraint implements RawConstraint {
     }
 
     @Override
-    public Constraint parse(CompilePhase compilePhase, String compilationOutput, VMInfo vmInfo) {
+    public Constraint parse(CompilePhase compilePhase, String compilationOutput, VmInfo vmInfo) {
         TestFramework.check(compilePhase != CompilePhase.DEFAULT, "must not be default");
         try {
             return Constraint.createCounts(rawIRNode.regex(compilePhase, vmInfo, getComparisonBound()), constraintIndex, comparison, compilationOutput);

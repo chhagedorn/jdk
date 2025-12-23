@@ -31,7 +31,7 @@ import compiler.lib.ir_framework.driver.irmatching.MatchResult;
 import compiler.lib.ir_framework.driver.irmatching.Matchable;
 import compiler.lib.ir_framework.driver.irmatching.MatchableMatcher;
 import compiler.lib.ir_framework.driver.irmatching.irrule.IRRule;
-import compiler.lib.ir_framework.driver.irmatching.parser.VMInfo;
+import compiler.lib.ir_framework.driver.network.VmInfo;
 import compiler.lib.ir_framework.shared.TestFormat;
 import compiler.lib.ir_framework.shared.TestFormatException;
 
@@ -53,12 +53,12 @@ public class IRMethod implements IRMethodMatchable {
     private final Method method;
     private final MatchableMatcher matcher;
 
-    public IRMethod(Method method, int[] ruleIds, IR[] irAnnos, Compilation compilation, VMInfo vmInfo) {
+    public IRMethod(Method method, List<Integer> ruleIds, IR[] irAnnos, Compilation compilation, VmInfo vmInfo) {
         this.method = method;
         this.matcher = new MatchableMatcher(createIRRules(method, ruleIds, irAnnos, compilation, vmInfo));
     }
 
-    private List<Matchable> createIRRules(Method method, int[] ruleIds, IR[] irAnnos, Compilation compilation, VMInfo vmInfo) {
+    private List<Matchable> createIRRules(Method method, List<Integer> ruleIds, IR[] irAnnos, Compilation compilation, VmInfo vmInfo) {
         List<Matchable> irRules = new ArrayList<>();
         for (int ruleId : ruleIds) {
             try {

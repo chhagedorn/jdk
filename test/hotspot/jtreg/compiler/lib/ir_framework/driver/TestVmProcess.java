@@ -24,6 +24,8 @@
 package compiler.lib.ir_framework.driver;
 
 import compiler.lib.ir_framework.TestFramework;
+import compiler.lib.ir_framework.driver.network.IrEncoding;
+import compiler.lib.ir_framework.driver.network.TestVmData;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 import compiler.lib.ir_framework.shared.TestFrameworkSocket;
 import compiler.lib.ir_framework.shared.NoTestsRunException;
@@ -48,7 +50,7 @@ import java.util.stream.Collectors;
  * @see TestVM
  * @see TestFrameworkSocket
  */
-public class TestVMProcess {
+public class TestVmProcess {
     private static final boolean VERBOSE = Boolean.getBoolean("Verbose");
     private static final boolean PREFER_COMMAND_LINE_FLAGS = Boolean.getBoolean("PreferCommandLineFlags");
     private static final int WARMUP_ITERATIONS = Integer.getInteger("Warmup", -1);
@@ -62,27 +64,33 @@ public class TestVMProcess {
     private String hotspotPidFileName;
     private String commandLine;
     private OutputAnalyzer oa;
-    private String irEncoding;
+    private TestVmData testVmData;
 
-    public TestVMProcess(List<String> additionalFlags, Class<?> testClass, Set<Class<?>> helperClasses, int defaultWarmup,
+    public TestVmProcess(List<String> additionalFlags, Class<?> testClass, Set<Class<?>> helperClasses, int defaultWarmup,
                          boolean allowNotCompilable, boolean testClassesOnBootClassPath) {
         this.cmds = new ArrayList<>();
+//        cmds.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5557");
         TestFrameworkSocket socket = new TestFrameworkSocket();
         try (socket) {
             prepareTestVMFlags(additionalFlags, socket, testClass, helperClasses, defaultWarmup,
                                allowNotCompilable, testClassesOnBootClassPath);
             start();
         }
-        processSocketOutput(socket);
         checkTestVMExitCode();
+        testVmData = socket.testVmData(allowNotCompilable);
+        testVmData.printTestVmMessages();
+    }
+
+    public TestVmData testVmData() {
+        return testVmData;
     }
 
     public String getCommandLine() {
         return commandLine;
     }
 
-    public String getIrEncoding() {
-        return irEncoding;
+    public IrEncoding irEncoding() {
+        return testVmData.irEncoding();
     }
 
     public String getHotspotPidFileName() {
@@ -114,7 +122,7 @@ public class TestVMProcess {
         }
         // Add server property flag that enables test VM to print encoding for IR verification last and debug messages.
         cmds.add(socket.getPortPropertyFlag());
-        cmds.add("-XX:IrFrameworkPort=" + socket.serverSocketPort());
+//        cmds.add("-XX:IrFrameworkPort=" + socket.serverSocketPort()); TODO: LATER
         cmds.addAll(additionalFlags);
         cmds.addAll(Arrays.asList(getDefaultFlags()));
         if (VERIFY_VM) {
@@ -175,51 +183,6 @@ public class TestVMProcess {
                       + System.lineSeparator();
         hotspotPidFileName = String.format("hotspot_pid%d.log", oa.pid());
         lastTestVMOutput = oa.getOutput();
-    }
-
-    /**
-     * Process the socket output: All prefixed lines are dumped to the standard output while the remaining lines
-     * represent the IR encoding used for IR matching later.
-     */
-    private void processSocketOutput(TestFrameworkSocket socket) {
-        String output = socket.getOutput();
-        if (socket.hasStdOut()) {
-            StringBuilder testListBuilder = new StringBuilder();
-            StringBuilder messagesBuilder = new StringBuilder();
-            StringBuilder nonStdOutBuilder = new StringBuilder();
-            Scanner scanner = new Scanner(output);
-            while (scanner.hasNextLine()) {
-                String line = scanner.nextLine();
-                if (line.startsWith(TestFrameworkSocket.STDOUT_PREFIX)) {
-                    // Exclude [STDOUT] from message.
-                    line = line.substring(TestFrameworkSocket.STDOUT_PREFIX.length());
-                    if (line.startsWith(TestFrameworkSocket.TESTLIST_TAG)) {
-                        // Exclude [TESTLIST] from message for better formatting.
-                        line = "> " + line.substring(TestFrameworkSocket.TESTLIST_TAG.length() + 1);
-                        testListBuilder.append(line).append(System.lineSeparator());
-                    } else {
-                        messagesBuilder.append(line).append(System.lineSeparator());
-                    }
-                } else {
-                    nonStdOutBuilder.append(line).append(System.lineSeparator());
-                }
-            }
-            System.out.println();
-            if (!testListBuilder.isEmpty()) {
-                System.out.println("Run flag defined test list");
-                System.out.println("--------------------------");
-                System.out.println(testListBuilder);
-                System.out.println();
-            }
-            if (!messagesBuilder.isEmpty()) {
-                System.out.println("Messages from Test VM");
-                System.out.println("---------------------");
-                System.out.println(messagesBuilder);
-            }
-            irEncoding = nonStdOutBuilder.toString();
-        } else {
-            irEncoding = output;
-        }
     }
 
     private void checkTestVMExitCode() {

@@ -44,8 +44,6 @@ import java.util.function.Function;
  * and checked by the IRMatcher class in the driver VM after the termination of the test VM. IR rule indices start at 1.
  */
 public class IREncodingPrinter {
-    public static final String START = "##### IRMatchRulesEncoding - used by TestFramework #####";
-    public static final String END = "----- END -----";
     public static final int NO_RULE_APPLIED = -1;
 
     private static final WhiteBox WHITE_BOX = WhiteBox.getWhiteBox();
@@ -126,11 +124,6 @@ public class IREncodingPrinter {
         "zvkn"
     ));
 
-    public IREncodingPrinter() {
-        output.append(START).append(System.lineSeparator());
-        output.append("<method>,{comma separated applied @IR rule ids}").append(System.lineSeparator());
-    }
-
     /**
      * Emits "<method>,{ids}" where {ids} is either:
      * - indices of all @IR rules that should be applied, separated by a comma
@@ -168,9 +161,8 @@ public class IREncodingPrinter {
     }
 
     private void printDisableReason(String method, String reason, String[] apply, int ruleIndex, int ruleMax) {
-        TestFrameworkSocket.write("Disabling IR matching for rule " + ruleIndex + " of " + ruleMax + " in " +
-                                  method + ": " + reason + ": " + String.join(", ", apply),
-                                  "[IREncodingPrinter]", true);
+        TestVmSocket.send("Disabling IR matching for rule " + ruleIndex + " of " + ruleMax + " in " + method + ": " +
+                                  reason + ": " + String.join(", ", apply));
     }
 
     private boolean shouldApplyIrRule(IR irAnno, String m, int ruleIndex, int ruleMax) {
@@ -283,7 +275,7 @@ public class IREncodingPrinter {
                 IRNode.checkIRNodeSupported(s);
             }
         } catch (CheckedTestFrameworkException e) {
-            TestFrameworkSocket.write("Skip Rule " + ruleIndex + ": " + e.getMessage(), TestFrameworkSocket.DEFAULT_REGEX_TAG, true);
+            TestVmSocket.send("Skip Rule " + ruleIndex + ": " + e.getMessage());
             return true;
         }
         return false;
@@ -520,8 +512,8 @@ public class IREncodingPrinter {
     }
 
     public void emit() {
-        output.append(END);
-        TestFrameworkSocket.write(output.toString(), "IR rule application encoding");
+        output.append(Tag.END_TAG);
+        TestVmSocket.sendWithTag(Tag.IR_ENCODING, output.toString());
     }
 }
 

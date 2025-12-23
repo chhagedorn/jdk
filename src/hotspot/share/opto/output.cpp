@@ -1840,7 +1840,12 @@ void PhaseOutput::fill_buffer(C2_MacroAssembler* masm, uint* blk_starts) {
       }
       tty->cr();
       tty->print_cr("------------------------ OptoAssembly for Compile_id = %d -----------------------", C->compile_id());
-      tty->print_raw(dump_asm_str.freeze());
+      const char* opto_assembly = dump_asm_str.freeze();
+      if (C->use_ir_framework_stream()) {
+        C->print_opto_assembly_to_ir_framework(opto_assembly);
+      } else {
+        tty->print_raw(opto_assembly);
+      }
       tty->print_cr("--------------------------------------------------------------------------------");
       if (xtty != nullptr) {
         xtty->tail("opto_assembly");

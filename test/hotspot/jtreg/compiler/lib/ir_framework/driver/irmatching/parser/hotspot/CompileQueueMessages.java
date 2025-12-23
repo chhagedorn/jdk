@@ -24,7 +24,7 @@
 package compiler.lib.ir_framework.driver.irmatching.parser.hotspot;
 
 import compiler.lib.ir_framework.TestFramework;
-import compiler.lib.ir_framework.driver.irmatching.parser.IREncodingParser;
+import compiler.lib.ir_framework.driver.irmatching.parser.TestMethodParser;
 import compiler.lib.ir_framework.driver.irmatching.parser.TestMethods;
 
 import java.util.HashMap;
@@ -34,9 +34,9 @@ import java.util.regex.Pattern;
 
 /**
  * This class parses compile queue messages found in the hotspot_pid* files and keeps track of those that need to be
- * IR matched (i.e. identified by {@link IREncodingParser}.
+ * IR matched (i.e. identified by {@link TestMethodParser}.
  *
- * @see IREncodingParser
+ * @see TestMethodParser
  */
 class CompileQueueMessages {
     private static final Pattern COMPILE_ID_PATTERN = Pattern.compile("compile_id='(\\d+)'");

@@ -37,7 +37,7 @@ public class HotSpotMessageReader implements Callable<MethodDump> {
         try (socket; reader) {
             String line;
             while ((line = reader.readLine()) != null) {
-                messageParser.parse(line);
+                messageParser.parse(line.trim());
             }
             return messageParser.methodDump();
         } catch (Exception e) {

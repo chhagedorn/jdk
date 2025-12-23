@@ -581,13 +581,24 @@ void Compile::print_phase(const char* phase_name) {
   tty->print_cr("%u.\t%s", ++_phase_counter, phase_name);
 }
 
-void Compile::print_to_ir_framework(const char* phase_name) {
-    // Print out all nodes in ascending order of index.
-    // It is important that we traverse both inputs and outputs of nodes,
-    // so that we reach all nodes that are connected to Root.
-    _ir_framework_stream.print_cr("COMPILE_PHASE: %s", phase_name);
-    root()->dump_bfs(MaxNodeLimit, nullptr, "-+S$", &_ir_framework_stream);
-    _ir_framework_stream.print_cr("END");
+void Compile::print_ideal_to_ir_framework(const char* phase_name) {
+  // Print out all nodes in ascending order of index.
+  // It is important that we traverse both inputs and outputs of nodes,
+  // so that we reach all nodes that are connected to Root.
+  assert(_use_ir_framework_stream, "sanity");
+  _ir_framework_stream.print_cr("COMPILE_PHASE: %s", phase_name);
+  root()->dump_bfs(MaxNodeLimit, nullptr, "-+S$", &_ir_framework_stream);
+  _ir_framework_stream.print_cr("#END#");
+}
+
+void Compile::print_opto_assembly_to_ir_framework(const char* opto_assembly) {
+  // Print out all nodes in ascending order of index.
+  // It is important that we traverse both inputs and outputs of nodes,
+  // so that we reach all nodes that are connected to Root.
+  assert(_use_ir_framework_stream, "sanity");
+  _ir_framework_stream.print_cr("COMPILE_PHASE: PrintOptoAssembly");
+  _ir_framework_stream.print_cr("%s", opto_assembly);
+  _ir_framework_stream.print_cr("#END#");
 }
 
 void Compile::print_ideal_ir(const char* phase_name) {

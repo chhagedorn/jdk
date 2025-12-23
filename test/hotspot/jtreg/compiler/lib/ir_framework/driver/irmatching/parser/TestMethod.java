@@ -28,21 +28,22 @@ import compiler.lib.ir_framework.driver.irmatching.irmethod.IRMethod;
 import compiler.lib.ir_framework.driver.irmatching.parser.hotspot.LoggedMethod;
 
 import java.lang.reflect.Method;
+import java.util.List;
 
 /**
- * This class represents a test method parsed by {@link IREncodingParser}. In combination with the associated
+ * This class represents a test method parsed by {@link TestMethodParser}. In combination with the associated
  * {@link LoggedMethod}, a new {@link IRMethod} is created to IR match on later.
  *
- * @see IREncodingParser
+ * @see TestMethodParser
  * @see LoggedMethod
  * @see IRMethod
  */
 public class TestMethod {
     private final Method method;
     private final IR[] irAnnos;
-    private final int[] irRuleIds;
+    private final List<Integer> irRuleIds;
 
-    public TestMethod(Method m, IR[] irAnnos, int[] irRuleIds) {
+    public TestMethod(Method m, IR[] irAnnos, List<Integer> irRuleIds) {
         this.method = m;
         this.irAnnos = irAnnos;
         this.irRuleIds = irRuleIds;
@@ -56,7 +57,7 @@ public class TestMethod {
         return irAnnos;
     }
 
-    public int[] irRuleIds() {
+    public List<Integer> irRuleIds() {
         return irRuleIds;
     }
 }

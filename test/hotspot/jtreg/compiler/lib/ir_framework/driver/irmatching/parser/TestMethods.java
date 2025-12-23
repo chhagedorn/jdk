@@ -29,15 +29,15 @@ import compiler.lib.ir_framework.driver.irmatching.parser.hotspot.HotSpotPidFile
 import java.util.Map;
 
 /**
- * This class stores all test methods that need to be IR matched as identified by {@link IREncodingParser}.
+ * This class stores all test methods that need to be IR matched as identified by {@link TestMethodParser}.
  *
- * @see IREncodingParser
+ * @see TestMethodParser
  * @see HotSpotPidFileParser
  * @see IRMethod
  */
 public class TestMethods {
     /**
-     * "Method name" -> TestMethod map created by {@link IREncodingParser} which contains an entry for each method that
+     * "Method name" -> TestMethod map created by {@link TestMethodParser} which contains an entry for each method that
      * needs to be IR matched on.
      */
     private final Map<String, TestMethod> testMethods;

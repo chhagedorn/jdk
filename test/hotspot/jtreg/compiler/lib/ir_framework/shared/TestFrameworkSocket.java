@@ -25,6 +25,7 @@ package compiler.lib.ir_framework.shared;
 
 import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.driver.network.*;
+import compiler.lib.ir_framework.test.TestVM;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -38,20 +39,13 @@ import java.util.concurrent.*;
  * Dedicated driver VM socket to receive data from test VM Java and HotSpot code.
  */
 public class TestFrameworkSocket implements AutoCloseable {
-    public static final String STDOUT_PREFIX = "[STDOUT]";
-    public static final String TESTLIST_TAG = "[TESTLIST]";
-    public static final String DEFAULT_REGEX_TAG = "[DEFAULT_REGEX]";
-    public static final String PRINT_TIMES_TAG = "[PRINT_TIMES]";
-    public static final String NOT_COMPILABLE_TAG = "[NOT_COMPILABLE]";
 
-    private static final String TEST_VM_IDENTITY = "#TestVM#";
     private static final String HOTSPOT_IDENTITY = "#HotSpot#";
 
     // Static fields used for test VM only.
     private static final String SERVER_PORT_PROPERTY = "ir.framework.server.port";
     private static final int SERVER_PORT = Integer.getInteger(SERVER_PORT_PROPERTY, -1);
 
-    private static final boolean REPRODUCE = Boolean.getBoolean("Reproduce");
     private static Socket clientSocket = null;
     private static PrintWriter clientWriter = null;
 
@@ -60,7 +54,7 @@ public class TestFrameworkSocket implements AutoCloseable {
     private boolean running;
     private final ExecutorService executor;
     private final List<Future<MethodDump>> methodDumps;
-    private Future<TestVmOutput> testVmFuture;
+    private Future<TestVmMessages> testVmFuture;
 
     public TestFrameworkSocket() {
         try {
@@ -105,9 +99,14 @@ public class TestFrameworkSocket implements AutoCloseable {
     }
 
     private void handleClientConnection() throws IOException {
+        System.out.println(serverSocket.isBound());
+        System.out.println(serverSocket.isClosed());
         Socket client = serverSocket.accept();
+        System.out.println(serverSocket.isBound());
+        System.out.println(serverSocket.isClosed());
         BufferedReader reader = new BufferedReader(new InputStreamReader(client.getInputStream()));
-        String identity = readIdentity(client, reader);
+        String identity = readIdentity(client, reader).trim();
+        System.out.println(identity);
         submitTask(identity, client, reader);
     }
 
@@ -124,27 +123,14 @@ public class TestFrameworkSocket implements AutoCloseable {
     }
 
     private void submitTask(String identity, Socket client, BufferedReader reader) {
-        if (identity.equals(TEST_VM_IDENTITY)) {
-            testVmFuture = executor.submit(new TestVMTask(client, reader));
+        if (identity.equals(TestVM.IDENTITY)) {
+            testVmFuture = executor.submit(new TestVmMessageReader(client, reader));
         } else if (identity.equals(HOTSPOT_IDENTITY)) {
             Future<MethodDump> future = executor.submit(new HotSpotMessageReader(client, reader));
             methodDumps.add(future);
         } else {
             throw new TestFrameworkException("Wrong identity: " + identity);
         }
-    }
-
-    public MethodDumps methodDumps() {
-        MethodDumps methodDumps = new MethodDumps();
-        for (Future<MethodDump> future : this.methodDumps) {
-            try {
-                MethodDump methodDump = future.get();
-                methodDumps.add(methodDump);
-            } catch (Exception e) {
-                throw new TestFrameworkException("Error while fetching HotSpot Future", e);
-            }
-        }
-        return methodDumps;
     }
 
     @Override
@@ -157,84 +143,35 @@ public class TestFrameworkSocket implements AutoCloseable {
         }
     }
 
-    /**
-     * Only called by test VM to write to server socket.
-     */
-    public static void write(String msg, String tag) {
-        write(msg, tag, false);
+    public TestVmData testVmData(boolean allowNotCompilable) {
+        TestVmMessages testVmMessages = testVmMessages();
+        MethodDumps methodDumps = methodDumps();
+        return new TestVmData(testVmMessages, methodDumps, allowNotCompilable);
     }
 
-    /**
-     * Only called by test VM to write to server socket.
-     * <p>
-     * The test VM is spawned by the main jtreg VM. The stdout of the test VM is hidden
-     * unless the Verbose or ReportStdout flag is used. TestFrameworkSocket is used by the parent jtreg
-     * VM and the test VM to communicate. By sending the prints through the TestFrameworkSocket with the
-     * parameter stdout set to true, the parent VM will print the received messages to its stdout, making it
-     * visible to the user.
-     */
-    public static void write(String msg, String tag, boolean stdout) {
-        if (REPRODUCE) {
-            System.out.println("Debugging Test VM: Skip writing due to -DReproduce");
-            return;
-        }
-        TestFramework.check(SERVER_PORT != -1, "Server port was not set correctly for flag and/or test VM "
-                                               + "or method not called from flag or test VM");
-        try {
-            // Keep the client socket open until the test VM terminates (calls closeClientSocket before exiting main()).
-            if (clientSocket == null) {
-                clientSocket = new Socket(InetAddress.getLoopbackAddress(), SERVER_PORT);
-                clientWriter = new PrintWriter(clientSocket.getOutputStream(), true);
-            }
-            if (stdout) {
-                msg = STDOUT_PREFIX + tag + " " + msg;
-            }
-
-            clientWriter.write(TEST_VM_IDENTITY);
-            clientWriter.println(msg);
-        } catch (Exception e) {
-            // When the test VM is directly run, we should ignore all messages that would normally be sent to the
-            // driver VM.
-            String failMsg = System.lineSeparator() + System.lineSeparator() + """
-                             ###########################################################
-                              Did you directly run the test VM (TestVM class)
-                              to reproduce a bug?
-                              => Append the flag -DReproduce=true and try again!
-                             ###########################################################
-                             """;
-            throw new TestRunException(failMsg, e);
-        }
-        if (TestFramework.VERBOSE) {
-            System.out.println("Written " + tag + " to socket:");
-            System.out.println(msg);
-        }
-    }
-
-    /**
-     * Closes (and flushes) the printer to the socket and the socket itself. Is called as last thing before exiting
-     * the main() method of the flag and the test VM.
-     */
-    public static void closeClientSocket() {
-        if (clientSocket != null) {
+    private MethodDumps methodDumps() {
+        MethodDumps methodDumps = new MethodDumps();
+        for (Future<MethodDump> future : this.methodDumps) {
             try {
-                clientWriter.close();
-                clientSocket.close();
-            } catch (IOException e) {
-                throw new RuntimeException("Could not close TestVM socket", e);
+                MethodDump methodDump = future.get();
+                methodDumps.add(methodDump);
+            } catch (Exception e) {
+                throw new TestFrameworkException("Error while fetching HotSpot Future", e);
             }
         }
+        return methodDumps;
     }
 
     /**
      * Get the socket output of the flag VM.
      */
-    public TestVmOutput testVmOutput() {
+    private TestVmMessages testVmMessages() {
         try {
             return testVmFuture.get();
         } catch (ExecutionException e) {
-            throw new TestFrameworkException("Not data was received on socket", e);
+            throw new TestFrameworkException("No test VM messages were received", e);
         } catch (Exception e) {
-            throw new TestFrameworkException("Could not read from socket task", e);
+            throw new TestFrameworkException("Error while fetching Test VM Future", e);
         }
     }
 }

@@ -25,7 +25,7 @@ package compiler.lib.ir_framework;
 
 import compiler.lib.ir_framework.driver.FlagVMProcess;
 import compiler.lib.ir_framework.driver.TestVMException;
-import compiler.lib.ir_framework.driver.TestVMProcess;
+import compiler.lib.ir_framework.driver.TestVmProcess;
 import compiler.lib.ir_framework.driver.irmatching.IRMatcher;
 import compiler.lib.ir_framework.driver.irmatching.IRViolationException;
 import compiler.lib.ir_framework.driver.irmatching.Matchable;
@@ -509,7 +509,7 @@ public class TestFramework {
      * @return the last test VM output.
      */
     public static String getLastTestVMOutput() {
-        return TestVMProcess.getLastTestVMOutput();
+        return TestVmProcess.getLastTestVMOutput();
     }
 
     /*
@@ -839,7 +839,7 @@ public class TestFramework {
             runTestVM(additionalFlags);
         } finally {
             if (scenario != null) {
-                scenario.setTestVMOutput(TestVMProcess.getLastTestVMOutput());
+                scenario.setTestVMOutput(TestVmProcess.getLastTestVMOutput());
             }
             System.out.println();
         }
@@ -876,17 +876,16 @@ public class TestFramework {
     }
 
     private void runTestVM(List<String> additionalFlags) {
-        TestVMProcess testVMProcess = new TestVMProcess(additionalFlags, testClass, helperClasses, defaultWarmup,
+        TestVmProcess testVmProcess = new TestVmProcess(additionalFlags, testClass, helperClasses, defaultWarmup,
                                                         isAllowNotCompilable, testClassesOnBootClassPath);
         if (shouldVerifyIR) {
             try {
-                TestClassParser testClassParser = new TestClassParser(testClass, isAllowNotCompilable);
-                Matchable testClassMatchable = testClassParser.parse(testVMProcess.getHotspotPidFileName(),
-                                                                     testVMProcess.getIrEncoding());
+                TestClassParser testClassParser = new TestClassParser(testClass);
+                Matchable testClassMatchable = testClassParser.parse(testVmProcess);
                 IRMatcher matcher = new IRMatcher(testClassMatchable);
                 matcher.match();
             } catch (IRViolationException e) {
-                e.addCommandLine(testVMProcess.getCommandLine());
+                e.addCommandLine(testVmProcess.getCommandLine());
                 throw e;
             }
         } else {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2023, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -21,21 +21,20 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.irmatching.parser;
+package compiler.lib.ir_framework.driver.network;
 
 import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * This class stores the key value mapping from the VMInfo.
- *
- * @see IREncodingParser
+ * This class stores the key value mapping from the VmInfo.
  */
-public class VMInfo {
+public class VmInfo implements TestVmMessage {
     /**
      * Stores the key-value mapping.
      */
@@ -44,19 +43,16 @@ public class VMInfo {
     private static final Pattern CPU_SKYLAKE_PATTERN =
             Pattern.compile("family 6 model 85 stepping (\\d+) ");
 
-    public VMInfo(Map<String, String> map) {
-        this.keyValueMap = map;
+    public VmInfo() {
+        this.keyValueMap = new HashMap<>();
+    }
 
-        TestFramework.check(isKey("cpuFeatures"),   "VMInfo does not contain cpuFeatures");
-        TestFramework.check(isKey("MaxVectorSize"), "VMInfo does not contain MaxVectorSize");
-        TestFramework.check(isKey("MaxVectorSizeIsDefault"), "VMInfo does not contain MaxVectorSizeIsDefault");
-        TestFramework.check(isKey("LoopMaxUnroll"), "VMInfo does not contain LoopMaxUnroll");
-        TestFramework.check(isKey("UseAVX"), "VMInfo does not contain UseAVX");
-        TestFramework.check(isKey("UseAVXIsDefault"), "VMInfo does not contain UseAVXIsDefault");
+    public void add(String key, String value) {
+        keyValueMap.put(key, value);
     }
 
     public String getStringValue(String key) {
-        TestFramework.check(isKey(key), "VMInfo does not contain \"" + key + "\"");
+        TestFramework.check(isKey(key), "VmInfo does not contain \"" + key + "\"");
         return keyValueMap.get(key);
     }
 
@@ -64,7 +60,7 @@ public class VMInfo {
         try {
             return Long.parseLong(getStringValue(key));
         } catch (NumberFormatException e) {
-            throw new TestFrameworkException("VMInfo value for \"" + key + "\" is not a long, got \"" + getStringValue(key) + "\"");
+            throw new TestFrameworkException("VmInfo value for \"" + key + "\" is not a long, got \"" + getStringValue(key) + "\"");
         }
     }
 
@@ -85,9 +81,9 @@ public class VMInfo {
     public boolean isDefaultCascadeLake() {
         // See VM_Version::is_default_intel_cascade_lake
         return isCascadeLake() &&
-               getLongValue("MaxVectorSizeIsDefault") == 1 &&
-               getLongValue("UseAVXIsDefault") == 1 &&
-               getLongValue("UseAVX") > 2;
+                getLongValue("MaxVectorSizeIsDefault") == 1 &&
+                getLongValue("UseAVXIsDefault") == 1 &&
+                getLongValue("UseAVX") > 2;
     }
 
     /**
@@ -103,5 +99,19 @@ public class VMInfo {
 
     public boolean isKey(String key) {
         return keyValueMap.containsKey(key);
+    }
+
+    public void verify() {
+        TestFramework.check(isKey("cpuFeatures"),   "VmInfo does not contain cpuFeatures");
+        TestFramework.check(isKey("MaxVectorSize"), "VmInfo does not contain MaxVectorSize");
+        TestFramework.check(isKey("MaxVectorSizeIsDefault"), "VmInfo does not contain MaxVectorSizeIsDefault");
+        TestFramework.check(isKey("LoopMaxUnroll"), "VmInfo does not contain LoopMaxUnroll");
+        TestFramework.check(isKey("UseAVX"), "VmInfo does not contain UseAVX");
+        TestFramework.check(isKey("UseAVXIsDefault"), "VmInfo does not contain UseAVXIsDefault");
+    }
+
+    @Override
+    public void print() {
+        //TODO
     }
 }

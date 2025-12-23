@@ -24,7 +24,7 @@
 package compiler.lib.ir_framework.driver.irmatching.parser.hotspot;
 
 import compiler.lib.ir_framework.driver.irmatching.irmethod.IRMethod;
-import compiler.lib.ir_framework.driver.irmatching.parser.IREncodingParser;
+import compiler.lib.ir_framework.driver.irmatching.parser.TestMethodParser;
 import compiler.lib.ir_framework.driver.irmatching.parser.TestMethods;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 
@@ -34,10 +34,10 @@ import java.nio.file.Paths;
 
 /**
  * Class to parse the ideal compile phases and PrintOptoAssembly outputs of the test class from the hotspot_pid* file
- * of all methods identified by {@link IREncodingParser}.
+ * of all methods identified by {@link TestMethodParser}.
  *
  * @see IRMethod
- * @see IREncodingParser
+ * @see TestMethodParser
  */
 public class HotSpotPidFileParser {
     private final State state;

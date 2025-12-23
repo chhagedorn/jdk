@@ -32,8 +32,6 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 
-import compiler.lib.ir_framework.shared.TestFrameworkSocket;
-
 /**
  * Abstract super class for base, checked and custom run tests.
  */
@@ -118,7 +116,7 @@ abstract class AbstractTest {
             tryCompileMethod(test);
         } catch (MethodNotCompilableException e) {
             final Method testMethod = test.getTestMethod();
-            TestFrameworkSocket.write("Method not compilable: " + testMethod, TestFrameworkSocket.NOT_COMPILABLE_TAG, true);
+            TestVmSocket.send("Method not compilable: " + testMethod);
             TestRun.check(test.isAllowNotCompilable(),
                           "Method " + testMethod + " not compilable (anymore) at level " + test.getCompLevel() +
                           ". Most likely, this is not expected, but if it is, you can use 'allowNotCompilable'.");

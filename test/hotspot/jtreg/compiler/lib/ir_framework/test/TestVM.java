@@ -38,8 +38,6 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static compiler.lib.ir_framework.shared.TestFrameworkSocket.PRINT_TIMES_TAG;
-
 /**
  * This class' main method is called from {@link TestFramework} and represents the so-called "test VM". The class is
  * the heart of the framework and is responsible for executing all the specified tests in the test class. It uses the
@@ -92,7 +90,7 @@ public class TestVM {
 
     static final boolean XCOMP = Platform.isComp();
     static final boolean VERBOSE = Boolean.getBoolean("Verbose");
-    private static final boolean PRINT_TIMES = Boolean.getBoolean("PrintTimes");
+    private static final boolean PRINT_TIMES = Boolean.getBoolean("PrintTimes") || VERBOSE;
     public static final boolean USE_COMPILER = WHITE_BOX.getBooleanVMFlag("UseCompiler");
     static final boolean EXCLUDE_RANDOM = Boolean.getBoolean("ExcludeRandom");
     private static final String TESTLIST = System.getProperty("Test", "");
@@ -106,6 +104,8 @@ public class TestVM {
     protected static final boolean PROFILE_INTERPRETER = (Boolean)WHITE_BOX.getVMFlag("ProfileInterpreter");
     private static final boolean FLIP_C1_C2 = Boolean.getBoolean("FlipC1C2");
     private static final boolean IGNORE_COMPILER_CONTROLS = Boolean.getBoolean("IgnoreCompilerControls");
+
+    public static final String IDENTITY = "#TestVM#";
 
     private final HashMap<Method, DeclaredTest> declaredTests = new HashMap<>();
     private final List<AbstractTest> allTests = new ArrayList<>();
@@ -159,6 +159,7 @@ public class TestVM {
      */
     public static void main(String[] args) {
         try {
+            TestVmSocket.connect();
             String testClassName = args[0];
             System.out.println("TestVM main() called - about to run tests in class " + testClassName);
             Class<?> testClass = getClassObject(testClassName, "test");
@@ -167,7 +168,7 @@ public class TestVM {
             framework.addHelperClasses(args);
             framework.start();
         } finally {
-            TestFrameworkSocket.closeClientSocket();
+            TestVmSocket.close();
         }
     }
 
@@ -277,7 +278,7 @@ public class TestVM {
         addBaseTests();
         if (PRINT_VALID_IR_RULES) {
             irMatchRulePrinter.emit();
-            VMInfoPrinter.emit();
+            VmInfoPrinter.emit();
         }
         TestFormat.throwIfAnyFailures();
         declaredTests.clear();
@@ -859,7 +860,7 @@ public class TestVM {
                 System.out.println("Run " + test.toString());
             }
             if (testFilterPresent) {
-                TestFrameworkSocket.write("Run " + test.toString(), TestFrameworkSocket.TESTLIST_TAG, true);
+                TestVmSocket.sendWithTag(Tag.TEST_LIST_TAG, "Run " + test.toString());
             }
             try {
                 test.run();
@@ -871,26 +872,18 @@ public class TestVM {
                        .append(System.lineSeparator()).append(System.lineSeparator());
                 failures++;
             }
-            if (PRINT_TIMES || VERBOSE) {
+            if (PRINT_TIMES) {
                 long endTime = System.nanoTime();
                 long duration = (endTime - startTime);
                 durations.put(duration, test.getName());
                 if (VERBOSE) {
                     System.out.println("Done " + test.getName() + ": " + duration + " ns = " + (duration / 1000000) + " ms");
                 }
+                TestVmSocket.sendWithTag(Tag.PRINT_TIMES_TAG, String.format("%-25s%15d ns%n", test.getName() + ":", duration));
             }
             if (GC_AFTER) {
                 System.out.println("doing GC");
                 WHITE_BOX.fullGC();
-            }
-        }
-
-        // Print execution times
-        if (VERBOSE || PRINT_TIMES) {
-            TestFrameworkSocket.write("Test execution times:", PRINT_TIMES_TAG, true);
-            for (Map.Entry<Long, String> entry : durations.entrySet()) {
-                TestFrameworkSocket.write(String.format("%-25s%15d ns%n", entry.getValue() + ":", entry.getKey()),
-                        PRINT_TIMES_TAG, true);
             }
         }
 

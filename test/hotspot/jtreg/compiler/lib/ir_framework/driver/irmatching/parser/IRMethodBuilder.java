@@ -24,7 +24,6 @@
 package compiler.lib.ir_framework.driver.irmatching.parser;
 
 import compiler.lib.ir_framework.Test;
-import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.driver.irmatching.Compilation;
 import compiler.lib.ir_framework.driver.irmatching.irmethod.IRMethod;
 import compiler.lib.ir_framework.driver.irmatching.irmethod.IRMethodMatchable;
@@ -33,6 +32,7 @@ import compiler.lib.ir_framework.driver.irmatching.irmethod.NotCompilableIRMetho
 import compiler.lib.ir_framework.driver.irmatching.parser.hotspot.HotSpotPidFileParser;
 import compiler.lib.ir_framework.driver.irmatching.parser.hotspot.LoggedMethod;
 import compiler.lib.ir_framework.driver.irmatching.parser.hotspot.LoggedMethods;
+import compiler.lib.ir_framework.driver.network.VmInfo;
 
 import java.util.Map;
 import java.util.SortedSet;
@@ -53,17 +53,17 @@ class IRMethodBuilder {
     }
 
     /**
-     * Create IR methods for all test methods identified by {@link IREncodingParser} by combining them with the parsed
+     * Create IR methods for all test methods identified by {@link TestMethodParser} by combining them with the parsed
      * compilation output from {@link HotSpotPidFileParser}.
      */
-    public SortedSet<IRMethodMatchable> build(VMInfo vmInfo) {
+    public SortedSet<IRMethodMatchable> build(VmInfo vmInfo) {
         SortedSet<IRMethodMatchable> irMethods = new TreeSet<>();
         testMethods.testMethods().forEach(
                 (methodName, testMethod) -> irMethods.add(createIRMethod(methodName, testMethod, vmInfo)));
         return irMethods;
     }
 
-    private IRMethodMatchable createIRMethod(String methodName, TestMethod testMethod, VMInfo vmInfo) {
+    private IRMethodMatchable createIRMethod(String methodName, TestMethod testMethod, VmInfo vmInfo) {
         LoggedMethod loggedMethod = loggedMethods.get(methodName);
         if (loggedMethod != null) {
             return new IRMethod(testMethod.method(), testMethod.irRuleIds(), testMethod.irAnnos(),
@@ -72,9 +72,9 @@ class IRMethodBuilder {
             Test[] testAnnos = testMethod.method().getAnnotationsByType(Test.class);
             boolean allowMethodNotCompilable = allowNotCompilable || testAnnos[0].allowNotCompilable();
             if (allowMethodNotCompilable) {
-                return new NotCompilableIRMethod(testMethod.method(), testMethod.irRuleIds().length);
+                return new NotCompilableIRMethod(testMethod.method(), testMethod.irRuleIds().size());
             } else {
-                return new NotCompiledIRMethod(testMethod.method(), testMethod.irRuleIds().length);
+                return new NotCompiledIRMethod(testMethod.method(), testMethod.irRuleIds().size());
             }
         }
     }
