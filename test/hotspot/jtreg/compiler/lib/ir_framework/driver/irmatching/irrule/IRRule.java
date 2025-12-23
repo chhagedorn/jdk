@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -25,13 +25,13 @@ package compiler.lib.ir_framework.driver.irmatching.irrule;
 
 import compiler.lib.ir_framework.IR;
 import compiler.lib.ir_framework.IRNode;
-import compiler.lib.ir_framework.driver.irmatching.Compilation;
 import compiler.lib.ir_framework.driver.irmatching.MatchResult;
 import compiler.lib.ir_framework.driver.irmatching.Matchable;
 import compiler.lib.ir_framework.driver.irmatching.MatchableMatcher;
 import compiler.lib.ir_framework.driver.irmatching.irrule.phase.CompilePhaseIRRule;
-import compiler.lib.ir_framework.driver.irmatching.irrule.phase.CompilePhaseIRRuleBuilder;
-import compiler.lib.ir_framework.driver.irmatching.parser.VMInfo;
+import compiler.lib.ir_framework.driver.irmatching.irrule.phase.CompilePhaseIrRuleBuilder;
+import compiler.lib.ir_framework.driver.network.testvm.c2.MethodDumpHistory;
+import compiler.lib.ir_framework.driver.network.testvm.java.VMInfo;
 
 /**
  * This class represents a generic {@link IR @IR} rule of an IR method. It contains a list of compile phase specific
@@ -45,10 +45,10 @@ public class IRRule implements Matchable {
     private final IR irAnno;
     private final MatchableMatcher matcher;
 
-    public IRRule(int ruleId, IR irAnno, Compilation compilation, VMInfo vmInfo) {
+    public IRRule(int ruleId, IR irAnno, MethodDumpHistory methodDumpHistory, VMInfo vmInfo) {
         this.ruleId = ruleId;
         this.irAnno = irAnno;
-        this.matcher = new MatchableMatcher(new CompilePhaseIRRuleBuilder(irAnno, compilation).build(vmInfo));
+        this.matcher = new MatchableMatcher(new CompilePhaseIrRuleBuilder(irAnno, methodDumpHistory).build(vmInfo));
     }
 
     @Override

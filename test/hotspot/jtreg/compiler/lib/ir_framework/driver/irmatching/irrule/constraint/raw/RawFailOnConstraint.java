@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -29,7 +29,8 @@ import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.driver.SuccessOnlyConstraintException;
 import compiler.lib.ir_framework.driver.irmatching.irrule.checkattribute.parsing.RawIRNode;
 import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.Constraint;
-import compiler.lib.ir_framework.driver.irmatching.parser.VMInfo;
+import compiler.lib.ir_framework.driver.network.testvm.c2.CompilePhaseDump;
+import compiler.lib.ir_framework.driver.network.testvm.java.VMInfo;
 import compiler.lib.ir_framework.shared.Comparison;
 
 /**
@@ -52,10 +53,12 @@ public class RawFailOnConstraint implements RawConstraint {
     }
 
     @Override
-    public Constraint parse(CompilePhase compilePhase, String compilationOutput, VMInfo vmInfo) {
+    public Constraint parse(CompilePhaseDump compilePhaseDump, VMInfo vmInfo) {
+        CompilePhase compilePhase = compilePhaseDump.compilePhase();
         TestFramework.check(compilePhase != CompilePhase.DEFAULT, "must not be default");
         try {
-            return Constraint.createFailOn(rawIRNode.regex(compilePhase, vmInfo, Comparison.Bound.UPPER), constraintIndex, compilationOutput);
+            return Constraint.createFailOn(rawIRNode.regex(compilePhase, vmInfo, Comparison.Bound.UPPER),
+                                           constraintIndex, compilePhaseDump.dump());
         } catch (SuccessOnlyConstraintException e) {
             return Constraint.createSuccess();
         }
