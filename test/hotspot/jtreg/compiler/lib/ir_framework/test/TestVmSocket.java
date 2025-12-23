@@ -20,6 +20,16 @@ public class TestVmSocket {
         sendWithTag(Tag.STDOUT_TAG, message);
     }
 
+    public static void sendMultiLine(String tag, String message) {
+        if (REPRODUCE) {
+            // Debugging Test VM: Skip writing due to -DReproduce;
+            return;
+        }
+
+        TestFramework.check(socket != null, "must be connected");
+        writer.println(tag + System.lineSeparator() + message);
+    }
+
     public static void sendWithTag(String tag, String message) {
         if (REPRODUCE) {
             // Debugging Test VM: Skip writing due to -DReproduce;

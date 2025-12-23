@@ -19,6 +19,8 @@ public class MethodTimes implements TestVmMessage {
         if (methodTimes.isEmpty()) {
             return;
         }
+
+        System.out.println();
         System.out.println("Test Execution Times");
         System.out.println("--------------------");
         for (String methodTime : methodTimes) {

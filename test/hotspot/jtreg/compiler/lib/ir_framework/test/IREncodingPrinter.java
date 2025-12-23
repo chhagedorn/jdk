@@ -513,7 +513,7 @@ public class IREncodingPrinter {
 
     public void emit() {
         output.append(Tag.END_TAG);
-        TestVmSocket.sendWithTag(Tag.IR_ENCODING, output.toString());
+        TestVmSocket.sendMultiLine(Tag.IR_ENCODING, output.toString());
     }
 }
 

@@ -35,19 +35,18 @@ import java.util.List;
  *
  * @see TestMethod
  */
-public class IrEncodingParser {
+public class IrEncodingParser implements TestVmParser<IrEncoding> {
 
-    public IrEncoding parse(String message) {
-        String[] lines = message.split("\\R");
-        IrEncoding irEncoding = new IrEncoding();
-        for (String line : lines) {
-            parseLine(line, irEncoding);
-        }
-        // TODO: verify irEncoding?
-        return irEncoding;
+    private boolean finished;
+    private final IrEncoding irEncoding;
+
+    public IrEncodingParser() {
+        this.irEncoding = new IrEncoding();
     }
 
-    public void parseLine(String line, IrEncoding irEncoding) {
+    @Override
+    public void parse(String line) {
+        TestFramework.check(!finished, "cannot parse when already queried");
         String[] splitLine = line.split(",");
         if (splitLine.length < 2) {
             throw new TestFrameworkException("Invalid IR match rule encoding. No comma found: " + splitLine[0]);
@@ -70,5 +69,16 @@ public class IrEncodingParser {
             }
         }
         return irRuleIds;
+    }
+
+    @Override
+    public void finish() {
+        finished = true;
+    }
+
+    @Override
+    public IrEncoding output() {
+        TestFramework.check(finished, "must be finished before querying");
+        return irEncoding;
     }
 }

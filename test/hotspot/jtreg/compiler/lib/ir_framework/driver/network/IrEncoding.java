@@ -30,12 +30,14 @@ public class IrEncoding implements TestVmMessage {
         if (!PRINT_IR_ENCODING) {
             return;
         }
+
+        System.out.println();
         System.out.println("IR Encoding");
         System.out.println("-----------");
         for (var entry : methods.entrySet()) {
             String method = entry.getKey();
             String ruleIds = entry.getValue().stream().map(String::valueOf).collect(Collectors.joining(", "));
-            System.out.println(method + ": " + ruleIds);
+            System.out.println("- " + method + ": " + ruleIds);
         }
     }
 }
