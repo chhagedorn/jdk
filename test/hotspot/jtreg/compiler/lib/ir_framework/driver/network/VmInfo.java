@@ -30,6 +30,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * This class stores the key value mapping from the VmInfo.
@@ -112,6 +113,17 @@ public class VmInfo implements TestVmMessage {
 
     @Override
     public void print() {
-        //TODO
+        if (!TestFramework.VERBOSE) {
+            return;
+        }
+
+        System.out.println();
+        System.out.println("VM Info");
+        System.out.println("--------");
+        for (var entry : keyValueMap.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+            System.out.println("- Key: " + key + ", Value: " + value);
+        }
     }
 }

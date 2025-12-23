@@ -19,11 +19,11 @@ public class StdoutMessages implements TestVmMessage {
         if (messages.isEmpty()) {
             return;
         }
+        System.out.println();
         System.out.println("Test VM Messages");
         System.out.println("----------------");
         for (String methodTime : messages) {
             System.out.println("- " + methodTime);
         }
-        System.out.println();
     }
 }

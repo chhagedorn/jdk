@@ -19,6 +19,8 @@ public class ExecutedTests implements TestVmMessage {
         if (tests.isEmpty()) {
             return;
         }
+
+        System.out.println();
         System.out.println("Executed Subset of Tests");
         System.out.println("------------------------");
         for (String test : tests) {

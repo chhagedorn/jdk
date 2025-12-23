@@ -141,6 +141,7 @@ public class TestFrameworkSocket implements AutoCloseable {
         } catch (IOException e) {
             throw new TestFrameworkException("Could not close socket", e);
         }
+        executor.shutdown();
     }
 
     public TestVmData testVmData(boolean allowNotCompilable) {

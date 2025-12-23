@@ -59,6 +59,6 @@ public class VmInfoPrinter {
               .append(System.lineSeparator());
 
         vmInfo.append(Tag.END_TAG);
-        TestVmSocket.sendWithTag(Tag.VM_INFO, vmInfo.toString());
+        TestVmSocket.sendMultiLine(Tag.VM_INFO, vmInfo.toString());
     }
 }

@@ -36,19 +36,18 @@ import java.util.regex.Pattern;
  *
  * @see VmInfo
  */
-public class VmInfoParser {
+public class VmInfoParser implements TestVmParser<VmInfo> {
+    private final VmInfo vmInfo;
+    private boolean finished;
 
-    public VmInfo parse(String message) {
-        String[] lines = message.split("\\R");
-        VmInfo vmInfo = new VmInfo();
-        for (String line : lines) {
-            parseLine(line, vmInfo);
-        }
-        vmInfo.verify();
-        return vmInfo;
+    public VmInfoParser() {
+        this.vmInfo = new VmInfo();
+        this.finished = false;
     }
 
-    private void parseLine(String line, VmInfo vmInfo) {
+    @Override
+    public void parse(String line) {
+        TestFramework.check(!finished, "cannot parse when already queried");
         String[] splitLine = line.split(":", 2);
         if (splitLine.length != 2) {
             throw new TestFrameworkException("Invalid VmInfo key:value encoding. Found: " + splitLine[0]);
@@ -56,5 +55,17 @@ public class VmInfoParser {
         String key = splitLine[0];
         String value = splitLine[1];
         vmInfo.add(key, value);
+    }
+
+    @Override
+    public void finish() {
+        finished = true;
+    }
+
+    @Override
+    public VmInfo output() {
+        vmInfo.verify();
+        TestFramework.check(finished, "must be finished before querying");
+        return vmInfo;
     }
 }
