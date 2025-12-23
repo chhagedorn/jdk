@@ -581,7 +581,21 @@ void Compile::print_phase(const char* phase_name) {
   tty->print_cr("%u.\t%s", ++_phase_counter, phase_name);
 }
 
+void Compile::print_to_ir_framework(const char* phase_name) {
+    // Print out all nodes in ascending order of index.
+    // It is important that we traverse both inputs and outputs of nodes,
+    // so that we reach all nodes that are connected to Root.
+    _ir_framework_stream.print_cr("COMPILE_PHASE: %s", phase_name);
+    root()->dump_bfs(MaxNodeLimit, nullptr, "-+S$", &_ir_framework_stream);
+    _ir_framework_stream.print_cr("END");
+}
+
 void Compile::print_ideal_ir(const char* phase_name) {
+  if (_use_ir_framework_stream) {
+    print_ideal_ir(phase_name);
+    return;
+  }
+
   // keep the following output all in one block
   // This output goes directly to the tty, not the compiler log.
   // To enable tools to match it up with the compilation activity,
@@ -670,8 +684,11 @@ Compile::Compile(ciEnv* ci_env, ciMethod* target, int osr_bci,
       _unstable_if_traps(comp_arena(), 8, 0, nullptr),
       _coarsened_locks(comp_arena(), 8, 0, nullptr),
       _congraph(nullptr),
-      NOT_PRODUCT(_igv_printer(nullptr) COMMA)
-          _unique(0),
+#ifndef PRODUCT
+      _igv_printer(nullptr),
+      _use_ir_framework_stream(init_ir_framework_stream(directive, target)),
+#endif
+      _unique(0),
       _dead_node_count(0),
       _dead_node_list(comp_arena()),
       _node_arena_one(mtCompiler, Arena::Tag::tag_node),
@@ -937,8 +954,11 @@ Compile::Compile(ciEnv* ci_env,
       _for_post_loop_igvn(comp_arena(), 8, 0, nullptr),
       _for_merge_stores_igvn(comp_arena(), 8, 0, nullptr),
       _congraph(nullptr),
-      NOT_PRODUCT(_igv_printer(nullptr) COMMA)
-          _unique(0),
+#ifndef PRODUCT
+      _igv_printer(nullptr),
+      _use_ir_framework_stream(false),
+#endif
+      _unique(0),
       _dead_node_count(0),
       _dead_node_list(comp_arena()),
       _node_arena_one(mtCompiler, Arena::Tag::tag_node),
@@ -1016,6 +1036,11 @@ Compile::Compile(ciEnv* ci_env,
 
 Compile::~Compile() {
   delete _first_failure_details;
+#ifndef PRODUCT
+  if (_use_ir_framework_stream) {
+    _ir_framework_stream.close();
+  }
+#endif
 };
 
 //------------------------------Init-------------------------------------------
@@ -5352,6 +5377,22 @@ void Compile::igv_print_graph_to_network(const char* name, GrowableArray<const N
   }
   tty->print_cr("Method printed over network stream to IGV");
   _debug_network_printer->print(name, C->root(), visible_nodes, fr);
+}
+
+bool Compile::init_ir_framework_stream(DirectiveSet* directive, ciMethod* method) {
+  if (IrFrameworkPort == 0 || strcmp(directive->PrintIdealPhaseOption, "") == 0) {
+    // Stream not used.
+    return false;
+  }
+
+  const char* host = "127.0.0.1";
+  if (_ir_framework_stream.connect(host, IrFrameworkPort)) {
+    fatal("Could not connect to %s:%d", host, IrFrameworkPort);
+  }
+
+  _ir_framework_stream.print_cr("#HotSpot#");
+  method->print_short_name(&_ir_framework_stream);
+  return true;
 }
 #endif // !PRODUCT
 

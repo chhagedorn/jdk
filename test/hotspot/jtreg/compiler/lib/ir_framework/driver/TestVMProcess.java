@@ -114,6 +114,7 @@ public class TestVMProcess {
         }
         // Add server property flag that enables test VM to print encoding for IR verification last and debug messages.
         cmds.add(socket.getPortPropertyFlag());
+        cmds.add("-XX:IrFrameworkPort=" + socket.serverSocketPort());
         cmds.addAll(additionalFlags);
         cmds.addAll(Arrays.asList(getDefaultFlags()));
         if (VERIFY_VM) {

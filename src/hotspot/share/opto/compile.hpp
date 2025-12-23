@@ -391,6 +391,8 @@ class Compile : public Phase {
   ConnectionGraph*      _congraph;
 #ifndef PRODUCT
   IdealGraphPrinter*    _igv_printer;
+  networkStream         _ir_framework_stream;
+  const bool            _use_ir_framework_stream;
   static IdealGraphPrinter* _debug_file_printer;
   static IdealGraphPrinter* _debug_network_printer;
 #endif
@@ -666,6 +668,7 @@ public:
   uint          next_igv_idx()                  { return _igv_idx++; }
   bool          trace_opto_output() const       { return _trace_opto_output; }
   void          print_phase(const char* phase_name);
+  void          print_to_ir_framework(const char* phase_name);
   void          print_ideal_ir(const char* phase_name);
   bool          should_print_ideal() const      { return _directive->PrintIdealOption; }
   bool              parsed_irreducible_loop() const { return _parsed_irreducible_loop; }
@@ -698,6 +701,8 @@ public:
   void igv_print_graph_to_network(const char* name, GrowableArray<const Node*>& visible_nodes, const frame* fr);
   static IdealGraphPrinter* debug_file_printer() { return _debug_file_printer; }
   static IdealGraphPrinter* debug_network_printer() { return _debug_network_printer; }
+
+  bool init_ir_framework_stream(DirectiveSet* directive, ciMethod* method);
 #endif
 
   const GrowableArray<ParsePredicateNode*>& parse_predicates() const {

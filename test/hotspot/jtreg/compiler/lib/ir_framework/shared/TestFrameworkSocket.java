@@ -24,20 +24,18 @@
 package compiler.lib.ir_framework.shared;
 
 import compiler.lib.ir_framework.TestFramework;
+import compiler.lib.ir_framework.driver.network.*;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.FutureTask;
+import java.net.*;
+import java.util.*;
+import java.util.concurrent.*;
 
 /**
- * Dedicated socket to send data from the flag and test VM back to the driver VM.
+ * Dedicated driver VM socket to receive data from test VM Java and HotSpot code.
  */
 public class TestFrameworkSocket implements AutoCloseable {
     public static final String STDOUT_PREFIX = "[STDOUT]";
@@ -45,6 +43,9 @@ public class TestFrameworkSocket implements AutoCloseable {
     public static final String DEFAULT_REGEX_TAG = "[DEFAULT_REGEX]";
     public static final String PRINT_TIMES_TAG = "[PRINT_TIMES]";
     public static final String NOT_COMPILABLE_TAG = "[NOT_COMPILABLE]";
+
+    private static final String TEST_VM_IDENTITY = "#TestVM#";
+    private static final String HOTSPOT_IDENTITY = "#HotSpot#";
 
     // Static fields used for test VM only.
     private static final String SERVER_PORT_PROPERTY = "ir.framework.server.port";
@@ -54,10 +55,12 @@ public class TestFrameworkSocket implements AutoCloseable {
     private static Socket clientSocket = null;
     private static PrintWriter clientWriter = null;
 
-    private final String serverPortPropertyFlag;
-    private FutureTask<String> socketTask;
+    private final int serverSocketPort;
     private final ServerSocket serverSocket;
-    private boolean receivedStdOut = false;
+    private boolean running;
+    private final ExecutorService executor;
+    private final List<Future<MethodDump>> methodDumps;
+    private Future<TestVmOutput> testVmFuture;
 
     public TestFrameworkSocket() {
         try {
@@ -66,50 +69,88 @@ public class TestFrameworkSocket implements AutoCloseable {
         } catch (IOException e) {
             throw new TestFrameworkException("Failed to create TestFramework server socket", e);
         }
-        int port = serverSocket.getLocalPort();
+        serverSocketPort = serverSocket.getLocalPort();
+        executor = Executors.newCachedThreadPool();
+        methodDumps = Collections.synchronizedList(new ArrayList<>());
         if (TestFramework.VERBOSE) {
-            System.out.println("TestFramework server socket uses port " + port);
+            System.out.println("TestFramework server socket uses port " + serverSocketPort);
         }
-        serverPortPropertyFlag = "-D" + SERVER_PORT_PROPERTY + "=" + port;
         start();
     }
 
+    public int serverSocketPort() {
+        return serverSocketPort;
+    }
     public String getPortPropertyFlag() {
-        return serverPortPropertyFlag;
+        return "-D" + SERVER_PORT_PROPERTY + "=" + serverSocketPort;
     }
 
     private void start() {
-        socketTask = initSocketTask();
-        Thread socketThread = new Thread(socketTask);
-        socketThread.start();
+        running = true;
+        executor.submit(this::acceptLoop);
     }
 
-    /**
-     * Waits for a client (created by flag or test VM) to connect. Return the messages received from the client.
-     */
-    private FutureTask<String> initSocketTask() {
-        return new FutureTask<>(() -> {
-            try (Socket clientSocket = serverSocket.accept();
-                 BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()))
-            ) {
-                StringBuilder builder = new StringBuilder();
-                String next;
-                while ((next = in.readLine()) != null) {
-                    builder.append(next).append(System.lineSeparator());
-                    if (next.startsWith(STDOUT_PREFIX)) {
-                        receivedStdOut = true;
-                    }
-                }
-                return builder.toString();
-            } catch (IOException e) {
+    private void acceptLoop() {
+        while (running) {
+            try {
+                handleClientConnection();
+            } catch (TestFrameworkException e) {
+                running = false;
+                throw e;
+            } catch (Exception e) {
+                running = false;
                 throw new TestFrameworkException("Server socket error", e);
             }
-        });
+        }
+    }
+
+    private void handleClientConnection() throws IOException {
+        Socket client = serverSocket.accept();
+        BufferedReader reader = new BufferedReader(new InputStreamReader(client.getInputStream()));
+        String identity = readIdentity(client, reader);
+        submitTask(identity, client, reader);
+    }
+
+    private String readIdentity(Socket client, BufferedReader reader) throws IOException {
+        String identity;
+        try {
+            client.setSoTimeout(10000);
+            identity = reader.readLine();
+            client.setSoTimeout(0);
+        } catch (SocketTimeoutException e) {
+            throw new TestFrameworkException("Did not receive initial identity message after 10s", e);
+        }
+        return identity;
+    }
+
+    private void submitTask(String identity, Socket client, BufferedReader reader) {
+        if (identity.equals(TEST_VM_IDENTITY)) {
+            testVmFuture = executor.submit(new TestVMTask(client, reader));
+        } else if (identity.equals(HOTSPOT_IDENTITY)) {
+            Future<MethodDump> future = executor.submit(new HotSpotMessageReader(client, reader));
+            methodDumps.add(future);
+        } else {
+            throw new TestFrameworkException("Wrong identity: " + identity);
+        }
+    }
+
+    public MethodDumps methodDumps() {
+        MethodDumps methodDumps = new MethodDumps();
+        for (Future<MethodDump> future : this.methodDumps) {
+            try {
+                MethodDump methodDump = future.get();
+                methodDumps.add(methodDump);
+            } catch (Exception e) {
+                throw new TestFrameworkException("Error while fetching HotSpot Future", e);
+            }
+        }
+        return methodDumps;
     }
 
     @Override
     public void close() {
         try {
+            running = false;
             serverSocket.close();
         } catch (IOException e) {
             throw new TestFrameworkException("Could not close socket", e);
@@ -148,6 +189,8 @@ public class TestFrameworkSocket implements AutoCloseable {
             if (stdout) {
                 msg = STDOUT_PREFIX + tag + " " + msg;
             }
+
+            clientWriter.write(TEST_VM_IDENTITY);
             clientWriter.println(msg);
         } catch (Exception e) {
             // When the test VM is directly run, we should ignore all messages that would normally be sent to the
@@ -185,21 +228,14 @@ public class TestFrameworkSocket implements AutoCloseable {
     /**
      * Get the socket output of the flag VM.
      */
-    public String getOutput() {
+    public TestVmOutput testVmOutput() {
         try {
-            return socketTask.get();
+            return testVmFuture.get();
         } catch (ExecutionException e) {
-            // Thrown when socket task was not finished, yet (i.e. no client sent data) but socket was already closed.
-            return "";
+            throw new TestFrameworkException("Not data was received on socket", e);
         } catch (Exception e) {
             throw new TestFrameworkException("Could not read from socket task", e);
         }
     }
-
-    /**
-     * Return whether test VM sent messages to be put on stdout (starting with {@link ::STDOUT_PREFIX}).
-     */
-    public boolean hasStdOut() {
-        return receivedStdOut;
-    }
 }
+
