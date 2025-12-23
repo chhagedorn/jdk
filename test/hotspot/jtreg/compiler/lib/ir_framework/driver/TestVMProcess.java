@@ -64,17 +64,16 @@ public class TestVMProcess {
     private final TestVMData testVmData;
 
     public TestVMProcess(List<String> additionalFlags, Class<?> testClass, Set<Class<?>> helperClasses, int defaultWarmup,
-                         boolean allowNotCompilable, boolean testClassesOnBootClassPath) {
+                         boolean allowNotCompilable, boolean testClassesOnBootClassPath, boolean shouldVerifyIR) {
         this.cmds = new ArrayList<>();
         TestFrameworkSocket socket = new TestFrameworkSocket();
         try (socket) {
             prepareTestVMFlags(additionalFlags, socket, testClass, helperClasses, defaultWarmup,
-                               allowNotCompilable, testClassesOnBootClassPath);
+                               allowNotCompilable, testClassesOnBootClassPath, shouldVerifyIR);
             start();
         }
         checkTestVMExitCode();
-        String hotspotPidFileName = String.format("hotspot_pid%d.log", oa.pid());
-        testVmData = socket.testVmData(hotspotPidFileName, allowNotCompilable);
+        testVmData = socket.testVmData(allowNotCompilable);
         testVmData.printJavaMessages();
     }
 
@@ -92,7 +91,7 @@ public class TestVMProcess {
 
     private void prepareTestVMFlags(List<String> additionalFlags, TestFrameworkSocket socket, Class<?> testClass,
                                     Set<Class<?>> helperClasses, int defaultWarmup, boolean allowNotCompilable,
-                                    boolean testClassesOnBootClassPath) {
+                                    boolean testClassesOnBootClassPath, boolean shouldVerifyIR) {
         // Set java.library.path so JNI tests which rely on jtreg nativepath setting work
         cmds.add("-Djava.library.path=" + Utils.TEST_NATIVE_PATH);
         // Need White Box access in Test VM.
@@ -112,6 +111,9 @@ public class TestVMProcess {
         // Add server property flag that enables the Test VM to print the Applicable IR Rules for IR verification and
         // debug messages.
         cmds.add(socket.getPortPropertyFlag());
+        if (shouldVerifyIR) {
+            cmds.add("-XX:IrFrameworkPort=" + socket.serverSocketPort());
+        }
         cmds.addAll(additionalFlags);
         cmds.addAll(Arrays.asList(getDefaultFlags()));
         if (VERIFY_VM) {

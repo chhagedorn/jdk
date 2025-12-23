@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
 
 /**
  * This class' main method is called from {@link TestFramework} and represents the so-called "Flag VM". It uses the
@@ -122,16 +121,10 @@ public class FlagVM {
     }
 
     private static void addIRVerificationFlags(ArrayList<String> cmds, Class<?> testClass) {
-        cmds.addAll(Arrays.asList(getPrintFlags()));
-        cmds.add("-XX:+LogCompilation");
         CompilerDirectivesFlagBuilder compilerDirectivesFlagBuilder = new CompilerDirectivesFlagBuilder(testClass);
         cmds.addAll(compilerDirectivesFlagBuilder.build());
         // Always trap for exception throwing to not confuse IR verification
         cmds.add("-XX:-OmitStackTraceInFastThrow");
         cmds.add("-DShouldDoIRVerification=true");
-    }
-
-    private static String[] getPrintFlags() {
-        return new String[] {"-XX:+PrintCompilation", "-XX:+UnlockDiagnosticVMOptions"};
     }
 }

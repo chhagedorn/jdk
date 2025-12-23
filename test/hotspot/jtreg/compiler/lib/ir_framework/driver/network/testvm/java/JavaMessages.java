@@ -23,33 +23,37 @@
 
 package compiler.lib.ir_framework.driver.network.testvm.java;
 
-import compiler.lib.ir_framework.TestFramework;
+import compiler.lib.ir_framework.shared.TestFrameworkException;
 
 /**
  * Class to collect all Java messages sent from the Test VM to the Driver VM.
  */
 public class JavaMessages {
-    private static final boolean PRINT_APPLICABLE_IR_RULES = Boolean.parseBoolean(System.getProperty("PrintApplicableIRRules", "false"));
-
     private final StdoutMessages stdoutMessages;
     private final MethodTimes methodTimes;
     private final ExecutedTests executedTests;
-    private String applicableIrRules;
-    private String vmInfo;
+    private VMInfo vmInfo;
+    private ApplicableIRRules applicableIrRules;
 
     JavaMessages() {
         this.stdoutMessages = new StdoutMessages();
         this.executedTests = new ExecutedTests();
         this.methodTimes = new MethodTimes();
-        this.applicableIrRules = "";
+        this.vmInfo = new VMInfo();
+        this.applicableIrRules = new ApplicableIRRules();
     }
 
-    public String applicableIRRules() {
-        return applicableIrRules;
-    }
-
-    public String vmInfo() {
+    /**
+     * Should only be queried when IR Matching will be done. Otherwise, the VM Info is empty and a
+     * {@link TestFrameworkException} is thrown.
+     */
+    public VMInfo vmInfo() {
+        vmInfo.verify();
         return vmInfo;
+    }
+
+    public ApplicableIRRules applicableIRRules() {
+        return applicableIrRules;
     }
 
     void addStdoutLine(String line) {
@@ -64,21 +68,19 @@ public class JavaMessages {
         methodTimes.add(methodTime);
     }
 
-    void addApplicableIRRules(String applicableIrRules) {
-        this.applicableIrRules = applicableIrRules;
+    void addVmInfo(VMInfo vmInfo) {
+        this.vmInfo = vmInfo;
     }
 
-    void addVmInfo(String vmInfo) {
-        this.vmInfo = vmInfo;
+    void addApplicableIRRules(ApplicableIRRules applicableIrRules) {
+        this.applicableIrRules = applicableIrRules;
     }
 
     public void print() {
         stdoutMessages.print();
         methodTimes.print();
         executedTests.print();
-        if (TestFramework.VERBOSE || PRINT_APPLICABLE_IR_RULES) {
-            System.out.println("Read Applicable IR Rules from Test VM:");
-            System.out.println(applicableIrRules);
-        }
+        vmInfo.print();
+        applicableIrRules.print();
     }
 }

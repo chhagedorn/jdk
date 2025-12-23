@@ -21,45 +21,9 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network.testvm.java;
+package compiler.lib.ir_framework.driver.network.testvm.java.multiline;
 
-import compiler.lib.ir_framework.IR;
-import compiler.lib.ir_framework.driver.irmatching.irmethod.IRMethod;
-
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.stream.Stream;
-
-/**
- * Class to hold the indices of the applicable {@link IR @IR} rules of an {@link IRMethod}.
- */
-public class IRRuleIds implements Iterable<Integer> {
-    private static final IRRuleIds EMPTY = new IRRuleIds(new ArrayList<>());
-    private final List<Integer> ruleIds;
-
-    public IRRuleIds(List<Integer> ruleIds) {
-        this.ruleIds = ruleIds;
-    }
-
-    public static IRRuleIds createEmpty() {
-        return EMPTY;
-    }
-
-    public boolean isEmpty() {
-        return equals(EMPTY);
-    }
-
-    public int count() {
-        return ruleIds.size();
-    }
-
-    @Override
-    public Iterator<Integer> iterator() {
-        return ruleIds.iterator();
-    }
-
-    public Stream<Integer> stream() {
-        return ruleIds.stream();
-    }
+public interface MultiLineParsingStrategy<Output> {
+    void parseLine(String line);
+    Output output();
 }

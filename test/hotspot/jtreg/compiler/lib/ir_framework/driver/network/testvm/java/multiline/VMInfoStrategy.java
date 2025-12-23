@@ -21,45 +21,34 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network.testvm.java;
+package compiler.lib.ir_framework.driver.network.testvm.java.multiline;
 
-import compiler.lib.ir_framework.IR;
-import compiler.lib.ir_framework.driver.irmatching.irmethod.IRMethod;
-
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.stream.Stream;
+import compiler.lib.ir_framework.driver.network.testvm.java.VMInfo;
+import compiler.lib.ir_framework.shared.TestFrameworkException;
 
 /**
- * Class to hold the indices of the applicable {@link IR @IR} rules of an {@link IRMethod}.
+ * Dedicated strategy to parse the multi-line VM info message into a new {@link VMInfo} object.
  */
-public class IRRuleIds implements Iterable<Integer> {
-    private static final IRRuleIds EMPTY = new IRRuleIds(new ArrayList<>());
-    private final List<Integer> ruleIds;
+public class VMInfoStrategy implements MultiLineParsingStrategy<VMInfo> {
+    private final VMInfo vmInfo;
 
-    public IRRuleIds(List<Integer> ruleIds) {
-        this.ruleIds = ruleIds;
-    }
-
-    public static IRRuleIds createEmpty() {
-        return EMPTY;
-    }
-
-    public boolean isEmpty() {
-        return equals(EMPTY);
-    }
-
-    public int count() {
-        return ruleIds.size();
+    public VMInfoStrategy() {
+        this.vmInfo = new VMInfo();
     }
 
     @Override
-    public Iterator<Integer> iterator() {
-        return ruleIds.iterator();
+    public void parseLine(String line) {
+        String[] splitLine = line.split(":", 2);
+        if (splitLine.length != 2) {
+            throw new TestFrameworkException("Invalid VmInfo key:value encoding. Found: " + splitLine[0]);
+        }
+        String key = splitLine[0];
+        String value = splitLine[1];
+        vmInfo.add(key, value);
     }
 
-    public Stream<Integer> stream() {
-        return ruleIds.stream();
+    @Override
+    public VMInfo output() {
+        return vmInfo;
     }
 }

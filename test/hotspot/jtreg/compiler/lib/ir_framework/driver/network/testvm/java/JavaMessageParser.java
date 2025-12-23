@@ -25,6 +25,9 @@ package compiler.lib.ir_framework.driver.network.testvm.java;
 
 import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.driver.network.testvm.TestVmMessageParser;
+import compiler.lib.ir_framework.driver.network.testvm.java.multiline.ApplicableIRRulesStrategy;
+import compiler.lib.ir_framework.driver.network.testvm.java.multiline.MultiLineParser;
+import compiler.lib.ir_framework.driver.network.testvm.java.multiline.VMInfoStrategy;
 import compiler.lib.ir_framework.test.network.MessageTag;
 
 import java.util.regex.Matcher;
@@ -38,18 +41,18 @@ import static compiler.lib.ir_framework.test.network.MessageTag.*;
  */
 public class JavaMessageParser implements TestVmMessageParser<JavaMessages> {
     private static final Pattern TAG_PATTERN = Pattern.compile("^(\\[[^]]+])\\s*(.*)$");
-    private static final StringBuilder EMPTY_BUILDER = new StringBuilder();
+    private static final MultiLineParser<? extends JavaMessage> EMPTY_PARSER = new MultiLineParser<>(null);
 
     private final JavaMessages javaMessages;
-    private StringBuilder currentBuilder;
-    private final StringBuilder vmInfoBuilder;
-    private final StringBuilder applicableIrRules;
+    private MultiLineParser<? extends JavaMessage> multiLineParser;
+    private final MultiLineParser<VMInfo> vmInfoParser;
+    private final MultiLineParser<ApplicableIRRules> applicableIRRulesParser;
 
     public JavaMessageParser() {
         this.javaMessages = new JavaMessages();
-        this.currentBuilder = EMPTY_BUILDER;
-        this.vmInfoBuilder = new StringBuilder();
-        this.applicableIrRules = new StringBuilder();
+        this.multiLineParser = EMPTY_PARSER;
+        this.vmInfoParser = new MultiLineParser<>(new VMInfoStrategy());
+        this.applicableIRRulesParser = new MultiLineParser<>(new ApplicableIRRulesStrategy());
     }
 
     @Override
@@ -66,11 +69,11 @@ public class JavaMessageParser implements TestVmMessageParser<JavaMessages> {
             parseEndTag();
             return;
         }
-        currentBuilder.append(line).append(System.lineSeparator());
+        multiLineParser.parseLine(line);
     }
 
     private void assertNoActiveParser() {
-        TestFramework.check(currentBuilder.equals(EMPTY_BUILDER), "Unexpected new tag while parsing block");
+        TestFramework.check(multiLineParser.equals(EMPTY_PARSER), "Unexpected new tag while parsing block");
     }
 
     private void parseTagLine(Matcher tagLineMatcher) {
@@ -80,23 +83,24 @@ public class JavaMessageParser implements TestVmMessageParser<JavaMessages> {
             case STDOUT -> javaMessages.addStdoutLine(message);
             case TEST_LIST -> javaMessages.addExecutedTest(message);
             case PRINT_TIMES -> javaMessages.addMethodTime(message);
-            case VM_INFO -> currentBuilder = vmInfoBuilder;
-            case APPLICABLE_IR_RULES -> currentBuilder = applicableIrRules;
+            case VM_INFO -> multiLineParser = vmInfoParser;
+            case APPLICABLE_IR_RULES -> multiLineParser = applicableIRRulesParser;
         }
     }
 
     private void assertActiveParser() {
-        TestFramework.check(!currentBuilder.equals(EMPTY_BUILDER), "unexpected new tag while parsing block");
+        TestFramework.check(!multiLineParser.equals(EMPTY_PARSER), "unexpected new tag while parsing block");
     }
 
     private void parseEndTag() {
-        currentBuilder = EMPTY_BUILDER;
+        multiLineParser.markFinished();
+        multiLineParser = EMPTY_PARSER;
     }
 
     @Override
     public JavaMessages output() {
-        javaMessages.addVmInfo(vmInfoBuilder.toString());
-        javaMessages.addApplicableIRRules(applicableIrRules.toString());
+        javaMessages.addVmInfo(vmInfoParser.output());
+        javaMessages.addApplicableIRRules(applicableIRRulesParser.output());
         return javaMessages;
     }
 }

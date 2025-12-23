@@ -29,7 +29,7 @@ import compiler.lib.ir_framework.driver.TestVMProcess;
 import compiler.lib.ir_framework.driver.irmatching.IRMatcher;
 import compiler.lib.ir_framework.driver.irmatching.IRViolationException;
 import compiler.lib.ir_framework.driver.irmatching.Matchable;
-import compiler.lib.ir_framework.driver.irmatching.parser.TestClassParser;
+import compiler.lib.ir_framework.driver.irmatching.TestClassBuilder;
 import compiler.lib.ir_framework.shared.*;
 import compiler.lib.ir_framework.test.TestVM;
 import jdk.test.lib.Platform;
@@ -96,8 +96,9 @@ import java.util.stream.Stream;
  * <p>
  * In a last step, once the Test VM has terminated without exceptions, IR matching is performed if there are any IR
  * rules and if no VM flags disable it (e.g. not running with {@code -Xint}, see {@link IR} for more details).
- * The IR regex matching is done on the output of {@code -XX:+PrintIdeal} and {@code -XX:+PrintOptoAssembly} by parsing
- * the hotspot_pid file of the Test VM. Failing IR rules are reported by throwing a {@link IRViolationException}.
+ * The IR regex matching is done on the output of the {@code PrintIdealPhase} compile command. Each compiled method can
+ * dump several ideal graph dumps, mach dumps and/or Opto Assembly dump (subset of {@code -XX:+PrintOptoAssembly}).
+ * Failing IR rules are reported by throwing a {@link IRViolationException}.
  *
  * @see Test
  * @see Check
@@ -876,16 +877,16 @@ public class TestFramework {
     }
 
     private void runTestVM(List<String> additionalFlags) {
-        TestVMProcess testVMProcess = new TestVMProcess(additionalFlags, testClass, helperClasses, defaultWarmup,
-                                                        allowNotCompilable, testClassesOnBootClassPath);
+        TestVMProcess testVmProcess = new TestVMProcess(additionalFlags, testClass, helperClasses, defaultWarmup,
+                                                        allowNotCompilable, testClassesOnBootClassPath, shouldVerifyIR);
         if (shouldVerifyIR) {
             try {
-                TestClassParser testClassParser = new TestClassParser(testClass, allowNotCompilable);
-                Matchable testClassMatchable = testClassParser.parse(testVMProcess.testVmData());
+                TestClassBuilder testClassBuilder = new TestClassBuilder(testClass, testVmProcess.testVmData());
+                Matchable testClassMatchable = testClassBuilder.build();
                 IRMatcher matcher = new IRMatcher(testClassMatchable);
                 matcher.match();
             } catch (IRViolationException e) {
-                e.addCommandLine(testVMProcess.getCommandLine());
+                e.addCommandLine(testVmProcess.getCommandLine());
                 throw e;
             }
         } else {
