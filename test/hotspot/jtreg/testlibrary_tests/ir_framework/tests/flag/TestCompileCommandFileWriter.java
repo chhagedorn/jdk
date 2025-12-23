@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -50,65 +50,49 @@ public class TestCompileCommandFileWriter {
 
     @org.junit.Test
     public void testIdeal() throws IOException {
-        check(IdealOnly1.class, true, false);
-        check(IdealOnly2.class, true, false);
+        check(IdealOnly1.class, PRINT_IDEAL);
+        check(IdealOnly2.class, PRINT_IDEAL);
     }
 
     @org.junit.Test
     public void testOpto() throws IOException {
-        check(OptoOnly1.class, false, true);
-        check(OptoOnly2.class, false, true);
+        check(OptoOnly1.class, PRINT_OPTO_ASSEMBLY);
+        check(OptoOnly2.class, PRINT_OPTO_ASSEMBLY);
     }
 
     @org.junit.Test
     public void testBoth() throws IOException {
-        check(Both1.class, true, true);
-        check(Both2.class, true, true);
+        check(Both1.class, PRINT_IDEAL, PRINT_OPTO_ASSEMBLY);
+        check(Both2.class, PRINT_IDEAL, PRINT_OPTO_ASSEMBLY);
     }
 
     @org.junit.Test
     public void testOtherOnly() throws IOException {
-        check(OtherOnly1.class, false,false, AFTER_PARSING);
-        check(OtherOnly2.class, false,false, AFTER_PARSING, FINAL_CODE);
+        check(OtherOnly1.class, AFTER_PARSING);
+        check(OtherOnly2.class, AFTER_PARSING, FINAL_CODE);
     }
 
     @org.junit.Test
     public void testMix() throws IOException {
-        check(Mix1.class, true,false, AFTER_PARSING);
-        check(Mix2.class, false,true, AFTER_PARSING);
-        check(Mix3.class, true,true, AFTER_PARSING);
-        check(Mix4.class, true,true, AFTER_PARSING);
+        check(Mix1.class, PRINT_IDEAL, AFTER_PARSING);
+        check(Mix2.class, PRINT_OPTO_ASSEMBLY, AFTER_PARSING);
+        check(Mix3.class, PRINT_IDEAL, PRINT_OPTO_ASSEMBLY, AFTER_PARSING);
+        check(Mix4.class, PRINT_IDEAL, PRINT_OPTO_ASSEMBLY, AFTER_PARSING);
     }
 
-    private void check(Class<?> testClass, boolean findIdeal, boolean findOpto, CompilePhase... compilePhases) throws IOException {
+    private void check(Class<?> testClass, CompilePhase... compilePhases) throws IOException {
         var compilerDirectivesFlagBuilder = new CompilerDirectivesFlagBuilder(testClass);
         compilerDirectivesFlagBuilder.build();
         try (Scanner scanner = new Scanner(Paths.get(FlagVM.TEST_VM_COMPILE_COMMANDS_FILE))) {
-            boolean foundIdeal = false;
-            boolean foundOpto = false;
             boolean foundPhase = false;
             while (scanner.hasNextLine()) {
                 String line = scanner.nextLine();
-                if (isPrintIdeal(line)) {
-                    foundIdeal = true;
-                } else if (isPrintOptoAssembly(line)) {
-                    foundOpto = true;
-                } else if (isPrintIdealPhase(line, compilePhases)) {
+                if (isPrintIdealPhase(line, compilePhases)) {
                     foundPhase = true;
                 }
             }
-            Assert.assertEquals("PrintIdeal mismatch", findIdeal, foundIdeal);
-            Assert.assertEquals("PrintOptoAssembly mismatch", findOpto, foundOpto);
             Assert.assertEquals("PrintIdealPhase mismatch", compilePhases.length > 0, foundPhase);
         }
-    }
-
-    private boolean isPrintIdeal(String line) {
-        return line.contains("PrintIdeal : true");
-    }
-
-    private boolean isPrintOptoAssembly(String line) {
-        return line.contains("PrintOptoAssembly : true");
     }
 
     private boolean isPrintIdealPhase(String line, CompilePhase... compilePhases) {

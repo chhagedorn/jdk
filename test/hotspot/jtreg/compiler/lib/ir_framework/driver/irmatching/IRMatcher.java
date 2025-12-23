@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,12 +23,11 @@
 
 package compiler.lib.ir_framework.driver.irmatching;
 
-import compiler.lib.ir_framework.driver.irmatching.parser.TestClassParser;
 import compiler.lib.ir_framework.driver.irmatching.report.CompilationOutputBuilder;
 import compiler.lib.ir_framework.driver.irmatching.report.FailureMessageBuilder;
 
 /**
- * This class performs IR matching on the prepared {@link TestClass} object parsed by {@link TestClassParser}.
+ * This class performs IR matching on the prepared {@link TestClass} object parsed by {@link TestClassBuilder}.
  * All applicable @IR rules are matched with all their defined compilation phases. If there are any IR matching failures,
  * an {@link IRViolationException} is reported which provides a formatted failure message and the compilation outputs
  * of the failed compilation phases.
@@ -41,7 +40,7 @@ public class IRMatcher {
     }
 
     /**
-     * Do an IR matching of all methods with applicable @IR rules prepared with by the {@link TestClassParser}.
+     * Do an IR matching of all methods with applicable @IR rules prepared with by the {@link TestClassBuilder}.
      */
     public void match() {
         MatchResult result = testClass.match();

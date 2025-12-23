@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2026, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -21,42 +21,29 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.irmatching.parser;
+package compiler.lib.ir_framework.driver.network.testvm.c2;
 
 import compiler.lib.ir_framework.IR;
-import compiler.lib.ir_framework.driver.irmatching.irmethod.IRMethod;
-import compiler.lib.ir_framework.driver.irmatching.parser.hotspot.LoggedMethod;
 
-import java.lang.reflect.Method;
+import java.util.*;
 
 /**
- * This class represents a test method parsed by {@link ApplicableIRRulesParser}. In combination with the associated
- * {@link LoggedMethod}, a new {@link IRMethod} is created to IR match on later.
- *
- * @see ApplicableIRRulesParser
- * @see LoggedMethod
- * @see IRMethod
+ * This class holds all {@link MethodDump}s of all {@link IR @IR}-annoted method of the test class.
  */
-public class TestMethod {
-    private final Method method;
-    private final IR[] irAnnos;
-    private final int[] irRuleIds;
+public class MethodDumps {
+    private final Map<String, MethodDumpHistory> methodDumps;
 
-    public TestMethod(Method m, IR[] irAnnos, int[] irRuleIds) {
-        this.method = m;
-        this.irAnnos = irAnnos;
-        this.irRuleIds = irRuleIds;
+    public MethodDumps() {
+        this.methodDumps = new HashMap<>();
     }
 
-    public Method method() {
-        return method;
+    public void add(MethodDump methodDump) {
+        String methodName = methodDump.methodName();
+        methodDumps.computeIfAbsent(methodName, _ -> new MethodDumpHistory())
+                .add(methodDump);
     }
 
-    public IR[] irAnnos() {
-        return irAnnos;
-    }
-
-    public int[] irRuleIds() {
-        return irRuleIds;
+    public MethodDumpHistory methodDump(String methodName) {
+        return methodDumps.computeIfAbsent(methodName, _ -> MethodDumpHistory.createEmpty());
     }
 }

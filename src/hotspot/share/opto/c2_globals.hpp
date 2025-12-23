@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2000, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -446,7 +446,7 @@
                                                                             \
   develop(intx, PrintIdealGraphPort, 4444,                                  \
           "Ideal graph printer to network port")                            \
-          range(0, SHRT_MAX)                                                \
+          range(0, USHRT_MAX)                                               \
                                                                             \
   develop(ccstr, PrintIdealGraphAddress, "127.0.0.1",                       \
           "IP address to connect to visualizer")                            \
@@ -454,6 +454,10 @@
   develop(ccstr, PrintIdealGraphFile, nullptr,                              \
           "File to dump ideal graph to.  If set overrides the "             \
           "use of the network")                                             \
+                                                                            \
+  develop(uint, IrFrameworkPort, 0,                                         \
+          "Ideal graph printer to network port")                            \
+          range(0, USHRT_MAX)                                               \
                                                                             \
   product(bool, UseBimorphicInlining, true,                                 \
           "Profiling based inlining for two receivers")                     \

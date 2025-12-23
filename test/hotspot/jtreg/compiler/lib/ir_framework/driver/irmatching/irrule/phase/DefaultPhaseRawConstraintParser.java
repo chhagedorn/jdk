@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -24,14 +24,15 @@
 package compiler.lib.ir_framework.driver.irmatching.irrule.phase;
 
 import compiler.lib.ir_framework.CompilePhase;
-import compiler.lib.ir_framework.driver.irmatching.Compilation;
 import compiler.lib.ir_framework.driver.irmatching.Matchable;
 import compiler.lib.ir_framework.driver.irmatching.irrule.checkattribute.CheckAttributeType;
 import compiler.lib.ir_framework.driver.irmatching.irrule.checkattribute.Counts;
 import compiler.lib.ir_framework.driver.irmatching.irrule.checkattribute.FailOn;
 import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.Constraint;
 import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.raw.RawConstraint;
-import compiler.lib.ir_framework.driver.irmatching.parser.VMInfo;
+import compiler.lib.ir_framework.driver.network.testvm.c2.MethodDumpHistory;
+import compiler.lib.ir_framework.driver.network.testvm.c2.CompilePhaseDump;
+import compiler.lib.ir_framework.driver.network.testvm.java.VMInfo;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 
 import java.util.ArrayList;
@@ -46,10 +47,10 @@ import java.util.stream.Collectors;
  * {@link Constraint} objects for a compile phase in order to create {@link FailOn} and {@link Counts} objects with them.
  */
 class DefaultPhaseRawConstraintParser {
-    private final Compilation compilation;
+    private final MethodDumpHistory methodDumpHistory;
 
-    public DefaultPhaseRawConstraintParser(Compilation compilation) {
-        this.compilation = compilation;
+    public DefaultPhaseRawConstraintParser(MethodDumpHistory methodDumpHistory) {
+        this.methodDumpHistory = methodDumpHistory;
     }
 
     public Map<CompilePhase, List<Matchable>> parse(List<RawConstraint> rawFailOnConstraints,
@@ -71,8 +72,9 @@ class DefaultPhaseRawConstraintParser {
         for (RawConstraint rawConstraint : rawConstraints) {
             CompilePhase compilePhase = rawConstraint.defaultCompilePhase();
             List<Constraint> checkAttribute =
-                    matchableForCompilePhase.computeIfAbsent(compilePhase, k -> new ArrayList<>());
-            checkAttribute.add(rawConstraint.parse(compilePhase, compilation.output(compilePhase), vmInfo));
+                    matchableForCompilePhase.computeIfAbsent(compilePhase, _ -> new ArrayList<>());
+            CompilePhaseDump compilePhaseDump = methodDumpHistory.methodDump(compilePhase);
+            checkAttribute.add(rawConstraint.parse(compilePhaseDump, vmInfo));
         }
         return replaceConstraintsWithCheckAttribute(matchableForCompilePhase, checkAttributeType);
     }
@@ -92,7 +94,8 @@ class DefaultPhaseRawConstraintParser {
                                            List<Constraint> constraints) {
         switch (checkAttributeType) {
             case FAIL_ON -> {
-                return new FailOn(constraints, compilation.output(compilePhase));
+                CompilePhaseDump compilePhaseDump = methodDumpHistory.methodDump(compilePhase);
+                return new FailOn(constraints, compilePhaseDump.dump());
             }
             case COUNTS -> {
                 return new Counts(constraints);
@@ -113,7 +116,7 @@ class DefaultPhaseRawConstraintParser {
     private static void addCheckAttribute(Map<CompilePhase, Matchable> failOnForCompilePhase,
                                           Map<CompilePhase, List<Matchable>> result) {
         failOnForCompilePhase.forEach((compilePhase, matchable) -> {
-            List<Matchable> list = result.computeIfAbsent(compilePhase, k -> new ArrayList<>());
+            List<Matchable> list = result.computeIfAbsent(compilePhase, _ -> new ArrayList<>());
             list.add(matchable);
         });
     }
