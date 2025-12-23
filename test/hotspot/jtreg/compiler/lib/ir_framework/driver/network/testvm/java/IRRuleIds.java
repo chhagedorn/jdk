@@ -35,22 +35,19 @@ import java.util.stream.Stream;
  * Class to hold the indices of the applicable {@link IR @IR} rules of an {@link IRMethod}.
  */
 public class IRRuleIds implements Iterable<Integer> {
+    private static final IRRuleIds EMPTY = new IRRuleIds(new ArrayList<>());
     private final List<Integer> ruleIds;
 
     public IRRuleIds(List<Integer> ruleIds) {
         this.ruleIds = ruleIds;
     }
 
-    public int first() {
-        return ruleIds.getFirst();
-    }
-
-    public int last() {
-        return ruleIds.getLast();
+    public static IRRuleIds createEmpty() {
+        return EMPTY;
     }
 
     public boolean isEmpty() {
-        return ruleIds.isEmpty();
+        return equals(EMPTY);
     }
 
     public int count() {

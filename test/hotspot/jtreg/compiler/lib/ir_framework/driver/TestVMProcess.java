@@ -24,6 +24,7 @@
 package compiler.lib.ir_framework.driver;
 
 import compiler.lib.ir_framework.TestFramework;
+import compiler.lib.ir_framework.driver.network.testVMData;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 import compiler.lib.ir_framework.shared.TestFrameworkSocket;
 import compiler.lib.ir_framework.shared.NoTestsRunException;
@@ -58,34 +59,30 @@ public class TestVMProcess {
     private static String lastTestVMOutput = "";
 
     private final ArrayList<String> cmds;
-    private String hotspotPidFileName;
     private String commandLine;
     private OutputAnalyzer oa;
-    private String applicableIRRules;
+    private final testVMData testVmData;
 
     public TestVMProcess(List<String> additionalFlags, Class<?> testClass, Set<Class<?>> helperClasses, int defaultWarmup,
-                         boolean allowNotCompilable, boolean testClassesOnBootClassPath) {
+                         boolean allowNotCompilable, boolean testClassesOnBootClassPath, boolean shouldVerifyIR) {
         this.cmds = new ArrayList<>();
         TestFrameworkSocket socket = new TestFrameworkSocket();
         try (socket) {
             prepareTestVMFlags(additionalFlags, socket, testClass, helperClasses, defaultWarmup,
-                               allowNotCompilable, testClassesOnBootClassPath);
+                               allowNotCompilable, testClassesOnBootClassPath, shouldVerifyIR);
             start();
         }
-        processSocketOutput(socket);
         checkTestVMExitCode();
+        testVmData = socket.testVmData(allowNotCompilable);
+        testVmData.printJavaMessages();
+    }
+
+    public testVMData testVmData() {
+        return testVmData;
     }
 
     public String getCommandLine() {
         return commandLine;
-    }
-
-    public String getApplicableIRRules() {
-        return applicableIRRules;
-    }
-
-    public String getHotspotPidFileName() {
-        return hotspotPidFileName;
     }
 
     public static String getLastTestVMOutput() {
@@ -94,7 +91,7 @@ public class TestVMProcess {
 
     private void prepareTestVMFlags(List<String> additionalFlags, TestFrameworkSocket socket, Class<?> testClass,
                                     Set<Class<?>> helperClasses, int defaultWarmup, boolean allowNotCompilable,
-                                    boolean testClassesOnBootClassPath) {
+                                    boolean testClassesOnBootClassPath, boolean shouldVerifyIR) {
         // Set java.library.path so JNI tests which rely on jtreg nativepath setting work
         cmds.add("-Djava.library.path=" + Utils.TEST_NATIVE_PATH);
         // Need White Box access in Test VM.
@@ -114,6 +111,9 @@ public class TestVMProcess {
         // Add server property flag that enables the Test VM to print the Applicable IR Rules for IR verification and
         // debug messages.
         cmds.add(socket.getPortPropertyFlag());
+        if (shouldVerifyIR) {
+            cmds.add("-XX:IrFrameworkPort=" + socket.serverSocketPort());
+        }
         cmds.addAll(additionalFlags);
         cmds.addAll(Arrays.asList(getDefaultFlags()));
         if (VERIFY_VM) {
@@ -172,53 +172,7 @@ public class TestVMProcess {
         process.command().add(1, "-DReproduce=true"); // Add after "/path/to/bin/java" in order to rerun the Test VM directly
         commandLine = "Command Line:" + System.lineSeparator() + String.join(" ", process.command())
                       + System.lineSeparator();
-        hotspotPidFileName = String.format("hotspot_pid%d.log", oa.pid());
         lastTestVMOutput = oa.getOutput();
-    }
-
-    /**
-     * Process the socket output: All prefixed lines are dumped to the standard output while the remaining lines
-     * represent the Applicable IR Rules used for IR matching later.
-     */
-    private void processSocketOutput(TestFrameworkSocket socket) {
-        String output = socket.getOutput();
-        if (socket.hasStdOut()) {
-            StringBuilder testListBuilder = new StringBuilder();
-            StringBuilder messagesBuilder = new StringBuilder();
-            StringBuilder nonStdOutBuilder = new StringBuilder();
-            Scanner scanner = new Scanner(output);
-            while (scanner.hasNextLine()) {
-                String line = scanner.nextLine();
-                if (line.startsWith(TestFrameworkSocket.STDOUT_PREFIX)) {
-                    // Exclude [STDOUT] from message.
-                    line = line.substring(TestFrameworkSocket.STDOUT_PREFIX.length());
-                    if (line.startsWith(TestFrameworkSocket.TESTLIST_TAG)) {
-                        // Exclude [TESTLIST] from message for better formatting.
-                        line = "> " + line.substring(TestFrameworkSocket.TESTLIST_TAG.length() + 1);
-                        testListBuilder.append(line).append(System.lineSeparator());
-                    } else {
-                        messagesBuilder.append(line).append(System.lineSeparator());
-                    }
-                } else {
-                    nonStdOutBuilder.append(line).append(System.lineSeparator());
-                }
-            }
-            System.out.println();
-            if (!testListBuilder.isEmpty()) {
-                System.out.println("Run flag defined test list");
-                System.out.println("--------------------------");
-                System.out.println(testListBuilder);
-                System.out.println();
-            }
-            if (!messagesBuilder.isEmpty()) {
-                System.out.println("Messages from Test VM");
-                System.out.println("---------------------");
-                System.out.println(messagesBuilder);
-            }
-            applicableIRRules = nonStdOutBuilder.toString();
-        } else {
-            applicableIRRules = output;
-        }
     }
 
     private void checkTestVMExitCode() {
