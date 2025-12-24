@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -114,7 +114,7 @@ public class TestVM {
     private final List<String> excludeList;
     private final List<String> testList;
     private Set<Class<?>> helperClasses = null; // Helper classes that contain framework annotations to be processed.
-    private final IREncodingPrinter irMatchRulePrinter;
+    private final IrEncodingPrinter irMatchRulePrinter;
     private final Class<?> testClass;
     private final Map<Executable, CompLevel> forceCompileMap = new HashMap<>();
 
@@ -125,7 +125,7 @@ public class TestVM {
         this.excludeList = createTestFilterList(EXCLUDELIST, testClass);
 
         if (PRINT_VALID_IR_RULES) {
-            irMatchRulePrinter = new IREncodingPrinter();
+            irMatchRulePrinter = new IrEncodingPrinter();
         } else {
             irMatchRulePrinter = null;
         }

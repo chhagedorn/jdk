@@ -28,7 +28,7 @@ import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.driver.irmatching.parser.hotspot.HotSpotPidFileParser;
 import compiler.lib.ir_framework.driver.network.IrEncoding;
 import compiler.lib.ir_framework.shared.TestFormat;
-import compiler.lib.ir_framework.test.IREncodingPrinter;
+import compiler.lib.ir_framework.test.IrEncodingPrinter;
 
 import java.lang.reflect.Method;
 import java.util.HashMap;
@@ -86,7 +86,7 @@ public class TestMethodParser {
     private void validateIRRuleIds(Method m, IR[] irAnnos, List<Integer> ids) {
         TestFramework.check(ids != null, "Should find method name in validIrRulesMap for " + m);
         TestFramework.check(!ids.isEmpty(), "Did not find any rule indices for " + m);
-        TestFramework.check((ids.getFirst() >= 1 || ids.getFirst() == IREncodingPrinter.NO_RULE_APPLIED)
+        TestFramework.check((ids.getFirst() >= 1 || ids.getFirst() == IrEncodingPrinter.NO_RULE_APPLIED)
                             && ids.getLast() <= irAnnos.length,
                             "Invalid IR rule index found in validIrRulesMap for " + m);
     }
@@ -95,6 +95,6 @@ public class TestMethodParser {
      * Does the list of IR rules contain any applicable IR rules for the given conditions?
      */
     private boolean hasAnyApplicableIRRules(List<Integer> irRuleIds) {
-        return irRuleIds.getFirst() != IREncodingPrinter.NO_RULE_APPLIED;
+        return irRuleIds.getFirst() != IrEncodingPrinter.NO_RULE_APPLIED;
     }
 }
