@@ -360,10 +360,11 @@ class TestSetupTestsWithExpectedExceptions {
     public void checkThrowInCheck(int x) {
         throw new BadCheckedTestException("expected check");
     }
-}
 
-class BadCheckedTestException extends RuntimeException {
-    BadCheckedTestException(String s) {
-        super(s);
+
+    static class BadCheckedTestException extends RuntimeException {
+        BadCheckedTestException(String s) {
+            super(s);
+        }
     }
 }

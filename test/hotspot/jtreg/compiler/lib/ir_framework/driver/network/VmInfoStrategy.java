@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, 2026, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,31 +23,17 @@
 
 package compiler.lib.ir_framework.driver.network;
 
-import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-/**
- * Class to parse the VmInfo emitted by the test VM and creating {@link VmInfo} objects for each entry.
- *
- * @see VmInfo
- */
-public class VmInfoParser implements TestVmParser<VmInfo> {
+public class VmInfoStrategy implements TestVmParsingStrategy<VmInfo> {
     private final VmInfo vmInfo;
-    private boolean finished;
 
-    public VmInfoParser() {
+    public VmInfoStrategy() {
         this.vmInfo = new VmInfo();
-        this.finished = false;
     }
 
     @Override
-    public void parse(String line) {
-        TestFramework.check(!finished, "cannot parse when already queried");
+    public void parseLine(String line) {
         String[] splitLine = line.split(":", 2);
         if (splitLine.length != 2) {
             throw new TestFrameworkException("Invalid VmInfo key:value encoding. Found: " + splitLine[0]);
@@ -57,15 +43,9 @@ public class VmInfoParser implements TestVmParser<VmInfo> {
         vmInfo.add(key, value);
     }
 
-    @Override
-    public void finish() {
-        finished = true;
-    }
 
     @Override
     public VmInfo output() {
-        vmInfo.verify();
-        TestFramework.check(finished, "must be finished before querying");
         return vmInfo;
     }
 }

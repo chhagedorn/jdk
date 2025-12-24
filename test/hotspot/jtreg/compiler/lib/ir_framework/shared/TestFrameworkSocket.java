@@ -94,7 +94,6 @@ public class TestFrameworkSocket implements AutoCloseable {
         Socket client = serverSocket.accept();
         BufferedReader reader = new BufferedReader(new InputStreamReader(client.getInputStream()));
         String identity = readIdentity(client, reader).trim();
-        System.out.println(identity);
         submitTask(identity, client, reader);
     }
 

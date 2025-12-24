@@ -39,6 +39,7 @@ public class TestVmMessages {
     }
 
     public VmInfo vmInfo() {
+        vmInfo.verify();
         return vmInfo;
     }
 
