@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -43,7 +43,7 @@ import java.util.function.Function;
  * This is done during the execution of the test VM by checking the active VM flags. This encoding is eventually parsed
  * and checked by the IRMatcher class in the driver VM after the termination of the test VM. IR rule indices start at 1.
  */
-public class IREncodingPrinter {
+public class IrEncodingPrinter {
     public static final int NO_RULE_APPLIED = -1;
 
     private static final WhiteBox WHITE_BOX = WhiteBox.getWhiteBox();

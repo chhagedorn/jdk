@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -30,7 +30,6 @@ import compiler.lib.ir_framework.test.TestVM;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.PrintWriter;
 import java.net.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -44,10 +43,6 @@ public class TestFrameworkSocket implements AutoCloseable {
 
     // Static fields used for test VM only.
     private static final String SERVER_PORT_PROPERTY = "ir.framework.server.port";
-    private static final int SERVER_PORT = Integer.getInteger(SERVER_PORT_PROPERTY, -1);
-
-    private static Socket clientSocket = null;
-    private static PrintWriter clientWriter = null;
 
     private final int serverSocketPort;
     private final ServerSocket serverSocket;
@@ -72,9 +67,6 @@ public class TestFrameworkSocket implements AutoCloseable {
         start();
     }
 
-    public int serverSocketPort() {
-        return serverSocketPort;
-    }
     public String getPortPropertyFlag() {
         return "-D" + SERVER_PORT_PROPERTY + "=" + serverSocketPort;
     }
@@ -99,11 +91,7 @@ public class TestFrameworkSocket implements AutoCloseable {
     }
 
     private void handleClientConnection() throws IOException {
-        System.out.println(serverSocket.isBound());
-        System.out.println(serverSocket.isClosed());
         Socket client = serverSocket.accept();
-        System.out.println(serverSocket.isBound());
-        System.out.println(serverSocket.isClosed());
         BufferedReader reader = new BufferedReader(new InputStreamReader(client.getInputStream()));
         String identity = readIdentity(client, reader).trim();
         System.out.println(identity);
@@ -150,6 +138,16 @@ public class TestFrameworkSocket implements AutoCloseable {
         return new TestVmData(testVmMessages, methodDumps, allowNotCompilable);
     }
 
+    private TestVmMessages testVmMessages() {
+        try {
+            return testVmFuture.get();
+        } catch (ExecutionException e) {
+            throw new TestFrameworkException("No test VM messages were received", e);
+        } catch (Exception e) {
+            throw new TestFrameworkException("Error while fetching Test VM Future", e);
+        }
+    }
+
     private MethodDumps methodDumps() {
         MethodDumps methodDumps = new MethodDumps();
         for (Future<MethodDump> future : this.methodDumps) {
@@ -161,19 +159,6 @@ public class TestFrameworkSocket implements AutoCloseable {
             }
         }
         return methodDumps;
-    }
-
-    /**
-     * Get the socket output of the flag VM.
-     */
-    private TestVmMessages testVmMessages() {
-        try {
-            return testVmFuture.get();
-        } catch (ExecutionException e) {
-            throw new TestFrameworkException("No test VM messages were received", e);
-        } catch (Exception e) {
-            throw new TestFrameworkException("Error while fetching Test VM Future", e);
-        }
     }
 }
 
