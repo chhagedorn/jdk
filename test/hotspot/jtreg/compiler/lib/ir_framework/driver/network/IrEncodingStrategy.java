@@ -23,7 +23,6 @@
 
 package compiler.lib.ir_framework.driver.network;
 
-import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.driver.irmatching.parser.TestMethod;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 
@@ -35,18 +34,15 @@ import java.util.List;
  *
  * @see TestMethod
  */
-public class IrEncodingParser implements TestVmParser<IrEncoding> {
-
-    private boolean finished;
+public class IrEncodingStrategy implements TestVmParsingStrategy<IrEncoding> {
     private final IrEncoding irEncoding;
 
-    public IrEncodingParser() {
+    public IrEncodingStrategy() {
         this.irEncoding = new IrEncoding();
     }
 
     @Override
-    public void parse(String line) {
-        TestFramework.check(!finished, "cannot parse when already queried");
+    public void parseLine(String line) {
         String[] splitLine = line.split(",");
         if (splitLine.length < 2) {
             throw new TestFrameworkException("Invalid IR match rule encoding. No comma found: " + splitLine[0]);
@@ -71,14 +67,9 @@ public class IrEncodingParser implements TestVmParser<IrEncoding> {
         return irRuleIds;
     }
 
-    @Override
-    public void finish() {
-        finished = true;
-    }
 
     @Override
     public IrEncoding output() {
-        TestFramework.check(finished, "must be finished before querying");
         return irEncoding;
     }
 }

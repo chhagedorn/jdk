@@ -180,6 +180,12 @@ class BadIRAndRuntimeCheckedTests {
             throw new BadCheckedTestException("expected");
         }
     }
+
+    static class BadCheckedTestException extends RuntimeException {
+        BadCheckedTestException(String s) {
+            super(s);
+        }
+    }
 }
 
 class BadIRCheckedTests {
@@ -222,11 +228,5 @@ class BadIRCheckedTests {
         if (retValue != 42) {
             throw new RuntimeException("must be 42");
         }
-    }
-}
-
-class BadCheckedTestException extends RuntimeException {
-    BadCheckedTestException(String s) {
-        super(s);
     }
 }

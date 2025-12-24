@@ -32,31 +32,18 @@ import static compiler.lib.ir_framework.test.Tag.*;
 
 class TestVmMessageParser {
     private static final Pattern TAG_PATTERN = Pattern.compile("^(\\[[^]]+])\\s*(.*)$");
-    private static final TestVmParser<?> EMPTY_PARSER = new TestVmParser<>() { // TODO: Separate class?
-        @Override
-        public void parse(String line) {
-        }
-
-        @Override
-        public void finish() {
-        }
-
-        @Override
-        public Object output() {
-            return null;
-        }
-    };
+    private static final TestVmLineParser<?> EMPTY_PARSER = new TestVmLineParser<>(null);
 
     private final TestVmMessages testVmMessages;
-    private TestVmParser<?> testVmParser;
-    private final VmInfoParser vmInfoParser;
-    private final IrEncodingParser irEncodingParser;
+    private TestVmLineParser<?> testVmParser;
+    private final TestVmLineParser<VmInfo> vmInfoParser;
+    private final TestVmLineParser<IrEncoding> irEncodingParser;
 
     public TestVmMessageParser() {
         this.testVmMessages = new TestVmMessages();
         this.testVmParser = EMPTY_PARSER;
-        this.vmInfoParser = new VmInfoParser();
-        this.irEncodingParser = new IrEncodingParser();
+        this.vmInfoParser = new TestVmLineParser<>(new VmInfoStrategy());
+        this.irEncodingParser = new TestVmLineParser<>(new IrEncodingStrategy());
     }
 
     public TestVmMessages testVmMessages() {
