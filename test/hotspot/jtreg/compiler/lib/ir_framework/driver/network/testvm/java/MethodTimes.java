@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -21,23 +21,34 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.irmatching.irrule.constraint.raw;
+package compiler.lib.ir_framework.driver.network.testvm.java;
 
-import compiler.lib.ir_framework.CompilePhase;
-import compiler.lib.ir_framework.IR;
-import compiler.lib.ir_framework.IRNode;
-import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.Constraint;
-import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
+import java.util.ArrayList;
+import java.util.List;
 
-/**
- * Interface to represent a single raw constraint as found in the {@link IR @IR} annotation (i.e. {@link IRNode}
- * placeholder strings are not replaced by regexes, yet). A raw constraint can be parsed into a {@link Constraint} by
- * calling {@link #parse}. This replaces the IR node placeholder strings by actual regexes and
- * merges composite nodes together.
- *
- * @see Constraint
- */
-public interface RawConstraint {
-    CompilePhase defaultCompilePhase();
-    Constraint parse(CompilePhase compilePhase, String compilationOutput, VmInfo vmInfo);
+public class MethodTimes implements JavaMessage {
+    private final List<String> methodTimes;
+
+    public MethodTimes() {
+        this.methodTimes = new ArrayList<>();
+    }
+
+    public void add(String time) {
+        methodTimes.add(time);
+    }
+
+    @Override
+    public void print() {
+        if (methodTimes.isEmpty()) {
+            return;
+        }
+
+        System.out.println();
+        System.out.println("Test Execution Times");
+        System.out.println("--------------------");
+        for (String methodTime : methodTimes) {
+            System.out.println("- " + methodTime);
+        }
+        System.out.println();
+    }
 }

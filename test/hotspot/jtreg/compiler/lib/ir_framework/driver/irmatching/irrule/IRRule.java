@@ -31,7 +31,7 @@ import compiler.lib.ir_framework.driver.irmatching.Matchable;
 import compiler.lib.ir_framework.driver.irmatching.MatchableMatcher;
 import compiler.lib.ir_framework.driver.irmatching.irrule.phase.CompilePhaseIRRule;
 import compiler.lib.ir_framework.driver.irmatching.irrule.phase.CompilePhaseIRRuleBuilder;
-import compiler.lib.ir_framework.driver.network.VmInfo;
+import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
 
 /**
  * This class represents a generic {@link IR @IR} rule of an IR method. It contains a list of compile phase specific

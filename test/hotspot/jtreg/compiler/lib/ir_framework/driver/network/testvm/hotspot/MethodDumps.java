@@ -21,23 +21,19 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network;
+package compiler.lib.ir_framework.driver.network.testvm.hotspot;
 
-import compiler.lib.ir_framework.CompilePhase;
+import java.util.HashSet;
+import java.util.Set;
 
-import java.util.ArrayList;
-import java.util.List;
+public class MethodDumps {
+    private final Set<MethodDump> methodDumps;
 
-public class PhaseDump {
-    private final CompilePhase compilePhase;
-    private final List<String> dump;
-
-    PhaseDump(CompilePhase compilePhase) {
-        this.compilePhase = compilePhase;
-        this.dump = new ArrayList<>();
+    public MethodDumps() {
+        this.methodDumps = new HashSet<>();
     }
 
-    void add(String line) {
-        dump.add(line);
+    public void add(MethodDump methodDump) {
+        methodDumps.add(methodDump);
     }
 }

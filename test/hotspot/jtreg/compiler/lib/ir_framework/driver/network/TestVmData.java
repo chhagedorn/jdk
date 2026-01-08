@@ -1,18 +1,23 @@
 package compiler.lib.ir_framework.driver.network;
 
+import compiler.lib.ir_framework.driver.network.testvm.hotspot.MethodDumps;
+import compiler.lib.ir_framework.driver.network.testvm.java.IrEncoding;
+import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessages;
+import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
+
 public class TestVmData {
-    private final TestVmMessages testVmMessages;
+    private final JavaMessages javaMessages;
     private final MethodDumps methodDumps;
     private final boolean allowNotCompilable;
 
-    public TestVmData(TestVmMessages testVmMessages, MethodDumps methodDumps, boolean allowNotCompilable) {
-        this.testVmMessages = testVmMessages;
+    public TestVmData(JavaMessages javaMessages, MethodDumps methodDumps, boolean allowNotCompilable) {
+        this.javaMessages = javaMessages;
         this.methodDumps = methodDumps;
         this.allowNotCompilable = allowNotCompilable;
     }
 
     public IrEncoding irEncoding() {
-        return testVmMessages.irEncoding();
+        return javaMessages.irEncoding();
     }
 
     public boolean isNotCompilableAllowed() {
@@ -20,10 +25,10 @@ public class TestVmData {
     }
 
     public void printTestVmMessages() {
-        testVmMessages.print();
+        javaMessages.print();
     }
 
     public VmInfo vmInfo() {
-        return testVmMessages.vmInfo();
+        return javaMessages.vmInfo();
     }
 }

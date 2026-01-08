@@ -21,37 +21,40 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network;
+package compiler.lib.ir_framework.driver.network.testvm.hotspot;
 
+import compiler.lib.ir_framework.driver.network.testvm.TestVmMessageReader;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 
 import java.io.BufferedReader;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.concurrent.Callable;
 
-// TODO: Common class with HotSpotVmMessageReader and pass in strategy or just parser?
-public class TestVmMessageReader implements Callable<TestVmMessages> {
-    private final Socket socket;
-    private final BufferedReader reader; // identity already consumed
-    private final TestVmMessageParser messageParser;
+public class HotSpotMessageReader implements Callable<MethodDump> {
+    private final TestVmMessageReader<MethodDump> messageReader;
 
-    public TestVmMessageReader(Socket socket, BufferedReader reader) {
-        this.socket = socket;
-        this.reader = reader;
-        this.messageParser = new TestVmMessageParser();
+    public HotSpotMessageReader(Socket socket, BufferedReader reader) {
+        String methodName = readMethodName(socket, reader);
+        this.messageReader = new TestVmMessageReader<>(socket, reader, new HotSpotMessageParser(methodName));
+    }
+
+    private String readMethodName(Socket socket, BufferedReader reader) {
+        try {
+            socket.setSoTimeout(10000);
+            String methodName = reader.readLine();
+            socket.setSoTimeout(0);
+            System.err.println(methodName);
+            return methodName;
+        } catch (SocketTimeoutException e) {
+            throw new TestFrameworkException("Did not receive method name after 10s", e);
+        } catch (Exception e) {
+            throw new TestFrameworkException("Error reading method name", e);
+        }
     }
 
     @Override
-    public TestVmMessages call() {
-        try (socket; reader) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                messageParser.parse(line.trim());
-            }
-            return messageParser.testVmMessages();
-        } catch (Exception e) {
-            throw new TestFrameworkException("Error while reading Test VM socket messages", e);
-        }
+    public MethodDump call() throws Exception {
+        return messageReader.call();
     }
 }
-

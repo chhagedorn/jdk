@@ -21,8 +21,7 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network;
+package compiler.lib.ir_framework.driver.network.testvm;
 
-public interface TestVmMessage {
-    void print();
+public interface TestVmMessages {
 }

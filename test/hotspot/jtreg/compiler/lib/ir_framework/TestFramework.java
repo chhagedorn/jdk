@@ -117,6 +117,7 @@ public class TestFramework {
     public static final Set<String> JTREG_WHITELIST_FLAGS = new HashSet<>(
             Arrays.asList(
                     // The following substrings are part of more than one VM flag
+                    "IrFrameworkPort",
                     "RAM",
                     "Heap",
                     "Trace",

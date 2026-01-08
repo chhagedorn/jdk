@@ -21,19 +21,19 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network;
+package compiler.lib.ir_framework.driver.network.testvm.java;
 
 import compiler.lib.ir_framework.TestFramework;
 
-class TestVmLineParser<E> {
+class LineParser<Output> {
     private enum ParserState {
         NOTHING_PARSED, PARSING, FINISHED_PARSING
     }
 
     private ParserState parserState;
-    private final TestVmParsingStrategy<E> parsingStrategy;
+    private final ParsingStrategy<Output> parsingStrategy;
 
-    public TestVmLineParser(TestVmParsingStrategy<E> parsingStrategy) {
+    public LineParser(ParsingStrategy<Output> parsingStrategy) {
         this.parsingStrategy = parsingStrategy;
         this.parserState = ParserState.NOTHING_PARSED;
     }
@@ -51,7 +51,7 @@ class TestVmLineParser<E> {
         parserState = ParserState.FINISHED_PARSING;
     }
 
-    public E output() {
+    public Output output() {
         TestFramework.check(parserState != ParserState.PARSING, "either nothing parsed or finished");
         return parsingStrategy.output();
     }

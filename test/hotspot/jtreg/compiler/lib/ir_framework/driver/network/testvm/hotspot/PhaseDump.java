@@ -21,34 +21,23 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network;
+package compiler.lib.ir_framework.driver.network.testvm.hotspot;
+
+import compiler.lib.ir_framework.CompilePhase;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class ExecutedTests implements TestVmMessage {
-    private final List<String> tests;
+public class PhaseDump {
+    private final CompilePhase compilePhase;
+    private final List<String> dump;
 
-    public ExecutedTests() {
-        this.tests = new ArrayList<>();
+    PhaseDump(CompilePhase compilePhase) {
+        this.compilePhase = compilePhase;
+        this.dump = new ArrayList<>();
     }
 
-    public void add(String test) {
-        tests.add(test);
-    }
-
-    @Override
-    public void print() {
-        if (tests.isEmpty()) {
-            return;
-        }
-
-        System.out.println();
-        System.out.println("Executed Subset of Tests");
-        System.out.println("------------------------");
-        for (String test : tests) {
-            System.out.println("- " + test);
-        }
-        System.out.println();
+    void add(String line) {
+        dump.add(line);
     }
 }

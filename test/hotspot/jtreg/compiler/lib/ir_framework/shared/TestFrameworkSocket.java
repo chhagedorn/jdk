@@ -25,6 +25,12 @@ package compiler.lib.ir_framework.shared;
 
 import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.driver.network.*;
+import compiler.lib.ir_framework.driver.network.testvm.TestVmMessageReader;
+import compiler.lib.ir_framework.driver.network.testvm.hotspot.HotSpotMessageReader;
+import compiler.lib.ir_framework.driver.network.testvm.hotspot.MethodDump;
+import compiler.lib.ir_framework.driver.network.testvm.hotspot.MethodDumps;
+import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessageParser;
+import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessages;
 import compiler.lib.ir_framework.test.TestVM;
 
 import java.io.BufferedReader;
@@ -49,7 +55,7 @@ public class TestFrameworkSocket implements AutoCloseable {
     private boolean running;
     private final ExecutorService executor;
     private final List<Future<MethodDump>> methodDumps;
-    private Future<TestVmMessages> testVmFuture;
+    private Future<JavaMessages> testVmFuture;
 
     public TestFrameworkSocket() {
         try {
@@ -69,6 +75,10 @@ public class TestFrameworkSocket implements AutoCloseable {
 
     public String getPortPropertyFlag() {
         return "-D" + SERVER_PORT_PROPERTY + "=" + serverSocketPort;
+    }
+
+    public int serverSocketPort() {
+        return serverSocketPort;
     }
 
     private void start() {
@@ -111,7 +121,7 @@ public class TestFrameworkSocket implements AutoCloseable {
 
     private void submitTask(String identity, Socket client, BufferedReader reader) {
         if (identity.equals(TestVM.IDENTITY)) {
-            testVmFuture = executor.submit(new TestVmMessageReader(client, reader));
+            testVmFuture = executor.submit(new TestVmMessageReader<>(client, reader, new JavaMessageParser()));
         } else if (identity.equals(HOTSPOT_IDENTITY)) {
             Future<MethodDump> future = executor.submit(new HotSpotMessageReader(client, reader));
             methodDumps.add(future);
@@ -132,12 +142,12 @@ public class TestFrameworkSocket implements AutoCloseable {
     }
 
     public TestVmData testVmData(boolean allowNotCompilable) {
-        TestVmMessages testVmMessages = testVmMessages();
+        JavaMessages javaMessages = testVmMessages();
         MethodDumps methodDumps = methodDumps();
-        return new TestVmData(testVmMessages, methodDumps, allowNotCompilable);
+        return new TestVmData(javaMessages, methodDumps, allowNotCompilable);
     }
 
-    private TestVmMessages testVmMessages() {
+    private JavaMessages testVmMessages() {
         try {
             return testVmFuture.get();
         } catch (ExecutionException e) {

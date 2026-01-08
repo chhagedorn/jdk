@@ -21,16 +21,17 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network;
+package compiler.lib.ir_framework.driver.network.testvm.hotspot;
 
 import compiler.lib.ir_framework.CompilePhase;
 import compiler.lib.ir_framework.TestFramework;
+import compiler.lib.ir_framework.driver.network.testvm.TestVmMessageParser;
 import compiler.lib.ir_framework.test.Tag;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-class HotSpotMessageParser {
+public class HotSpotMessageParser implements TestVmMessageParser<MethodDump> {
     private static final Pattern COMPILE_PHASE_PATTERN = Pattern.compile("^COMPILE_PHASE (.*)$");
 
     private static final PhaseDump EMPTY_PHASE = new PhaseDump(CompilePhase.PRINT_IDEAL);
@@ -42,6 +43,7 @@ class HotSpotMessageParser {
         this.methodDump = new MethodDump(methodName);
     }
 
+    @Override
     public void parse(String line) {
         Matcher m = COMPILE_PHASE_PATTERN.matcher(line);
         if (m.matches()) {
@@ -59,7 +61,8 @@ class HotSpotMessageParser {
         phaseDump.add(line);
     }
 
-    MethodDump methodDump() {
+    @Override
+    public MethodDump output() {
         TestFramework.check(!phaseDump.equals(EMPTY_PHASE), "still parsing phase dump");
         return methodDump;
     }

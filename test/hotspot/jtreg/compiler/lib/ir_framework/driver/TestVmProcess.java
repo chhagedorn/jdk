@@ -24,7 +24,7 @@
 package compiler.lib.ir_framework.driver;
 
 import compiler.lib.ir_framework.TestFramework;
-import compiler.lib.ir_framework.driver.network.IrEncoding;
+import compiler.lib.ir_framework.driver.network.testvm.java.IrEncoding;
 import compiler.lib.ir_framework.driver.network.TestVmData;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 import compiler.lib.ir_framework.shared.TestFrameworkSocket;
@@ -122,7 +122,7 @@ public class TestVmProcess {
         }
         // Add server property flag that enables test VM to print encoding for IR verification last and debug messages.
         cmds.add(socket.getPortPropertyFlag());
-//        cmds.add("-XX:IrFrameworkPort=" + socket.serverSocketPort()); TODO: LATER
+//        cmds.add("-XX:IrFrameworkPort=" + socket.serverSocketPort()); TODO
         cmds.addAll(additionalFlags);
         cmds.addAll(Arrays.asList(getDefaultFlags()));
         if (VERIFY_VM) {

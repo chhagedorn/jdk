@@ -21,10 +21,8 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network;
+package compiler.lib.ir_framework.driver.network.testvm.java;
 
-public interface TestVmParser<E> {
-    void parse(String line);
-    void finish();
-    E output();
+public interface JavaMessage {
+    void print();
 }

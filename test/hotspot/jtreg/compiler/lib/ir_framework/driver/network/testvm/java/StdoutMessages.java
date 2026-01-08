@@ -21,21 +21,32 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network;
+package compiler.lib.ir_framework.driver.network.testvm.java;
 
-import java.util.LinkedHashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
-public class MethodDump {
-    private final String methodName;
-    private final Set<PhaseDump> phaseDumps;
+public class StdoutMessages implements JavaMessage {
+    private final List<String> messages;
 
-    public MethodDump(String methodName) {
-        this.methodName = methodName;
-        this.phaseDumps = new LinkedHashSet<>();
+    public StdoutMessages() {
+        this.messages = new ArrayList<>();
     }
 
-    void add(PhaseDump phaseDump) {
-        phaseDumps.add(phaseDump);
+    public void add(String time) {
+        messages.add(time);
+    }
+
+    @Override
+    public void print() {
+        if (messages.isEmpty()) {
+            return;
+        }
+        System.out.println();
+        System.out.println("Test VM Messages");
+        System.out.println("----------------");
+        for (String methodTime : messages) {
+            System.out.println("- " + methodTime);
+        }
     }
 }

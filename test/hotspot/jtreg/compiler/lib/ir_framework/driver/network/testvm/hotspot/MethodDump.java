@@ -21,19 +21,23 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network;
+package compiler.lib.ir_framework.driver.network.testvm.hotspot;
 
-import java.util.HashSet;
+import compiler.lib.ir_framework.driver.network.testvm.TestVmMessages;
+
+import java.util.LinkedHashSet;
 import java.util.Set;
 
-public class MethodDumps {
-    private final Set<MethodDump> methodDumps;
+public class MethodDump implements TestVmMessages {
+    private final String methodName;
+    private final Set<PhaseDump> phaseDumps;
 
-    public MethodDumps() {
-        this.methodDumps = new HashSet<>();
+    public MethodDump(String methodName) {
+        this.methodName = methodName;
+        this.phaseDumps = new LinkedHashSet<>();
     }
 
-    public void add(MethodDump methodDump) {
-        methodDumps.add(methodDump);
+    void add(PhaseDump phaseDump) {
+        phaseDumps.add(phaseDump);
     }
 }

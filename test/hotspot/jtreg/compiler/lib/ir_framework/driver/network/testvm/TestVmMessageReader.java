@@ -21,32 +21,36 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network;
+package compiler.lib.ir_framework.driver.network.testvm;
 
-import java.util.ArrayList;
-import java.util.List;
+import compiler.lib.ir_framework.shared.TestFrameworkException;
 
-public class StdoutMessages implements TestVmMessage {
-    private final List<String> messages;
+import java.io.BufferedReader;
+import java.net.Socket;
+import java.util.concurrent.Callable;
 
-    public StdoutMessages() {
-        this.messages = new ArrayList<>();
-    }
+public class TestVmMessageReader<Output extends TestVmMessages> implements Callable<Output> {
+    private final Socket socket;
+    private final BufferedReader reader; // identity already consumed
+    private final TestVmMessageParser<Output> messageParser;
 
-    public void add(String time) {
-        messages.add(time);
+    public TestVmMessageReader(Socket socket, BufferedReader reader, TestVmMessageParser<Output> messageParser) {
+        this.socket = socket;
+        this.reader = reader;
+        this.messageParser = messageParser;
     }
 
     @Override
-    public void print() {
-        if (messages.isEmpty()) {
-            return;
-        }
-        System.out.println();
-        System.out.println("Test VM Messages");
-        System.out.println("----------------");
-        for (String methodTime : messages) {
-            System.out.println("- " + methodTime);
+    public Output call() {
+        try (socket; reader) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                messageParser.parse(line.trim());
+            }
+            return messageParser.output();
+        } catch (Exception e) {
+            throw new TestFrameworkException("Error while reading Test VM socket messages", e);
         }
     }
 }
+

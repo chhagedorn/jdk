@@ -21,39 +21,34 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network;
+package compiler.lib.ir_framework.driver.network.testvm.java;
 
 import compiler.lib.ir_framework.TestFramework;
+import compiler.lib.ir_framework.driver.network.testvm.TestVmMessageParser;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static compiler.lib.ir_framework.test.Tag.*;
 
-class TestVmMessageParser {
+public class JavaMessageParser implements TestVmMessageParser<JavaMessages> {
     private static final Pattern TAG_PATTERN = Pattern.compile("^(\\[[^]]+])\\s*(.*)$");
-    private static final TestVmLineParser<?> EMPTY_PARSER = new TestVmLineParser<>(null);
+    private static final LineParser<?> EMPTY_PARSER = new LineParser<>(null);
 
-    private final TestVmMessages testVmMessages;
-    private TestVmLineParser<?> testVmParser;
-    private final TestVmLineParser<VmInfo> vmInfoParser;
-    private final TestVmLineParser<IrEncoding> irEncodingParser;
+    private final JavaMessages javaMessages;
+    private LineParser<?> testVmParser;
+    private final LineParser<VmInfo> vmInfoParser;
+    private final LineParser<IrEncoding> irEncodingParser;
 
-    public TestVmMessageParser() {
-        this.testVmMessages = new TestVmMessages();
+    public JavaMessageParser() {
+        this.javaMessages = new JavaMessages();
         this.testVmParser = EMPTY_PARSER;
-        this.vmInfoParser = new TestVmLineParser<>(new VmInfoStrategy());
-        this.irEncodingParser = new TestVmLineParser<>(new IrEncodingStrategy());
+        this.vmInfoParser = new LineParser<>(new VmInfoStrategy());
+        this.irEncodingParser = new LineParser<>(new IrEncodingStrategy());
     }
 
-    public TestVmMessages testVmMessages() {
-        testVmMessages.addVmInfo(vmInfoParser.output());
-        testVmMessages.addIrEncoding(irEncodingParser.output());
-        return testVmMessages;
-    }
-
+    @Override
     public void parse(String line) {
-        System.out.println(line);
         Matcher m = TAG_PATTERN.matcher(line);
         if (m.matches()) {
             String tag = m.group(1);
@@ -68,15 +63,15 @@ class TestVmMessageParser {
         switch (tag) {
             case STDOUT_TAG -> {
                 assertNoActiveParser();
-                testVmMessages.addStdoutLine(message);
+                javaMessages.addStdoutLine(message);
             }
             case TEST_LIST_TAG -> {
                 assertNoActiveParser();
-                testVmMessages.addExecutedTest(message);
+                javaMessages.addExecutedTest(message);
             }
             case PRINT_TIMES_TAG -> {
                 assertNoActiveParser();
-                testVmMessages.addMethodTime(message);
+                javaMessages.addMethodTime(message);
             }
             case VM_INFO -> {
                 assertNoActiveParser();
@@ -105,5 +100,12 @@ class TestVmMessageParser {
 
     private void assertActiveParser() {
         TestFramework.check(!testVmParser.equals(EMPTY_PARSER), "unexpected new tag while parsing block");
+    }
+
+    @Override
+    public JavaMessages output() {
+        javaMessages.addVmInfo(vmInfoParser.output());
+        javaMessages.addIrEncoding(irEncodingParser.output());
+        return javaMessages;
     }
 }

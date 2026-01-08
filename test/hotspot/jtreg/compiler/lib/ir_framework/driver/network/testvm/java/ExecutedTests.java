@@ -21,33 +21,33 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network;
+package compiler.lib.ir_framework.driver.network.testvm.java;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class MethodTimes implements TestVmMessage {
-    private final List<String> methodTimes;
+public class ExecutedTests implements JavaMessage {
+    private final List<String> tests;
 
-    public MethodTimes() {
-        this.methodTimes = new ArrayList<>();
+    public ExecutedTests() {
+        this.tests = new ArrayList<>();
     }
 
-    public void add(String time) {
-        methodTimes.add(time);
+    public void add(String test) {
+        tests.add(test);
     }
 
     @Override
     public void print() {
-        if (methodTimes.isEmpty()) {
+        if (tests.isEmpty()) {
             return;
         }
 
         System.out.println();
-        System.out.println("Test Execution Times");
-        System.out.println("--------------------");
-        for (String methodTime : methodTimes) {
-            System.out.println("- " + methodTime);
+        System.out.println("Executed Subset of Tests");
+        System.out.println("------------------------");
+        for (String test : tests) {
+            System.out.println("- " + test);
         }
         System.out.println();
     }

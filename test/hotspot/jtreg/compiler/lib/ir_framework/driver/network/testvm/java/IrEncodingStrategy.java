@@ -21,7 +21,7 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network;
+package compiler.lib.ir_framework.driver.network.testvm.java;
 
 import compiler.lib.ir_framework.driver.irmatching.parser.TestMethod;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
@@ -34,7 +34,7 @@ import java.util.List;
  *
  * @see TestMethod
  */
-public class IrEncodingStrategy implements TestVmParsingStrategy<IrEncoding> {
+public class IrEncodingStrategy implements ParsingStrategy<IrEncoding> {
     private final IrEncoding irEncoding;
 
     public IrEncodingStrategy() {
@@ -66,7 +66,6 @@ public class IrEncodingStrategy implements TestVmParsingStrategy<IrEncoding> {
         }
         return irRuleIds;
     }
-
 
     @Override
     public IrEncoding output() {

@@ -21,16 +21,18 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network;
+package compiler.lib.ir_framework.driver.network.testvm.java;
 
-public class TestVmMessages {
+import compiler.lib.ir_framework.driver.network.testvm.TestVmMessages;
+
+public class JavaMessages implements TestVmMessages {
     private final StdoutMessages stdoutMessages;
     private final MethodTimes methodTimes;
     private final ExecutedTests executedTests;
     private VmInfo vmInfo; // TODO: Better pass into constructor?
     private IrEncoding irEncoding;
 
-    TestVmMessages() {
+    JavaMessages() {
         this.stdoutMessages = new StdoutMessages();
         this.executedTests = new ExecutedTests();
         this.methodTimes = new MethodTimes();

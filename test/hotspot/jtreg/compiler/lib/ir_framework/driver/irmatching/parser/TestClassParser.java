@@ -64,7 +64,6 @@ public class TestClassParser {
         return new NonIRTestClass();
     }
 
-
     /**
      * Create test class with IR methods for all test methods identified by {@link TestMethodParser} by combining them
      * with the parsed compilation output from {@link HotSpotPidFileParser}.
@@ -75,6 +74,4 @@ public class TestClassParser {
         TestFormat.throwIfAnyFailures();
         return new TestClass(irMethods);
     }
-
 }
-

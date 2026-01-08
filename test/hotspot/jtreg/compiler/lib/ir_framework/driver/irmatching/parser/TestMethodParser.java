@@ -26,7 +26,7 @@ package compiler.lib.ir_framework.driver.irmatching.parser;
 import compiler.lib.ir_framework.IR;
 import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.driver.irmatching.parser.hotspot.HotSpotPidFileParser;
-import compiler.lib.ir_framework.driver.network.IrEncoding;
+import compiler.lib.ir_framework.driver.network.testvm.java.IrEncoding;
 import compiler.lib.ir_framework.shared.TestFormat;
 import compiler.lib.ir_framework.test.IrEncodingPrinter;
 
