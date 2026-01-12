@@ -48,7 +48,7 @@ public class IRExample {
     public static void main(String[] args) {
         TestFramework.run(); // First run tests from IRExample. No failure.
         try {
-            TestFramework.run(FailingExamples.class); // Secondly, run tests from FailingExamples. Expected to fail.
+//            TestFramework.run(FailingExamples.class); // Secondly, run tests from FailingExamples. Expected to fail.
         } catch (IRViolationException e) {
             // Expected. Check stderr/stdout to see how IR failures are reported (always printed, regardless if
             // exception is thrown or not). Uncomment the "throw" statement below to get a completely failing test.

@@ -29,7 +29,7 @@ import compiler.lib.ir_framework.driver.TestVmProcess;
 import compiler.lib.ir_framework.driver.irmatching.IRMatcher;
 import compiler.lib.ir_framework.driver.irmatching.IRViolationException;
 import compiler.lib.ir_framework.driver.irmatching.Matchable;
-import compiler.lib.ir_framework.driver.irmatching.parser.TestClassParser;
+import compiler.lib.ir_framework.driver.irmatching.TestClassParser;
 import compiler.lib.ir_framework.shared.*;
 import compiler.lib.ir_framework.test.TestVM;
 import jdk.test.lib.Platform;
@@ -117,7 +117,6 @@ public class TestFramework {
     public static final Set<String> JTREG_WHITELIST_FLAGS = new HashSet<>(
             Arrays.asList(
                     // The following substrings are part of more than one VM flag
-                    "IrFrameworkPort",
                     "RAM",
                     "Heap",
                     "Trace",
@@ -184,7 +183,7 @@ public class TestFramework {
     private List<String> flags;
     private int defaultWarmup = -1;
     private boolean testClassesOnBootClassPath;
-    private boolean isAllowNotCompilable = false;
+    private boolean allowNotCompilable = false;
 
     /*
      * Public interface methods
@@ -499,7 +498,7 @@ public class TestFramework {
      * and else it is ignored silently.
      */
     public TestFramework allowNotCompilable() {
-        this.isAllowNotCompilable = true;
+        this.allowNotCompilable = true;
         return this;
     }
 
@@ -878,11 +877,11 @@ public class TestFramework {
 
     private void runTestVM(List<String> additionalFlags) {
         TestVmProcess testVmProcess = new TestVmProcess(additionalFlags, testClass, helperClasses, defaultWarmup,
-                                                        isAllowNotCompilable, testClassesOnBootClassPath);
+                                                        allowNotCompilable, testClassesOnBootClassPath);
         if (shouldVerifyIR) {
             try {
-                TestClassParser testClassParser = new TestClassParser(testClass);
-                Matchable testClassMatchable = testClassParser.parse(testVmProcess);
+                TestClassParser testClassParser = new TestClassParser(testClass, testVmProcess.testVmData());
+                Matchable testClassMatchable = testClassParser.parse();
                 IRMatcher matcher = new IRMatcher(testClassMatchable);
                 matcher.match();
             } catch (IRViolationException e) {

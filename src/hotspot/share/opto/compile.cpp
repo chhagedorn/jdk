@@ -581,12 +581,12 @@ void Compile::print_phase(const char* phase_name) {
   tty->print_cr("%u.\t%s", ++_phase_counter, phase_name);
 }
 
-void Compile::print_ideal_to_ir_framework(const char* phase_name) {
+void Compile::print_ideal_to_ir_framework(const char* compile_phase_name) {
   // Print out all nodes in ascending order of index.
   // It is important that we traverse both inputs and outputs of nodes,
   // so that we reach all nodes that are connected to Root.
   assert(_use_ir_framework_stream, "sanity");
-  _ir_framework_stream.print_cr("COMPILE_PHASE: %s", phase_name);
+  _ir_framework_stream.print_cr("COMPILE_PHASE: %s", compile_phase_name);
   root()->dump_bfs(MaxNodeLimit, nullptr, "-+S$", &_ir_framework_stream);
   _ir_framework_stream.print_cr("#END#");
 }
@@ -601,12 +601,7 @@ void Compile::print_opto_assembly_to_ir_framework(const char* opto_assembly) {
   _ir_framework_stream.print_cr("#END#");
 }
 
-void Compile::print_ideal_ir(const char* phase_name) {
-  if (_use_ir_framework_stream) {
-    print_ideal_ir(phase_name);
-    return;
-  }
-
+void Compile::print_ideal_ir(const char* compile_phase_name) const {
   // keep the following output all in one block
   // This output goes directly to the tty, not the compiler log.
   // To enable tools to match it up with the compilation activity,
@@ -618,7 +613,7 @@ void Compile::print_ideal_ir(const char* phase_name) {
   stringStream ss;
 
   if (_output == nullptr) {
-    ss.print_cr("AFTER: %s", phase_name);
+    ss.print_cr("AFTER: %s", compile_phase_name);
     // Print out all nodes in ascending order of index.
     // It is important that we traverse both inputs and outputs of nodes,
     // so that we reach all nodes that are connected to Root.
@@ -635,7 +630,7 @@ void Compile::print_ideal_ir(const char* phase_name) {
     xtty->head("ideal compile_id='%d'%s compile_phase='%s'",
                compile_id(),
                is_osr_compilation() ? " compile_kind='osr'" : "",
-               phase_name);
+               compile_phase_name);
   }
 
   tty->print("%s", ss.as_string());
@@ -892,8 +887,10 @@ Compile::Compile(ciEnv* ci_env, ciMethod* target, int osr_bci,
   NOT_PRODUCT( verify_graph_edges(); )
 
 #ifndef PRODUCT
-  if (should_print_ideal()) {
-    print_ideal_ir("print_ideal");
+  if (should_print_ideal_phase(PHASE_PRINT_IDEAL)) {
+    print_ideal_ir(PHASE_PRINT_IDEAL);
+  } else if (should_print_ideal()) {
+    print_ideal_ir("PrintIdeal");
   }
 #endif
 
@@ -5201,17 +5198,17 @@ void Compile::sort_macro_nodes() {
   }
 }
 
-void Compile::print_method(CompilerPhaseType cpt, int level, Node* n) {
+void Compile::print_method(CompilerPhaseType compile_phase, int level, Node* n) {
   if (failing_internal()) { return; } // failing_internal to not stress bailouts from printing code.
   EventCompilerPhase event(UNTIMED);
   if (event.should_commit()) {
-    CompilerEvent::PhaseEvent::post(event, C->_latest_stage_start_counter, cpt, C->_compile_id, level);
+    CompilerEvent::PhaseEvent::post(event, C->_latest_stage_start_counter, compile_phase, C->_compile_id, level);
   }
 #ifndef PRODUCT
   ResourceMark rm;
   stringStream ss;
-  ss.print_raw(CompilerPhaseTypeHelper::to_description(cpt));
-  int iter = ++_igv_phase_iter[cpt];
+  ss.print_raw(CompilerPhaseTypeHelper::to_description(compile_phase));
+  int iter = ++_igv_phase_iter[compile_phase];
   if (iter > 1) {
     ss.print(" %d", iter);
   }
@@ -5239,11 +5236,20 @@ void Compile::print_method(CompilerPhaseType cpt, int level, Node* n) {
   if (should_print_phase(level)) {
     print_phase(name);
   }
-  if (should_print_ideal_phase(cpt)) {
-    print_ideal_ir(CompilerPhaseTypeHelper::to_name(cpt));
+  if (should_print_ideal_phase(compile_phase)) {
+    print_ideal_ir(compile_phase);
   }
 #endif
   C->_latest_stage_start_counter.stamp();
+}
+
+void Compile::print_ideal_ir(CompilerPhaseType compile_phase) {
+  const char* compile_phase_name = CompilerPhaseTypeHelper::to_name(compile_phase);
+  if (_use_ir_framework_stream) {
+    print_ideal_to_ir_framework(compile_phase_name);
+  } else {
+    print_ideal_ir(compile_phase_name);
+  }
 }
 
 // Only used from CompileWrapper
@@ -5396,13 +5402,17 @@ bool Compile::init_ir_framework_stream(DirectiveSet* directive, ciMethod* method
     return false;
   }
 
+  TimeStamp ts;
+  ts.update();
   const char* host = "127.0.0.1";
-  if (_ir_framework_stream.connect(host, IrFrameworkPort)) {
+  if (!_ir_framework_stream.connect(host, IrFrameworkPort)) {
     fatal("Could not connect to %s:%d", host, IrFrameworkPort);
   }
-
+  tty->print_cr("%ldl", ts.ticks());
   _ir_framework_stream.print_cr("#HotSpot#");
-  method->print_short_name(&_ir_framework_stream);
+  stringStream ss;
+  method->print_short_name(&ss);
+  _ir_framework_stream.print_cr("%s", method->name()->as_klass_external_name());
   return true;
 }
 #endif // !PRODUCT

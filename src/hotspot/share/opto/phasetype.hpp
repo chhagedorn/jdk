@@ -144,7 +144,9 @@
   flags(END,                            "End") \
   flags(FAILURE,                        "Failure") \
   flags(ALL,                            "All") \
-  flags(DEBUG,                          "Debug")
+  flags(DEBUG,                          "Debug") \
+  flags(PRINT_IDEAL,                    "PrintIdeal") \
+  flags(PRINT_OPTO_ASSEMBLY,            "PrintOptoAssembly") \
 
 #define table_entry(name, description) PHASE_##name,
 enum CompilerPhaseType {

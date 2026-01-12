@@ -30,6 +30,7 @@ import compiler.lib.ir_framework.driver.irmatching.Matchable;
 import compiler.lib.ir_framework.driver.irmatching.MatchableMatcher;
 import compiler.lib.ir_framework.driver.irmatching.irrule.checkattribute.Counts;
 import compiler.lib.ir_framework.driver.irmatching.irrule.checkattribute.FailOn;
+import compiler.lib.ir_framework.driver.network.testvm.hotspot.PhaseDump;
 
 import java.util.List;
 
@@ -45,17 +46,17 @@ import java.util.List;
 public class CompilePhaseIRRule implements CompilePhaseIRRuleMatchable {
     private final CompilePhase compilePhase;
     private final MatchableMatcher matcher;
-    private final String compilationOutput;
+    private final PhaseDump phaseDump;
 
-    public CompilePhaseIRRule(CompilePhase compilePhase, List<Matchable> checkAttributes, String compilationOutput) {
-        this.compilePhase = compilePhase;
+    public CompilePhaseIRRule(List<Matchable> checkAttributes, PhaseDump phaseDump) {
+        this.compilePhase = phaseDump.compilePhase();
         this.matcher = new MatchableMatcher(checkAttributes);
-        this.compilationOutput = compilationOutput;
+        this.phaseDump = phaseDump;
     }
 
     @Override
     public MatchResult match() {
-        return new CompilePhaseIRRuleMatchResult(compilePhase, compilationOutput, matcher.match());
+        return new CompilePhaseIRRuleMatchResult(phaseDump, matcher.match());
     }
 
     @Override

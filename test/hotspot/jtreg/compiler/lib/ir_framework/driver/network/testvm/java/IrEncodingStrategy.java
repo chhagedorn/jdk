@@ -23,17 +23,11 @@
 
 package compiler.lib.ir_framework.driver.network.testvm.java;
 
-import compiler.lib.ir_framework.driver.irmatching.parser.TestMethod;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Class to parse the IR encoding emitted by the test VM and creating {@link TestMethod} objects for each entry.
- *
- * @see TestMethod
- */
 public class IrEncodingStrategy implements ParsingStrategy<IrEncoding> {
     private final IrEncoding irEncoding;
 
@@ -48,14 +42,14 @@ public class IrEncodingStrategy implements ParsingStrategy<IrEncoding> {
             throw new TestFrameworkException("Invalid IR match rule encoding. No comma found: " + splitLine[0]);
         }
         String testName = splitLine[0];
-        List<Integer> irRulesIds = parseIrRulesIds(splitLine);
+        IrRuleIds irRulesIds = parseIrRulesIds(splitLine);
         irEncoding.add(testName, irRulesIds);
     }
 
     /**
      * Parse rule indexes from IR encoding line of the format: <method,idx1,idx2,...>
      */
-    private List<Integer> parseIrRulesIds(String[] splitLine) {
+    private IrRuleIds parseIrRulesIds(String[] splitLine) {
         List<Integer> irRuleIds = new ArrayList<>();
         for (int i = 1; i < splitLine.length; i++) {
             try {
@@ -64,7 +58,7 @@ public class IrEncodingStrategy implements ParsingStrategy<IrEncoding> {
                 throw new TestFrameworkException("Invalid IR match rule encoding. No number found: " + splitLine[i]);
             }
         }
-        return irRuleIds;
+        return new IrRuleIds(irRuleIds);
     }
 
     @Override

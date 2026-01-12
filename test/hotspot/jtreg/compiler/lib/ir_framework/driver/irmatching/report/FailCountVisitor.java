@@ -30,6 +30,7 @@ import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.CountsConst
 import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.FailOnConstraintFailure;
 import compiler.lib.ir_framework.driver.irmatching.visitor.AcceptChildren;
 import compiler.lib.ir_framework.driver.irmatching.visitor.MatchResultVisitor;
+import compiler.lib.ir_framework.driver.network.testvm.hotspot.PhaseDump;
 
 import java.lang.reflect.Method;
 
@@ -77,7 +78,7 @@ class FailCountVisitor implements MatchResultVisitor {
     }
 
     @Override
-    public void visitCompilePhaseIRRule(AcceptChildren acceptChildren, CompilePhase compilePhase, String compilationOutput) {}
+    public void visitCompilePhaseIRRule(AcceptChildren acceptChildren, PhaseDump phaseDump) {}
 
     @Override
     public void visitNoCompilePhaseCompilation(CompilePhase compilePhase) {}

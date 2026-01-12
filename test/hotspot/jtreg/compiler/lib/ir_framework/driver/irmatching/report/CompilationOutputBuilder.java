@@ -25,6 +25,7 @@ package compiler.lib.ir_framework.driver.irmatching.report;
 
 import compiler.lib.ir_framework.CompilePhase;
 import compiler.lib.ir_framework.IR;
+import compiler.lib.ir_framework.driver.network.testvm.hotspot.PhaseDump;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 import compiler.lib.ir_framework.driver.irmatching.MatchResult;
 import compiler.lib.ir_framework.driver.irmatching.irrule.checkattribute.CheckAttributeType;
@@ -133,9 +134,10 @@ public class CompilationOutputBuilder implements MatchResultVisitor {
     }
 
     @Override
-    public void visitCompilePhaseIRRule(AcceptChildren acceptChildren, CompilePhase compilePhase, String compilationOutput) {
+    public void visitCompilePhaseIRRule(AcceptChildren acceptChildren, PhaseDump phaseDump) {
+        CompilePhase compilePhase = phaseDump.compilePhase();
         if (!failedCompilePhases.containsKey(compilePhase)) {
-            failedCompilePhases.put(compilePhase, compilationOutput);
+            failedCompilePhases.put(compilePhase, compilePhaseDump(phaseDump));
             compilePhaseCount++;
         }
         // No need to visit check attributes
@@ -145,10 +147,18 @@ public class CompilationOutputBuilder implements MatchResultVisitor {
     public void visitNoCompilePhaseCompilation(CompilePhase compilePhase) {
         if (!failedCompilePhases.containsKey(compilePhase)) {
             failedCompilePhases.put(compilePhase,
-                                    "> Phase \"" + compilePhase.getName() + "\":" + System.lineSeparator() + "<empty>" +
-                                    System.lineSeparator());
+                                    compilePhaseHeader(compilePhase) + "<empty>" + System.lineSeparator());
             compilePhaseCount++;
         }
+    }
+
+    private String compilePhaseDump(PhaseDump phaseDump) {
+        return compilePhaseHeader(phaseDump.compilePhase()) + System.lineSeparator() + phaseDump.dump() +
+                System.lineSeparator();
+    }
+
+    private String compilePhaseHeader(CompilePhase compilePhase) {
+        return "> Phase \"" + compilePhase.getName() + "\":" + System.lineSeparator();
     }
 
     @Override

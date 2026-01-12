@@ -25,12 +25,12 @@ package compiler.lib.ir_framework.driver.irmatching.irrule;
 
 import compiler.lib.ir_framework.IR;
 import compiler.lib.ir_framework.IRNode;
-import compiler.lib.ir_framework.driver.irmatching.Compilation;
 import compiler.lib.ir_framework.driver.irmatching.MatchResult;
 import compiler.lib.ir_framework.driver.irmatching.Matchable;
 import compiler.lib.ir_framework.driver.irmatching.MatchableMatcher;
 import compiler.lib.ir_framework.driver.irmatching.irrule.phase.CompilePhaseIRRule;
-import compiler.lib.ir_framework.driver.irmatching.irrule.phase.CompilePhaseIRRuleBuilder;
+import compiler.lib.ir_framework.driver.irmatching.irrule.phase.CompilePhaseIrRuleBuilder;
+import compiler.lib.ir_framework.driver.network.testvm.hotspot.MethodDumpHistory;
 import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
 
 /**
@@ -40,15 +40,15 @@ import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
  * @see CompilePhaseIRRule
  * @see IRRuleMatchResult
  */
-public class IRRule implements Matchable {
+public class IrRule implements Matchable {
     private final int ruleId;
     private final IR irAnno;
     private final MatchableMatcher matcher;
 
-    public IRRule(int ruleId, IR irAnno, Compilation compilation, VmInfo vmInfo) {
+    public IrRule(int ruleId, IR irAnno, MethodDumpHistory methodDumpHistory, VmInfo vmInfo) {
         this.ruleId = ruleId;
         this.irAnno = irAnno;
-        this.matcher = new MatchableMatcher(new CompilePhaseIRRuleBuilder(irAnno, compilation).build(vmInfo));
+        this.matcher = new MatchableMatcher(new CompilePhaseIrRuleBuilder(irAnno, methodDumpHistory).build(vmInfo));
     }
 
     @Override

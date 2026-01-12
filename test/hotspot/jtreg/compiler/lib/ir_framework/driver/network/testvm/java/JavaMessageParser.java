@@ -49,6 +49,7 @@ public class JavaMessageParser implements TestVmMessageParser<JavaMessages> {
 
     @Override
     public void parse(String line) {
+        line = line.trim();
         Matcher m = TAG_PATTERN.matcher(line);
         if (m.matches()) {
             String tag = m.group(1);

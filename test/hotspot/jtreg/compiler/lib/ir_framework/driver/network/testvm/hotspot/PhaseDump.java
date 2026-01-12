@@ -24,11 +24,13 @@
 package compiler.lib.ir_framework.driver.network.testvm.hotspot;
 
 import compiler.lib.ir_framework.CompilePhase;
+import compiler.lib.ir_framework.TestFramework;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class PhaseDump {
+    private static final PhaseDump INVALID = new PhaseDump(CompilePhase.DEFAULT);
     private final CompilePhase compilePhase;
     private final List<String> dump;
 
@@ -37,7 +39,29 @@ public class PhaseDump {
         this.dump = new ArrayList<>();
     }
 
+    public static PhaseDump createInvalid() {
+        return INVALID;
+    }
+
+    public boolean isInvalid() {
+        return equals(INVALID);
+    }
+
+    public boolean isEmpty() {
+        return dump.isEmpty();
+    }
+
+    public CompilePhase compilePhase() {
+        TestFramework.check(!isInvalid(), "cannot query INVALID");
+        return compilePhase;
+    }
+
     void add(String line) {
         dump.add(line);
+    }
+
+    public String dump() {
+        TestFramework.check(!isInvalid(), "cannot query INVALID");
+        return String.join(System.lineSeparator(), dump);
     }
 }

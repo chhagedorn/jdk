@@ -42,9 +42,8 @@ public class HotSpotMessageReader implements Callable<MethodDump> {
     private String readMethodName(Socket socket, BufferedReader reader) {
         try {
             socket.setSoTimeout(10000);
-            String methodName = reader.readLine();
+            String methodName = reader.readLine().trim();
             socket.setSoTimeout(0);
-            System.err.println(methodName);
             return methodName;
         } catch (SocketTimeoutException e) {
             throw new TestFrameworkException("Did not receive method name after 10s", e);

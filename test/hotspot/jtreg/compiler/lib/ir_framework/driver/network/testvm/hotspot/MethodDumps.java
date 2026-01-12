@@ -23,17 +23,22 @@
 
 package compiler.lib.ir_framework.driver.network.testvm.hotspot;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 public class MethodDumps {
-    private final Set<MethodDump> methodDumps;
+    private final Map<String, MethodDumpHistory> methodDumps;
 
     public MethodDumps() {
-        this.methodDumps = new HashSet<>();
+        this.methodDumps = new HashMap<>();
     }
 
     public void add(MethodDump methodDump) {
-        methodDumps.add(methodDump);
+        String methodName = methodDump.methodName();
+        methodDumps.computeIfAbsent(methodName, _ -> new MethodDumpHistory())
+                .add(methodDump);
+    }
+
+    public MethodDumpHistory methodDump(String methodName) {
+        return methodDumps.computeIfAbsent(methodName, _ -> MethodDumpHistory.createEmpty());
     }
 }

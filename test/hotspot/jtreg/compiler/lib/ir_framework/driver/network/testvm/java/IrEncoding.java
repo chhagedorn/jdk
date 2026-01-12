@@ -26,7 +26,6 @@ package compiler.lib.ir_framework.driver.network.testvm.java;
 import compiler.lib.ir_framework.TestFramework;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -34,18 +33,22 @@ public class IrEncoding implements JavaMessage {
     private static final boolean PRINT_IR_ENCODING = Boolean.parseBoolean(System.getProperty("PrintIREncoding", "false"))
                                                      || TestFramework.VERBOSE;
 
-    private final Map<String, List<Integer>> methods;
+    private final Map<String, IrRuleIds> methods;
 
     public IrEncoding() {
         methods = new HashMap<>();
     }
 
-    public void add(String method, List<Integer> irRuleIds) {
+    public void add(String method, IrRuleIds irRuleIds) {
         methods.put(method, irRuleIds);
     }
 
-    public Map<String, List<Integer>> methods() {
-        return methods;
+    public IrRuleIds ruleIds(String methodName) {
+        return methods.computeIfAbsent(methodName, _ -> IrRuleIds.createEmpty());
+    }
+
+    public boolean hasNoMethods() {
+        return methods.isEmpty();
     }
 
     @Override

@@ -30,6 +30,7 @@ import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.driver.irmatching.irrule.checkattribute.parsing.RawIRNode;
 import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.Constraint;
 import compiler.lib.ir_framework.driver.SuccessOnlyConstraintException;
+import compiler.lib.ir_framework.driver.network.testvm.hotspot.PhaseDump;
 import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
 import compiler.lib.ir_framework.shared.Comparison;
 import compiler.lib.ir_framework.shared.TestFormat;
@@ -93,10 +94,11 @@ public class RawCountsConstraint implements RawConstraint {
     }
 
     @Override
-    public Constraint parse(CompilePhase compilePhase, String compilationOutput, VmInfo vmInfo) {
+    public Constraint parse(PhaseDump phaseDump, VmInfo vmInfo) {
+        CompilePhase compilePhase = phaseDump.compilePhase();
         TestFramework.check(compilePhase != CompilePhase.DEFAULT, "must not be default");
         try {
-            return Constraint.createCounts(rawIRNode.regex(compilePhase, vmInfo, getComparisonBound()), constraintIndex, comparison, compilationOutput);
+            return Constraint.createCounts(rawIRNode.regex(compilePhase, vmInfo, getComparisonBound()), constraintIndex, comparison, phaseDump.dump());
         } catch (SuccessOnlyConstraintException e) {
             return Constraint.createSuccess();
         }

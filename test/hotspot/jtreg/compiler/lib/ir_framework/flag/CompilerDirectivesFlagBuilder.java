@@ -57,7 +57,7 @@ class CompilerDirectivesFlagBuilder {
         List<String> flags = new ArrayList<>();
         flags.add("-XX:CompilerDirectivesFile=" + FlagVM.TEST_VM_COMPILE_COMMANDS_FILE);
         writeDirectivesFile();
-        flags.add("-XX:CompilerDirectivesLimit=" + directivesCount + 1);
+        flags.add("-XX:CompilerDirectivesLimit=" + (directivesCount + 1));
         return flags;
     }
 
@@ -84,27 +84,12 @@ class CompilerDirectivesFlagBuilder {
         StringBuilder builder = new StringBuilder();
         appendLine(builder, "{", 1);
         appendLine(builder, "match : \"" + methodName + "\",", 2);
-        appendLine(builder, "log : true,", 2);
-        appendPrintIdeal(compilePhases, builder);
-        appendPrintOptoAssembly(compilePhases, builder);
-        appendRemainingCompilePhases(compilePhases, builder);
+        appendCompilePhases(compilePhases, builder);
         append(builder, "}", 1);
         return builder.toString();
     }
 
-    private static void appendPrintIdeal(Set<CompilePhase> compilePhases, StringBuilder builder) {
-        if (compilePhases.remove(CompilePhase.PRINT_IDEAL)) {
-            appendLine(builder, "PrintIdeal : true,", 2);
-        }
-    }
-
-    private static void appendPrintOptoAssembly(Set<CompilePhase> compilePhases, StringBuilder builder) {
-        if (compilePhases.remove(CompilePhase.PRINT_OPTO_ASSEMBLY)) {
-            appendLine(builder, "PrintOptoAssembly : true,", 2);
-        }
-    }
-
-    private static void appendRemainingCompilePhases(Set<CompilePhase> compilePhases, StringBuilder builder) {
+    private static void appendCompilePhases(Set<CompilePhase> compilePhases, StringBuilder builder) {
         if (!compilePhases.isEmpty()) {
             appendLine(builder, "PrintIdealPhase : \"" + compilePhases
                     .stream()

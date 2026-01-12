@@ -20,11 +20,15 @@ public class TestVmData {
         return javaMessages.irEncoding();
     }
 
-    public boolean isNotCompilableAllowed() {
+    public MethodDumps methodDumps() {
+        return methodDumps;
+    }
+
+    public boolean allowNotCompilable() {
         return allowNotCompilable;
     }
 
-    public void printTestVmMessages() {
+    public void printJavaMessages() {
         javaMessages.print();
     }
 

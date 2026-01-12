@@ -23,7 +23,6 @@
 
 package compiler.lib.ir_framework.driver.irmatching;
 
-import compiler.lib.ir_framework.driver.irmatching.parser.TestClassParser;
 import compiler.lib.ir_framework.driver.irmatching.report.CompilationOutputBuilder;
 import compiler.lib.ir_framework.driver.irmatching.report.FailureMessageBuilder;
 

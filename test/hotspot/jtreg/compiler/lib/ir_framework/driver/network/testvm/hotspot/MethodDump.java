@@ -23,21 +23,31 @@
 
 package compiler.lib.ir_framework.driver.network.testvm.hotspot;
 
+import compiler.lib.ir_framework.CompilePhase;
+import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.driver.network.testvm.TestVmMessages;
 
-import java.util.LinkedHashSet;
-import java.util.Set;
+import java.util.*;
 
 public class MethodDump implements TestVmMessages {
     private final String methodName;
-    private final Set<PhaseDump> phaseDumps;
+    private final Map<CompilePhase, PhaseDump> phaseDumps;
 
     public MethodDump(String methodName) {
         this.methodName = methodName;
-        this.phaseDumps = new LinkedHashSet<>();
+        this.phaseDumps = new LinkedHashMap<>();
     }
 
-    void add(PhaseDump phaseDump) {
-        phaseDumps.add(phaseDump);
+    public String methodName() {
+        return methodName;
+    }
+
+    void add(CompilePhase compilePhase, PhaseDump phaseDump) {
+        phaseDumps.put(compilePhase, phaseDump);
+    }
+
+    public PhaseDump phaseDump(CompilePhase compilePhase) {
+        TestFramework.check(compilePhase != CompilePhase.DEFAULT, "cannot query for DEFAULT");
+        return phaseDumps.computeIfAbsent(compilePhase, _ -> new PhaseDump(compilePhase));
     }
 }

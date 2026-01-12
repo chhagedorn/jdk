@@ -1809,7 +1809,12 @@ void PhaseOutput::fill_buffer(C2_MacroAssembler* masm, uint* blk_starts) {
 
 #if defined(SUPPORT_OPTO_ASSEMBLY)
   // Dump the assembly code, including basic-block numbers
-  if (C->print_assembly()) {
+  if (C->should_print_ideal_phase(PHASE_PRINT_OPTO_ASSEMBLY)) {
+    stringStream dump_asm_str;
+    dump_asm_on(&dump_asm_str, node_offsets, node_offset_limit);
+    const char* opto_assembly = dump_asm_str.freeze();
+    C->print_opto_assembly_to_ir_framework(opto_assembly);
+  } else if (C->print_assembly()) {
     ttyLocker ttyl;  // keep the following output all in one block
     if (!VMThread::should_terminate()) {  // test this under the tty lock
       // print_metadata and dump_asm may safepoint which makes us loose the ttylock.
@@ -1840,12 +1845,6 @@ void PhaseOutput::fill_buffer(C2_MacroAssembler* masm, uint* blk_starts) {
       }
       tty->cr();
       tty->print_cr("------------------------ OptoAssembly for Compile_id = %d -----------------------", C->compile_id());
-      const char* opto_assembly = dump_asm_str.freeze();
-      if (C->use_ir_framework_stream()) {
-        C->print_opto_assembly_to_ir_framework(opto_assembly);
-      } else {
-        tty->print_raw(opto_assembly);
-      }
       tty->print_cr("--------------------------------------------------------------------------------");
       if (xtty != nullptr) {
         xtty->tail("opto_assembly");

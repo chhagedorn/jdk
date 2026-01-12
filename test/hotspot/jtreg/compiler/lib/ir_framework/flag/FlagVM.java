@@ -123,7 +123,7 @@ public class FlagVM {
 
     private static void addIRVerificationFlags(ArrayList<String> cmds, Class<?> testClass) {
         cmds.addAll(Arrays.asList(getPrintFlags()));
-        cmds.add("-XX:+LogCompilation");
+//        cmds.add("-XX:+LogCompilation");
         CompilerDirectivesFlagBuilder compilerDirectivesFlagBuilder = new CompilerDirectivesFlagBuilder(testClass);
         cmds.addAll(compilerDirectivesFlagBuilder.build());
         // Always trap for exception throwing to not confuse IR verification
@@ -132,6 +132,6 @@ public class FlagVM {
     }
 
     private static String[] getPrintFlags() {
-        return new String[] {"-XX:+PrintCompilation", "-XX:+UnlockDiagnosticVMOptions"};
+        return new String[] {};
     }
 }

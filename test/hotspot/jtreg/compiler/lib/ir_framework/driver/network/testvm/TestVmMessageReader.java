@@ -45,7 +45,7 @@ public class TestVmMessageReader<Output extends TestVmMessages> implements Calla
         try (socket; reader) {
             String line;
             while ((line = reader.readLine()) != null) {
-                messageParser.parse(line.trim());
+                messageParser.parse(line);
             }
             return messageParser.output();
         } catch (Exception e) {

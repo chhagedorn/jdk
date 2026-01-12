@@ -668,9 +668,10 @@ public:
   uint          next_igv_idx()                  { return _igv_idx++; }
   bool          trace_opto_output() const       { return _trace_opto_output; }
   void          print_phase(const char* phase_name);
-  void          print_ideal_to_ir_framework(const char* phase_name);
+  void          print_ideal_to_ir_framework(const char* compile_phase_name);
   void          print_opto_assembly_to_ir_framework(const char* opto_assembly);
-  void          print_ideal_ir(const char* phase_name);
+  void          print_ideal_ir(const char* compile_phase_name) const;
+  void          print_ideal_ir(CompilerPhaseType compile_phase);
   bool          should_print_ideal() const      { return _directive->PrintIdealOption; }
   bool          use_ir_framework_stream() const     { return _use_ir_framework_stream; }
   bool              parsed_irreducible_loop() const { return _parsed_irreducible_loop; }
@@ -685,7 +686,7 @@ public:
   void begin_method();
   void end_method();
 
-  void print_method(CompilerPhaseType cpt, int level, Node* n = nullptr);
+  void print_method(CompilerPhaseType compile_phase, int level, Node* n = nullptr);
 
 #ifndef PRODUCT
   bool should_print_igv(int level);

@@ -27,6 +27,7 @@ import compiler.lib.ir_framework.CompilePhase;
 import compiler.lib.ir_framework.IR;
 import compiler.lib.ir_framework.IRNode;
 import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.Constraint;
+import compiler.lib.ir_framework.driver.network.testvm.hotspot.PhaseDump;
 import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
 
 /**
@@ -39,5 +40,5 @@ import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
  */
 public interface RawConstraint {
     CompilePhase defaultCompilePhase();
-    Constraint parse(CompilePhase compilePhase, String compilationOutput, VmInfo vmInfo);
+    Constraint parse(PhaseDump phaseDump, VmInfo vmInfo);
 }

@@ -26,11 +26,12 @@ package compiler.lib.ir_framework.driver.irmatching.irmethod;
 import compiler.lib.ir_framework.CompilePhase;
 import compiler.lib.ir_framework.IR;
 import compiler.lib.ir_framework.Test;
-import compiler.lib.ir_framework.driver.irmatching.Compilation;
 import compiler.lib.ir_framework.driver.irmatching.MatchResult;
 import compiler.lib.ir_framework.driver.irmatching.Matchable;
 import compiler.lib.ir_framework.driver.irmatching.MatchableMatcher;
-import compiler.lib.ir_framework.driver.irmatching.irrule.IRRule;
+import compiler.lib.ir_framework.driver.irmatching.irrule.IrRule;
+import compiler.lib.ir_framework.driver.network.testvm.hotspot.MethodDumpHistory;
+import compiler.lib.ir_framework.driver.network.testvm.java.IrRuleIds;
 import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
 import compiler.lib.ir_framework.shared.TestFormat;
 import compiler.lib.ir_framework.shared.TestFormatException;
@@ -46,23 +47,24 @@ import static compiler.lib.ir_framework.TestFramework.PRINT_RULE_MATCHING_TIME;
  * {@link IR @IR} rules.
  *
  * @see IR
- * @see IRRule
+ * @see IrRule
  * @see IRMethodMatchResult
  */
 public class IRMethod implements IRMethodMatchable {
     private final Method method;
     private final MatchableMatcher matcher;
 
-    public IRMethod(Method method, List<Integer> ruleIds, IR[] irAnnos, Compilation compilation, VmInfo vmInfo) {
+    public IRMethod(Method method, IrRuleIds irRuleIds, MethodDumpHistory methodDumpHistory, VmInfo vmInfo) {
         this.method = method;
-        this.matcher = new MatchableMatcher(createIRRules(method, ruleIds, irAnnos, compilation, vmInfo));
+        this.matcher = new MatchableMatcher(createIRRules(method, irRuleIds, methodDumpHistory, vmInfo));
     }
 
-    private List<Matchable> createIRRules(Method method, List<Integer> ruleIds, IR[] irAnnos, Compilation compilation, VmInfo vmInfo) {
+    private List<Matchable> createIRRules(Method method, IrRuleIds irRuleIds, MethodDumpHistory methodDumpHistory, VmInfo vmInfo) {
         List<Matchable> irRules = new ArrayList<>();
-        for (int ruleId : ruleIds) {
+        IR[] irAnnos = method.getAnnotationsByType(IR.class);
+        for (int ruleId : irRuleIds) {
             try {
-                irRules.add(new IRRule(ruleId, irAnnos[ruleId - 1], compilation, vmInfo));
+                irRules.add(new IrRule(ruleId, irAnnos[ruleId - 1], methodDumpHistory, vmInfo));
             } catch (TestFormatException e) {
                 String postfixErrorMsg = " for IR rule " + ruleId + " at " + method + ".";
                 TestFormat.failNoThrow(e.getMessage() + postfixErrorMsg);
@@ -89,13 +91,12 @@ public class IRMethod implements IRMethodMatchable {
             return new IRMethodMatchResult(method, matcher.match());
         }
 
-        List<MatchResult> match;
         for (int i = 0; i < 10; i++) {  // warm up
-            match = matcher.match();
+            matcher.match();
         }
 
         long startTime = System.nanoTime();
-        match = matcher.match();
+        List<MatchResult> match = matcher.match();
         long endTime = System.nanoTime();
         long duration = (endTime - startTime);
         System.out.println("Verifying IR rules for " + name() + ": " + duration + " ns = " + (duration / 1000000) + " ms");

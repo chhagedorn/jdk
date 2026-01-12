@@ -61,7 +61,6 @@ public class TestVmProcess {
     private static String lastTestVMOutput = "";
 
     private final ArrayList<String> cmds;
-    private String hotspotPidFileName;
     private String commandLine;
     private OutputAnalyzer oa;
     private final TestVmData testVmData;
@@ -78,7 +77,7 @@ public class TestVmProcess {
         }
         checkTestVMExitCode();
         testVmData = socket.testVmData(allowNotCompilable);
-        testVmData.printTestVmMessages();
+        testVmData.printJavaMessages();
     }
 
     public TestVmData testVmData() {
@@ -87,14 +86,6 @@ public class TestVmProcess {
 
     public String getCommandLine() {
         return commandLine;
-    }
-
-    public IrEncoding irEncoding() {
-        return testVmData.irEncoding();
-    }
-
-    public String getHotspotPidFileName() {
-        return hotspotPidFileName;
     }
 
     public static String getLastTestVMOutput() {
@@ -122,7 +113,7 @@ public class TestVmProcess {
         }
         // Add server property flag that enables test VM to print encoding for IR verification last and debug messages.
         cmds.add(socket.getPortPropertyFlag());
-//        cmds.add("-XX:IrFrameworkPort=" + socket.serverSocketPort()); TODO
+        cmds.add("-XX:IrFrameworkPort=" + socket.serverSocketPort());
         cmds.addAll(additionalFlags);
         cmds.addAll(Arrays.asList(getDefaultFlags()));
         if (VERIFY_VM) {
@@ -181,7 +172,6 @@ public class TestVmProcess {
         process.command().add(1, "-DReproduce=true"); // Add after "/path/to/bin/java" in order to rerun the test VM directly
         commandLine = "Command Line:" + System.lineSeparator() + String.join(" ", process.command())
                       + System.lineSeparator();
-        hotspotPidFileName = String.format("hotspot_pid%d.log", oa.pid());
         lastTestVMOutput = oa.getOutput();
     }
 

@@ -32,38 +32,39 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class HotSpotMessageParser implements TestVmMessageParser<MethodDump> {
-    private static final Pattern COMPILE_PHASE_PATTERN = Pattern.compile("^COMPILE_PHASE (.*)$");
-
-    private static final PhaseDump EMPTY_PHASE = new PhaseDump(CompilePhase.PRINT_IDEAL);
+    private static final Pattern COMPILE_PHASE_PATTERN = Pattern.compile("^COMPILE_PHASE: (.*)$");
+    private static final PhaseDump INVALID_DUMP = PhaseDump.createInvalid();
 
     private final MethodDump methodDump;
     private PhaseDump phaseDump;
 
     public HotSpotMessageParser(String methodName) {
         this.methodDump = new MethodDump(methodName);
+        this.phaseDump = INVALID_DUMP;
     }
 
     @Override
     public void parse(String line) {
         Matcher m = COMPILE_PHASE_PATTERN.matcher(line);
         if (m.matches()) {
-            CompilePhase compilePhase = CompilePhase.forName(m.group());
-            TestFramework.check(phaseDump.equals(EMPTY_PHASE), "can only have one active phase dump");
+            CompilePhase compilePhase = CompilePhase.forName(m.group(1));
+            TestFramework.check(phaseDump.isInvalid(), "can only have one active phase dump");
             phaseDump = new PhaseDump(compilePhase);
+            methodDump.add(compilePhase, phaseDump);
             return;
         }
         if (line.equals(Tag.END_TAG)) {
-            TestFramework.check(!phaseDump.equals(EMPTY_PHASE), "must have an active phase dump");
-            methodDump.add(phaseDump);
-            phaseDump = EMPTY_PHASE;
+            TestFramework.check(!phaseDump.isInvalid(), "must have an active phase dump");
+            phaseDump = INVALID_DUMP;
             return;
         }
+        TestFramework.check(!phaseDump.isInvalid(), "missing COMPILE_PHASE header?");
         phaseDump.add(line);
     }
 
     @Override
     public MethodDump output() {
-        TestFramework.check(!phaseDump.equals(EMPTY_PHASE), "still parsing phase dump");
+        TestFramework.check(phaseDump.isInvalid(), "querying while still having active phase dump");
         return methodDump;
     }
 }
