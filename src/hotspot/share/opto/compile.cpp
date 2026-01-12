@@ -586,19 +586,31 @@ void Compile::print_ideal_to_ir_framework(const char* compile_phase_name) {
   // It is important that we traverse both inputs and outputs of nodes,
   // so that we reach all nodes that are connected to Root.
   assert(_use_ir_framework_stream, "sanity");
-  _ir_framework_stream.print_cr("COMPILE_PHASE: %s", compile_phase_name);
-  root()->dump_bfs(MaxNodeLimit, nullptr, "-+S$", &_ir_framework_stream);
-  _ir_framework_stream.print_cr("#END#");
+  ResourceMark rm;
+  stringStream ss;
+  ss.print_cr("COMPILE_PHASE: %s", compile_phase_name);
+  root()->dump_bfs(MaxNodeLimit, nullptr, "-+S$", &ss);
+  ss.print_cr("#END#");
+  send_dump_to_ir_framework(ss);
 }
 
 void Compile::print_opto_assembly_to_ir_framework(const char* opto_assembly) {
-  // Print out all nodes in ascending order of index.
-  // It is important that we traverse both inputs and outputs of nodes,
-  // so that we reach all nodes that are connected to Root.
   assert(_use_ir_framework_stream, "sanity");
-  _ir_framework_stream.print_cr("COMPILE_PHASE: PrintOptoAssembly");
-  _ir_framework_stream.print_cr("%s", opto_assembly);
-  _ir_framework_stream.print_cr("#END#");
+  ResourceMark rm;
+  stringStream ss;
+  ss.print_cr("COMPILE_PHASE: PrintOptoAssembly");
+  ss.print_cr("%s", opto_assembly);
+  ss.print_cr("#END#");
+  send_dump_to_ir_framework(ss);
+}
+
+void Compile::send_dump_to_ir_framework(stringStream& ss) {
+  const char* dump = ss.freeze();
+  const size_t length = ss.size();
+  char* scratch_buffer = NEW_RESOURCE_ARRAY(char, length);
+  _ir_framework_stream.set_scratch_buffer(scratch_buffer, length);
+  _ir_framework_stream.print("%s", dump);
+  _ir_framework_stream.set_scratch_buffer(nullptr, 0);
 }
 
 void Compile::print_ideal_ir(const char* compile_phase_name) const {
@@ -5402,14 +5414,14 @@ bool Compile::init_ir_framework_stream(DirectiveSet* directive, ciMethod* method
     return false;
   }
 
-  TimeStamp ts;
-  ts.update();
+
   const char* host = "127.0.0.1";
   if (!_ir_framework_stream.connect(host, IrFrameworkPort)) {
     fatal("Could not connect to %s:%d", host, IrFrameworkPort);
   }
-  tty->print_cr("%ldl", ts.ticks());
+
   _ir_framework_stream.print_cr("#HotSpot#");
+  ResourceMark rm;
   stringStream ss;
   method->print_short_name(&ss);
   _ir_framework_stream.print_cr("%s", method->name()->as_klass_external_name());

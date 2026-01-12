@@ -668,12 +668,16 @@ public:
   uint          next_igv_idx()                  { return _igv_idx++; }
   bool          trace_opto_output() const       { return _trace_opto_output; }
   void          print_phase(const char* phase_name);
-  void          print_ideal_to_ir_framework(const char* compile_phase_name);
   void          print_opto_assembly_to_ir_framework(const char* opto_assembly);
+
+ private:
+  void          print_ideal_to_ir_framework(const char* compile_phase_name);
+  void          send_dump_to_ir_framework(stringStream& ss);
   void          print_ideal_ir(const char* compile_phase_name) const;
   void          print_ideal_ir(CompilerPhaseType compile_phase);
-  bool          should_print_ideal() const      { return _directive->PrintIdealOption; }
-  bool          use_ir_framework_stream() const     { return _use_ir_framework_stream; }
+  bool          should_print_ideal() const { return _directive->PrintIdealOption; }
+
+ public:
   bool              parsed_irreducible_loop() const { return _parsed_irreducible_loop; }
   void          set_parsed_irreducible_loop(bool z) { _parsed_irreducible_loop = z; }
   int _in_dump_cnt;  // Required for dumping ir nodes.

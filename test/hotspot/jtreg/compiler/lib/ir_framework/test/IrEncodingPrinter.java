@@ -44,8 +44,6 @@ import java.util.function.Function;
  * and checked by the IRMatcher class in the driver VM after the termination of the test VM. IR rule indices start at 1.
  */
 public class IrEncodingPrinter {
-    public static final int NO_RULE_APPLIED = -1;
-
     private static final WhiteBox WHITE_BOX = WhiteBox.getWhiteBox();
     private static final List<Function<String, Object>> LONG_GETTERS = Arrays.asList(
             WHITE_BOX::getIntVMFlag, WHITE_BOX::getUintVMFlag, WHITE_BOX::getIntxVMFlag,
@@ -147,17 +145,15 @@ public class IrEncodingPrinter {
                 i++;
             }
         }
-        if (irAnnos.length != 0) {
-            output.append(m.getName());
-            if (validRules.isEmpty()) {
-                output.append("," + NO_RULE_APPLIED);
-            } else {
-                for (i = 0; i < validRules.size(); i++) {
-                    output.append(",").append(validRules.get(i));
-                }
-            }
-            output.append(System.lineSeparator());
+
+        if (irAnnos.length == 0 || validRules.isEmpty()) {
+            return;
         }
+        output.append(m.getName());
+        for (i = 0; i < validRules.size(); i++) {
+            output.append(",").append(validRules.get(i));
+        }
+        output.append(System.lineSeparator());
     }
 
     private void printDisableReason(String method, String reason, String[] apply, int ruleIndex, int ruleMax) {
