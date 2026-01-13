@@ -26,7 +26,7 @@ package compiler.lib.ir_framework.driver.irmatching.irrule.phase;
 import compiler.lib.ir_framework.driver.irmatching.MatchResult;
 import compiler.lib.ir_framework.driver.irmatching.visitor.AcceptChildren;
 import compiler.lib.ir_framework.driver.irmatching.visitor.MatchResultVisitor;
-import compiler.lib.ir_framework.driver.network.testvm.c2.PhaseDump;
+import compiler.lib.ir_framework.driver.network.testvm.c2.CompilePhaseDump;
 
 import java.util.List;
 
@@ -38,13 +38,13 @@ import java.util.List;
 public class CompilePhaseIRRuleMatchResult implements MatchResult {
     private final AcceptChildren acceptChildren;
     private final boolean failed;
-    private final PhaseDump phaseDump;
+    private final CompilePhaseDump compilePhaseDump;
 
-    public CompilePhaseIRRuleMatchResult(PhaseDump phaseDump,
+    public CompilePhaseIRRuleMatchResult(CompilePhaseDump compilePhaseDump,
                                          List<MatchResult> matchResults) {
         this.acceptChildren = new AcceptChildren(matchResults);
         this.failed = !matchResults.isEmpty();
-        this.phaseDump = phaseDump;
+        this.compilePhaseDump = compilePhaseDump;
     }
 
     @Override
@@ -54,6 +54,6 @@ public class CompilePhaseIRRuleMatchResult implements MatchResult {
 
     @Override
     public void accept(MatchResultVisitor visitor) {
-        visitor.visitCompilePhaseIRRule(acceptChildren, phaseDump);
+        visitor.visitCompilePhaseIRRule(acceptChildren, compilePhaseDump);
     }
 }

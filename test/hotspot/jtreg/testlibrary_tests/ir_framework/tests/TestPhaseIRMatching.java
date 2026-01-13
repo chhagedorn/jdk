@@ -34,7 +34,7 @@ import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.FailOnConst
 import compiler.lib.ir_framework.driver.irmatching.TestClassBuilder;
 import compiler.lib.ir_framework.driver.irmatching.visitor.AcceptChildren;
 import compiler.lib.ir_framework.driver.irmatching.visitor.MatchResultVisitor;
-import compiler.lib.ir_framework.driver.network.testvm.c2.PhaseDump;
+import compiler.lib.ir_framework.driver.network.testvm.c2.CompilePhaseDump;
 import jdk.test.lib.Asserts;
 
 import java.lang.annotation.Repeatable;
@@ -435,8 +435,8 @@ class FailureBuilder implements MatchResultVisitor {
     }
 
     @Override
-    public void visitCompilePhaseIRRule(AcceptChildren acceptChildren, PhaseDump phaseDump) {
-        this.compilePhase = phaseDump.compilePhase();
+    public void visitCompilePhaseIRRule(AcceptChildren acceptChildren, CompilePhaseDump compilePhaseDump) {
+        this.compilePhase = compilePhaseDump.compilePhase();
         acceptChildren.accept(this);
     }
 

@@ -33,7 +33,7 @@ import java.util.*;
  */
 public class MethodDump {
     private final String methodName;
-    private final Map<CompilePhase, PhaseDump> phaseDumps;
+    private final Map<CompilePhase, CompilePhaseDump> phaseDumps;
 
     public MethodDump(String methodName) {
         this.methodName = methodName;
@@ -44,14 +44,14 @@ public class MethodDump {
         return methodName;
     }
 
-    void add(CompilePhase compilePhase, PhaseDump phaseDump) {
+    void add(CompilePhase compilePhase, CompilePhaseDump compilePhaseDump) {
         if (compilePhase.overrideRepeatedPhase() || !phaseDumps.containsKey(compilePhase)) {
-            phaseDumps.put(compilePhase, phaseDump);
+            phaseDumps.put(compilePhase, compilePhaseDump);
         }
     }
 
-    public PhaseDump phaseDump(CompilePhase compilePhase) {
+    public CompilePhaseDump phaseDump(CompilePhase compilePhase) {
         TestFramework.check(compilePhase != CompilePhase.DEFAULT, "cannot query for DEFAULT");
-        return phaseDumps.computeIfAbsent(compilePhase, _ -> new PhaseDump(compilePhase));
+        return phaseDumps.computeIfAbsent(compilePhase, _ -> new CompilePhaseDump(compilePhase));
     }
 }

@@ -30,17 +30,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class PhaseDump {
-    private static final PhaseDump INVALID = new PhaseDump(CompilePhase.DEFAULT);
+public class CompilePhaseDump {
+    private static final CompilePhaseDump INVALID = new CompilePhaseDump(CompilePhase.DEFAULT);
     private final CompilePhase compilePhase;
     private final List<String> dump;
 
-    PhaseDump(CompilePhase compilePhase) {
+    CompilePhaseDump(CompilePhase compilePhase) {
         this.compilePhase = compilePhase;
         this.dump = new ArrayList<>();
     }
 
-    public static PhaseDump createInvalid() {
+    public static CompilePhaseDump createInvalid() {
         return INVALID;
     }
 

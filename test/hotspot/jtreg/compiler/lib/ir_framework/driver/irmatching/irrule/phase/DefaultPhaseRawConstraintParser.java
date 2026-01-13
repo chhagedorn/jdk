@@ -31,7 +31,7 @@ import compiler.lib.ir_framework.driver.irmatching.irrule.checkattribute.FailOn;
 import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.Constraint;
 import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.raw.RawConstraint;
 import compiler.lib.ir_framework.driver.network.testvm.c2.MethodDumpHistory;
-import compiler.lib.ir_framework.driver.network.testvm.c2.PhaseDump;
+import compiler.lib.ir_framework.driver.network.testvm.c2.CompilePhaseDump;
 import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 
@@ -73,8 +73,8 @@ class DefaultPhaseRawConstraintParser {
             CompilePhase compilePhase = rawConstraint.defaultCompilePhase();
             List<Constraint> checkAttribute =
                     matchableForCompilePhase.computeIfAbsent(compilePhase, _ -> new ArrayList<>());
-            PhaseDump phaseDump = methodDumpHistory.methodDump(compilePhase);
-            checkAttribute.add(rawConstraint.parse(phaseDump, vmInfo));
+            CompilePhaseDump compilePhaseDump = methodDumpHistory.methodDump(compilePhase);
+            checkAttribute.add(rawConstraint.parse(compilePhaseDump, vmInfo));
         }
         return replaceConstraintsWithCheckAttribute(matchableForCompilePhase, checkAttributeType);
     }
@@ -94,8 +94,8 @@ class DefaultPhaseRawConstraintParser {
                                            List<Constraint> constraints) {
         switch (checkAttributeType) {
             case FAIL_ON -> {
-                PhaseDump phaseDump = methodDumpHistory.methodDump(compilePhase);
-                return new FailOn(constraints, phaseDump.dump());
+                CompilePhaseDump compilePhaseDump = methodDumpHistory.methodDump(compilePhase);
+                return new FailOn(constraints, compilePhaseDump.dump());
             }
             case COUNTS -> {
                 return new Counts(constraints);

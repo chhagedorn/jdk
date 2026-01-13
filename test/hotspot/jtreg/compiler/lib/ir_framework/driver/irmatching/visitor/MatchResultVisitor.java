@@ -29,7 +29,7 @@ import compiler.lib.ir_framework.driver.irmatching.MatchResult;
 import compiler.lib.ir_framework.driver.irmatching.irrule.checkattribute.CheckAttributeType;
 import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.CountsConstraintFailure;
 import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.FailOnConstraintFailure;
-import compiler.lib.ir_framework.driver.network.testvm.c2.PhaseDump;
+import compiler.lib.ir_framework.driver.network.testvm.c2.CompilePhaseDump;
 
 import java.lang.reflect.Method;
 
@@ -42,7 +42,7 @@ public interface MatchResultVisitor {
     void visitMethodNotCompiled(Method method, int failedIRRules);
     void visitMethodNotCompilable(Method method, int failedIRRules);
     void visitIRRule(AcceptChildren acceptChildren, int irRuleId, IR irAnno);
-    void visitCompilePhaseIRRule(AcceptChildren acceptChildren, PhaseDump phaseDump);
+    void visitCompilePhaseIRRule(AcceptChildren acceptChildren, CompilePhaseDump compilePhaseDump);
     void visitNoCompilePhaseCompilation(CompilePhase compilePhase);
     void visitCheckAttribute(AcceptChildren acceptChildren, CheckAttributeType checkAttributeType);
     void visitFailOnConstraint(FailOnConstraintFailure failOnConstraintFailure);

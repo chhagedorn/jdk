@@ -48,7 +48,7 @@ public class MethodDumpHistory {
         dumps.add(methodDump);
     }
 
-    public PhaseDump methodDump(CompilePhase compilePhase) {
+    public CompilePhaseDump methodDump(CompilePhase compilePhase) {
         MethodDump methodDump = dumps.getLast();
         return methodDump.phaseDump(compilePhase);
     }

@@ -25,7 +25,7 @@ package compiler.lib.ir_framework.driver.irmatching.report;
 
 import compiler.lib.ir_framework.CompilePhase;
 import compiler.lib.ir_framework.IR;
-import compiler.lib.ir_framework.driver.network.testvm.c2.PhaseDump;
+import compiler.lib.ir_framework.driver.network.testvm.c2.CompilePhaseDump;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 import compiler.lib.ir_framework.driver.irmatching.MatchResult;
 import compiler.lib.ir_framework.driver.irmatching.irrule.checkattribute.CheckAttributeType;
@@ -134,10 +134,10 @@ public class CompilationOutputBuilder implements MatchResultVisitor {
     }
 
     @Override
-    public void visitCompilePhaseIRRule(AcceptChildren acceptChildren, PhaseDump phaseDump) {
-        CompilePhase compilePhase = phaseDump.compilePhase();
+    public void visitCompilePhaseIRRule(AcceptChildren acceptChildren, CompilePhaseDump compilePhaseDump) {
+        CompilePhase compilePhase = compilePhaseDump.compilePhase();
         if (!failedCompilePhases.containsKey(compilePhase)) {
-            failedCompilePhases.put(compilePhase, compilePhaseDump(phaseDump));
+            failedCompilePhases.put(compilePhase, compilePhaseDump(compilePhaseDump));
             compilePhaseCount++;
         }
         // No need to visit check attributes
@@ -152,15 +152,15 @@ public class CompilationOutputBuilder implements MatchResultVisitor {
         }
     }
 
-    private String compilePhaseDump(PhaseDump phaseDump) {
-        CompilePhase compilePhase = phaseDump.compilePhase();
+    private String compilePhaseDump(CompilePhaseDump compilePhaseDump) {
+        CompilePhase compilePhase = compilePhaseDump.compilePhase();
         String dump;
         if (compilePhase == CompilePhase.PRINT_OPTO_ASSEMBLY) {
-            dump = phaseDump.dumpForOptoAssembly();
+            dump = compilePhaseDump.dumpForOptoAssembly();
         } else {
-            dump = phaseDump.dump();
+            dump = compilePhaseDump.dump();
         }
-        return compilePhaseHeader(phaseDump.compilePhase()) + System.lineSeparator() + dump +
+        return compilePhaseHeader(compilePhaseDump.compilePhase()) + System.lineSeparator() + dump +
                 System.lineSeparator();
     }
 

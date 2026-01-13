@@ -39,14 +39,14 @@ import java.util.regex.Pattern;
  */
 public class C2MessageParser implements TestVmMessageParser<MethodDump> {
     private static final Pattern COMPILE_PHASE_PATTERN = Pattern.compile("^COMPILE_PHASE: (.*)$");
-    private static final PhaseDump INVALID_DUMP = PhaseDump.createInvalid();
+    private static final CompilePhaseDump INVALID_DUMP = CompilePhaseDump.createInvalid();
 
     private final MethodDump methodDump;
-    private PhaseDump phaseDump;
+    private CompilePhaseDump compilePhaseDump;
 
     public C2MessageParser(String methodName) {
         this.methodDump = new MethodDump(methodName);
-        this.phaseDump = INVALID_DUMP;
+        this.compilePhaseDump = INVALID_DUMP;
     }
 
     @Override
@@ -60,25 +60,25 @@ public class C2MessageParser implements TestVmMessageParser<MethodDump> {
             parseEndTag();
             return;
         }
-        TestFramework.check(!phaseDump.isInvalid(), "missing COMPILE_PHASE header");
-        phaseDump.add(line);
+        TestFramework.check(!compilePhaseDump.isInvalid(), "missing COMPILE_PHASE header");
+        compilePhaseDump.add(line);
     }
 
     private void parseCompilePhase(Matcher m) {
         CompilePhase compilePhase = CompilePhase.forName(m.group(1));
-        TestFramework.check(phaseDump.isInvalid(), "can only have one active phase dump");
-        phaseDump = new PhaseDump(compilePhase);
-        methodDump.add(compilePhase, phaseDump);
+        TestFramework.check(compilePhaseDump.isInvalid(), "can only have one active phase dump");
+        compilePhaseDump = new CompilePhaseDump(compilePhase);
+        methodDump.add(compilePhase, compilePhaseDump);
     }
 
     private void parseEndTag() {
-        TestFramework.check(!phaseDump.isInvalid(), "must have an active phase dump");
-        phaseDump = INVALID_DUMP;
+        TestFramework.check(!compilePhaseDump.isInvalid(), "must have an active phase dump");
+        compilePhaseDump = INVALID_DUMP;
     }
 
     @Override
     public MethodDump output() {
-        TestFramework.check(phaseDump.isInvalid(), "querying while still having active phase dump");
+        TestFramework.check(compilePhaseDump.isInvalid(), "querying while still having active phase dump");
         return methodDump;
     }
 }
