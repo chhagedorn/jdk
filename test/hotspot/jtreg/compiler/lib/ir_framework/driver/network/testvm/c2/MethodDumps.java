@@ -23,8 +23,13 @@
 
 package compiler.lib.ir_framework.driver.network.testvm.c2;
 
+import compiler.lib.ir_framework.IR;
+
 import java.util.*;
 
+/**
+ * This class holds all {@link MethodDump}s of all {@link IR @IR}-annoted method of the test class.
+ */
 public class MethodDumps {
     private final Map<String, MethodDumpHistory> methodDumps;
 

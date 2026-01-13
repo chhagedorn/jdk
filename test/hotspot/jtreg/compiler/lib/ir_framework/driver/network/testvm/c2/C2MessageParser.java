@@ -68,7 +68,7 @@ public class C2MessageParser implements TestVmMessageParser<MethodDump> {
         CompilePhase compilePhase = CompilePhase.forName(m.group(1));
         TestFramework.check(compilePhaseDump.isInvalid(), "can only have one active phase dump");
         compilePhaseDump = new CompilePhaseDump(compilePhase);
-        methodDump.add(compilePhase, compilePhaseDump);
+        methodDump.add(compilePhaseDump);
     }
 
     private void parseEndTag() {

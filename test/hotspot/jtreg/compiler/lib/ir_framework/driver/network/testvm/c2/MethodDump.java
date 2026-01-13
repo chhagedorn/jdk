@@ -24,12 +24,13 @@
 package compiler.lib.ir_framework.driver.network.testvm.c2;
 
 import compiler.lib.ir_framework.CompilePhase;
+import compiler.lib.ir_framework.IR;
 import compiler.lib.ir_framework.TestFramework;
 
 import java.util.*;
 
 /**
- * This class collects all method dumps
+ * This class holds all {@link CompilePhaseDump}s of a single {@link IR @IR}-annoted method.
  */
 public class MethodDump {
     private final String methodName;
@@ -44,7 +45,8 @@ public class MethodDump {
         return methodName;
     }
 
-    void add(CompilePhase compilePhase, CompilePhaseDump compilePhaseDump) {
+    void add(CompilePhaseDump compilePhaseDump) {
+        CompilePhase compilePhase = compilePhaseDump.compilePhase();
         if (compilePhase.overrideRepeatedPhase() || !phaseDumps.containsKey(compilePhase)) {
             phaseDumps.put(compilePhase, compilePhaseDump);
         }

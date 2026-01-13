@@ -24,12 +24,16 @@
 package compiler.lib.ir_framework.driver.network.testvm.c2;
 
 import compiler.lib.ir_framework.CompilePhase;
+import compiler.lib.ir_framework.IR;
 import compiler.lib.ir_framework.TestFramework;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * This class holds a dump for a single {@link CompilePhase}. We can later match on it with {@link IR#phase}.
+ */
 public class CompilePhaseDump {
     private static final CompilePhaseDump INVALID = new CompilePhaseDump(CompilePhase.DEFAULT);
     private final CompilePhase compilePhase;
