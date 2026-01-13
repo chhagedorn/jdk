@@ -21,7 +21,7 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network.testvm.hotspot;
+package compiler.lib.ir_framework.driver.network.testvm.c2;
 
 import compiler.lib.ir_framework.CompilePhase;
 import compiler.lib.ir_framework.TestFramework;

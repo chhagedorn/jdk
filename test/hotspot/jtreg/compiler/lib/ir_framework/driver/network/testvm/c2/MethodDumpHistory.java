@@ -21,34 +21,35 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network.testvm.hotspot;
+package compiler.lib.ir_framework.driver.network.testvm.c2;
 
 import compiler.lib.ir_framework.CompilePhase;
-import compiler.lib.ir_framework.TestFramework;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
-public class MethodDump {
-    private final String methodName;
-    private final Map<CompilePhase, PhaseDump> phaseDumps;
+public class MethodDumpHistory {
+    private static final MethodDumpHistory EMPTY = new MethodDumpHistory();
+    private final List<MethodDump> dumps;
 
-    public MethodDump(String methodName) {
-        this.methodName = methodName;
-        this.phaseDumps = new LinkedHashMap<>();
+    public MethodDumpHistory() {
+        this.dumps = new ArrayList<>();
     }
 
-    public String methodName() {
-        return methodName;
+    public static MethodDumpHistory createEmpty() {
+        return EMPTY;
     }
 
-    void add(CompilePhase compilePhase, PhaseDump phaseDump) {
-        if (compilePhase.overrideRepeatedPhase() || !phaseDumps.containsKey(compilePhase)) {
-            phaseDumps.put(compilePhase, phaseDump);
-        }
+    public boolean isEmpty() {
+        return equals(EMPTY);
     }
 
-    public PhaseDump phaseDump(CompilePhase compilePhase) {
-        TestFramework.check(compilePhase != CompilePhase.DEFAULT, "cannot query for DEFAULT");
-        return phaseDumps.computeIfAbsent(compilePhase, _ -> new PhaseDump(compilePhase));
+    public void add(MethodDump methodDump) {
+        dumps.add(methodDump);
+    }
+
+    public PhaseDump methodDump(CompilePhase compilePhase) {
+        MethodDump methodDump = dumps.getLast();
+        return methodDump.phaseDump(compilePhase);
     }
 }

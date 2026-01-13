@@ -21,9 +21,11 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network.testvm.hotspot;
+package compiler.lib.ir_framework.driver.network.testvm.c2;
 
 import compiler.lib.ir_framework.CompilePhase;
+import compiler.lib.ir_framework.IR;
+import compiler.lib.ir_framework.Test;
 import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.driver.network.testvm.TestVmMessageParser;
 import compiler.lib.ir_framework.test.network.MessageTag;
@@ -32,16 +34,17 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Dedicated parser for {@link MethodDump}s received from the C2 compiler of the HotSpot Test VM.
+ * Dedicated parser for {@link MethodDump}s received directly from the C2 compiler in the Test VM compiling the
+ * {@link Test @Test} annotated methods with {@link IR @IR} rules.
  */
-public class HotSpotMessageParser implements TestVmMessageParser<MethodDump> {
+public class C2MessageParser implements TestVmMessageParser<MethodDump> {
     private static final Pattern COMPILE_PHASE_PATTERN = Pattern.compile("^COMPILE_PHASE: (.*)$");
     private static final PhaseDump INVALID_DUMP = PhaseDump.createInvalid();
 
     private final MethodDump methodDump;
     private PhaseDump phaseDump;
 
-    public HotSpotMessageParser(String methodName) {
+    public C2MessageParser(String methodName) {
         this.methodDump = new MethodDump(methodName);
         this.phaseDump = INVALID_DUMP;
     }

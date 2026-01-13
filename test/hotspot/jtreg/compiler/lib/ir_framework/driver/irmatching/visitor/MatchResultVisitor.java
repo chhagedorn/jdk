@@ -29,7 +29,7 @@ import compiler.lib.ir_framework.driver.irmatching.MatchResult;
 import compiler.lib.ir_framework.driver.irmatching.irrule.checkattribute.CheckAttributeType;
 import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.CountsConstraintFailure;
 import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.FailOnConstraintFailure;
-import compiler.lib.ir_framework.driver.network.testvm.hotspot.PhaseDump;
+import compiler.lib.ir_framework.driver.network.testvm.c2.PhaseDump;
 
 import java.lang.reflect.Method;
 

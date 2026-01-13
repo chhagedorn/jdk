@@ -21,22 +21,30 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network.testvm.hotspot;
+package compiler.lib.ir_framework.driver.network.testvm.c2;
 
 import compiler.lib.ir_framework.driver.network.testvm.TestVmMessageReader;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
+import compiler.lib.ir_framework.shared.TestFrameworkSocket;
 
 import java.io.BufferedReader;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
 
-public class HotSpotMessageReader implements Callable<MethodDump> {
+/**
+ * Dedicated reader for {@link MethodDump}s received by the {@link TestFrameworkSocket} from the C2 compiler. The reader
+ * is used as a task wrapped in a {@link Future}. The received messages are parsed with the provided
+ * {@link C2MessageParser}. Once a C2 compilation is done, the client connection is closed and the parsed messages can
+ * be fetched with {@link Future#get()} which calls {@link #call()}.
+ */
+public class C2MessageReader implements Callable<MethodDump> {
     private final TestVmMessageReader<MethodDump> messageReader;
 
-    public HotSpotMessageReader(Socket socket, BufferedReader reader) {
+    public C2MessageReader(Socket socket, BufferedReader reader) {
         String methodName = readMethodName(socket, reader);
-        this.messageReader = new TestVmMessageReader<>(socket, reader, new HotSpotMessageParser(methodName));
+        this.messageReader = new TestVmMessageReader<>(socket, reader, new C2MessageParser(methodName));
     }
 
     private String readMethodName(Socket socket, BufferedReader reader) {

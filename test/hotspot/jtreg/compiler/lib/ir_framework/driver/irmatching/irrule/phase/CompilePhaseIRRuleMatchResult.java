@@ -26,7 +26,7 @@ package compiler.lib.ir_framework.driver.irmatching.irrule.phase;
 import compiler.lib.ir_framework.driver.irmatching.MatchResult;
 import compiler.lib.ir_framework.driver.irmatching.visitor.AcceptChildren;
 import compiler.lib.ir_framework.driver.irmatching.visitor.MatchResultVisitor;
-import compiler.lib.ir_framework.driver.network.testvm.hotspot.PhaseDump;
+import compiler.lib.ir_framework.driver.network.testvm.c2.PhaseDump;
 
 import java.util.List;
 

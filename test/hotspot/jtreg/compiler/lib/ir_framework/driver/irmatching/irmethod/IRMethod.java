@@ -30,7 +30,7 @@ import compiler.lib.ir_framework.driver.irmatching.MatchResult;
 import compiler.lib.ir_framework.driver.irmatching.Matchable;
 import compiler.lib.ir_framework.driver.irmatching.MatchableMatcher;
 import compiler.lib.ir_framework.driver.irmatching.irrule.IrRule;
-import compiler.lib.ir_framework.driver.network.testvm.hotspot.MethodDumpHistory;
+import compiler.lib.ir_framework.driver.network.testvm.c2.MethodDumpHistory;
 import compiler.lib.ir_framework.driver.network.testvm.java.IrRuleIds;
 import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
 import compiler.lib.ir_framework.shared.TestFormat;

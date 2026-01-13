@@ -26,9 +26,9 @@ package compiler.lib.ir_framework.shared;
 import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.driver.network.*;
 import compiler.lib.ir_framework.driver.network.testvm.TestVmMessageReader;
-import compiler.lib.ir_framework.driver.network.testvm.hotspot.HotSpotMessageReader;
-import compiler.lib.ir_framework.driver.network.testvm.hotspot.MethodDump;
-import compiler.lib.ir_framework.driver.network.testvm.hotspot.MethodDumps;
+import compiler.lib.ir_framework.driver.network.testvm.c2.C2MessageReader;
+import compiler.lib.ir_framework.driver.network.testvm.c2.MethodDump;
+import compiler.lib.ir_framework.driver.network.testvm.c2.MethodDumps;
 import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessageParser;
 import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessages;
 import compiler.lib.ir_framework.test.TestVM;
@@ -131,7 +131,7 @@ public class TestFrameworkSocket implements AutoCloseable {
         if (identity.equals(TestVM.IDENTITY)) {
             testVmFuture = executor.submit(new TestVmMessageReader<>(client, reader, new JavaMessageParser()));
         } else if (identity.equals(HOTSPOT_IDENTITY)) {
-            Future<MethodDump> future = executor.submit(new HotSpotMessageReader(client, reader));
+            Future<MethodDump> future = executor.submit(new C2MessageReader(client, reader));
             methodDumpFutures.add(future);
         } else {
             throw new TestFrameworkException("Unrecognized identity: " + identity);

@@ -34,7 +34,7 @@ import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.FailOnConst
 import compiler.lib.ir_framework.driver.irmatching.TestClassBuilder;
 import compiler.lib.ir_framework.driver.irmatching.visitor.AcceptChildren;
 import compiler.lib.ir_framework.driver.irmatching.visitor.MatchResultVisitor;
-import compiler.lib.ir_framework.driver.network.testvm.hotspot.PhaseDump;
+import compiler.lib.ir_framework.driver.network.testvm.c2.PhaseDump;
 import jdk.test.lib.Asserts;
 
 import java.lang.annotation.Repeatable;

@@ -25,7 +25,7 @@ package compiler.lib.ir_framework.driver.irmatching.report;
 
 import compiler.lib.ir_framework.CompilePhase;
 import compiler.lib.ir_framework.IR;
-import compiler.lib.ir_framework.driver.network.testvm.hotspot.PhaseDump;
+import compiler.lib.ir_framework.driver.network.testvm.c2.PhaseDump;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 import compiler.lib.ir_framework.driver.irmatching.MatchResult;
 import compiler.lib.ir_framework.driver.irmatching.irrule.checkattribute.CheckAttributeType;

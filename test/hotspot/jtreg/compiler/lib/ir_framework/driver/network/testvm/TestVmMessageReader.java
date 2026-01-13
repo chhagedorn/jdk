@@ -34,7 +34,8 @@ import java.util.concurrent.Future;
 /**
  * Dedicated reader for Test VM messages received by the {@link TestFrameworkSocket}. The reader is used as a task
  * wrapped in a {@link Future}. The received messages are parsed with the provided {@link TestVmMessageParser}. Once the
- * client connection is closed, the parsed messages can be fetched with {@link Future#get()} which calls {@link #call()}.
+ * Test VM is terminated, client connection is closed and the parsed messages can be fetched with {@link Future#get()}
+ * which calls {@link #call()}.
  */
 public class TestVmMessageReader<Output> implements Callable<Output> {
     private final Socket socket;

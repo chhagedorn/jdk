@@ -24,7 +24,7 @@
 package compiler.lib.ir_framework.driver.network;
 
 import compiler.lib.ir_framework.driver.irmatching.IRMatcher;
-import compiler.lib.ir_framework.driver.network.testvm.hotspot.MethodDumps;
+import compiler.lib.ir_framework.driver.network.testvm.c2.MethodDumps;
 import compiler.lib.ir_framework.driver.network.testvm.java.IrEncoding;
 import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessages;
 import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;

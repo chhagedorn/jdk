@@ -23,14 +23,14 @@
 
 package compiler.lib.ir_framework.driver.network.testvm;
 
-import compiler.lib.ir_framework.driver.network.testvm.hotspot.MethodDump;
+import compiler.lib.ir_framework.driver.network.testvm.c2.MethodDump;
 import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessage;
 import compiler.lib.ir_framework.shared.TestFrameworkSocket;
 
 /**
- * We differentiate between two kinds of Test VM messages sent to the  {@link TestFrameworkSocket}:
+ * We differentiate between two kinds of Test VM messages sent to the {@link TestFrameworkSocket}:
  * - {@link JavaMessage}: A message sent from Java code.
- * - {@link MethodDump}: A Method dump sent from HotSpot code.
+ * - {@link MethodDump}: A Method dump directly sent from the C2 compiler during compilation.
  *
  * <p>
  * Both kinds of messages are parsed differently by classing implementing this interface.

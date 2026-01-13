@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -21,37 +21,37 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.irmatching;
+package compiler.lib.ir_framework.driver.network.testvm.c2;
 
 import compiler.lib.ir_framework.CompilePhase;
 import compiler.lib.ir_framework.TestFramework;
-import compiler.lib.ir_framework.driver.irmatching.irmethod.IRMethod;
 
-import java.util.Map;
+import java.util.*;
 
 /**
- * This class provides information about the compilation output of a compile phase for an {@link IRMethod}.
+ * This class collects all method dumps
  */
-public class Compilation {
-    private final Map<CompilePhase, String> compilationOutputMap;
+public class MethodDump {
+    private final String methodName;
+    private final Map<CompilePhase, PhaseDump> phaseDumps;
 
-    public Compilation(Map<CompilePhase, String> compilationOutputMap) {
-        this.compilationOutputMap = compilationOutputMap;
+    public MethodDump(String methodName) {
+        this.methodName = methodName;
+        this.phaseDumps = new LinkedHashMap<>();
     }
 
-    /**
-     * Is there a compilation output for {@code compilePhase}?
-     */
-    public boolean hasOutput(CompilePhase compilePhase) {
-        return compilationOutputMap.containsKey(compilePhase);
+    public String methodName() {
+        return methodName;
     }
 
-    /**
-     * Get the compilation output for non-default compile phase {@code phase} or an empty string if no output was found
-     * in the hotspot_pid* file for this compile phase.
-     */
-    public String output(CompilePhase compilePhase) {
+    void add(CompilePhase compilePhase, PhaseDump phaseDump) {
+        if (compilePhase.overrideRepeatedPhase() || !phaseDumps.containsKey(compilePhase)) {
+            phaseDumps.put(compilePhase, phaseDump);
+        }
+    }
+
+    public PhaseDump phaseDump(CompilePhase compilePhase) {
         TestFramework.check(compilePhase != CompilePhase.DEFAULT, "cannot query for DEFAULT");
-        return compilationOutputMap.getOrDefault(compilePhase, "");
+        return phaseDumps.computeIfAbsent(compilePhase, _ -> new PhaseDump(compilePhase));
     }
 }
