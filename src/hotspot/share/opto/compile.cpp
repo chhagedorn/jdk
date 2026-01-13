@@ -5263,6 +5263,7 @@ void Compile::print_method(CompilerPhaseType compile_phase, int level, Node* n) 
   C->_latest_stage_start_counter.stamp();
 }
 
+#ifndef PRODUCT
 void Compile::print_ideal_ir(CompilerPhaseType compile_phase) const {
   const char* compile_phase_name = CompilerPhaseTypeHelper::to_name(compile_phase);
   if (should_print_to_ir_framework()) {
@@ -5271,6 +5272,7 @@ void Compile::print_ideal_ir(CompilerPhaseType compile_phase) const {
     print_ideal_ir(compile_phase_name);
   }
 }
+#endif // NOT_PRODUCT
 
 // Only used from CompileWrapper
 void Compile::begin_method() {
