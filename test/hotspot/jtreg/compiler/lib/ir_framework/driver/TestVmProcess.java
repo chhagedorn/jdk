@@ -24,7 +24,6 @@
 package compiler.lib.ir_framework.driver;
 
 import compiler.lib.ir_framework.TestFramework;
-import compiler.lib.ir_framework.driver.network.testvm.java.IrEncoding;
 import compiler.lib.ir_framework.driver.network.TestVmData;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 import compiler.lib.ir_framework.shared.TestFrameworkSocket;
@@ -40,7 +39,6 @@ import java.io.File;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * This class prepares, creates, and runs the "test" VM with verification of proper termination. The class also stores
@@ -76,6 +74,8 @@ public class TestVmProcess {
             start();
         }
         checkTestVMExitCode();
+        System.out.println("---------------------------------");
+        System.out.println(oa.getOutput());
         testVmData = socket.testVmData(allowNotCompilable);
         testVmData.printJavaMessages();
     }
@@ -107,7 +107,7 @@ public class TestVmProcess {
         cmds.add("-XX:+UnlockDiagnosticVMOptions");
         cmds.add("-XX:+WhiteBoxAPI");
         // Ignore CompileCommand flags which have an impact on the profiling information.
-        List<String> jtregVMFlags = Arrays.stream(Utils.getTestJavaOpts()).filter(s -> !s.contains("CompileThreshold")).collect(Collectors.toList());
+        List<String> jtregVMFlags = Arrays.stream(Utils.getTestJavaOpts()).filter(s -> !s.contains("CompileThreshold")).toList();
         if (!PREFER_COMMAND_LINE_FLAGS) {
             cmds.addAll(jtregVMFlags);
         }

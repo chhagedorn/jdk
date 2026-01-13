@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -153,7 +153,14 @@ public class CompilationOutputBuilder implements MatchResultVisitor {
     }
 
     private String compilePhaseDump(PhaseDump phaseDump) {
-        return compilePhaseHeader(phaseDump.compilePhase()) + System.lineSeparator() + phaseDump.dump() +
+        CompilePhase compilePhase = phaseDump.compilePhase();
+        String dump;
+        if (compilePhase == CompilePhase.PRINT_OPTO_ASSEMBLY) {
+            dump = phaseDump.dumpForOptoAssembly();
+        } else {
+            dump = phaseDump.dump();
+        }
+        return compilePhaseHeader(phaseDump.compilePhase()) + System.lineSeparator() + dump +
                 System.lineSeparator();
     }
 

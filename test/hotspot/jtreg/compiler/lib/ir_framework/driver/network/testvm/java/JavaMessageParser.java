@@ -33,10 +33,10 @@ import static compiler.lib.ir_framework.test.Tag.*;
 
 public class JavaMessageParser implements TestVmMessageParser<JavaMessages> {
     private static final Pattern TAG_PATTERN = Pattern.compile("^(\\[[^]]+])\\s*(.*)$");
-    private static final LineParser<?> EMPTY_PARSER = new LineParser<>(null);
+    private static final LineParser<? extends JavaMessage> EMPTY_PARSER = new LineParser<>(null);
 
     private final JavaMessages javaMessages;
-    private LineParser<?> testVmParser;
+    private LineParser<? extends JavaMessage> testVmParser;
     private final LineParser<VmInfo> vmInfoParser;
     private final LineParser<IrEncoding> irEncodingParser;
 

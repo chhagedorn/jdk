@@ -43,7 +43,9 @@ public class MethodDump implements TestVmMessages {
     }
 
     void add(CompilePhase compilePhase, PhaseDump phaseDump) {
-        phaseDumps.put(compilePhase, phaseDump);
+        if (compilePhase.overrideRepeatedPhase() || !phaseDumps.containsKey(compilePhase)) {
+            phaseDumps.put(compilePhase, phaseDump);
+        }
     }
 
     public PhaseDump phaseDump(CompilePhase compilePhase) {

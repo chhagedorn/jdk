@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -44,7 +44,7 @@ import java.util.regex.Pattern;
  * @build jdk.test.whitebox.WhiteBox
  * @run driver jdk.test.lib.helpers.ClassFileInstaller jdk.test.whitebox.WhiteBox
  * @run main/othervm/timeout=240 -Xbootclasspath/a:. -XX:+IgnoreUnrecognizedVMOptions -XX:+UnlockDiagnosticVMOptions
- *                               -XX:+WhiteBoxAPI -DPrintIREncoding=true  ir_framework.tests.TestIRMatching
+ *                               -XX:+WhiteBoxAPI -DPrintIREncoding=true ir_framework.tests.TestIRMatching
  */
 
 public class TestIRMatching {
@@ -328,7 +328,7 @@ public class TestIRMatching {
         System.out.flush();
         String output = baos.toString();
         findIrIds(output, "testMatchAllIf50", 1, 22);
-        findIrIds(output, "testMatchNoneIf50", -1, -1);
+        assertNoIds(output, "testMatchNoneIf50");
 
         runWithArguments(FlagComparisons.class, "-XX:TLABRefillWasteFraction=49");
         System.out.flush();
@@ -430,17 +430,26 @@ public class TestIRMatching {
 
     private static void findIrIds(String output, String method, int... numbers) {
         StringBuilder builder = new StringBuilder();
-        builder.append(method);
+        builder.append(method).append(": ");
         for (int i = 0; i < numbers.length; i+=2) {
             int start = numbers[i];
             int endIncluded = numbers[i + 1];
             for (int j = start; j <= endIncluded; j++) {
-                builder.append(",");
+                if (j != numbers[0]) {
+                    builder.append(", ");
+                }
                 builder.append(j);
             }
         }
         if (!output.contains(builder.toString())) {
             addException(new RuntimeException("Could not find encoding: \"" + builder + System.lineSeparator()));
+        }
+    }
+
+    private static void assertNoIds(String output, String methodName) {
+        String irEncoding = output.split("IR Encoding")[1];
+        if (irEncoding.contains(methodName)) {
+            addException(new RuntimeException("Should not find ids for \"" + methodName + "\"" + System.lineSeparator()));
         }
     }
 }

@@ -44,6 +44,8 @@ import java.util.function.Function;
  * and checked by the IRMatcher class in the driver VM after the termination of the test VM. IR rule indices start at 1.
  */
 public class IrEncodingPrinter {
+    public static final String NO_ENCODING = "<no encoding>";
+
     private static final WhiteBox WHITE_BOX = WhiteBox.getWhiteBox();
     private static final List<Function<String, Object>> LONG_GETTERS = Arrays.asList(
             WHITE_BOX::getIntVMFlag, WHITE_BOX::getUintVMFlag, WHITE_BOX::getIntxVMFlag,
@@ -508,6 +510,9 @@ public class IrEncodingPrinter {
     }
 
     public void emit() {
+        if (output.isEmpty()) {
+            output.append(NO_ENCODING).append(System.lineSeparator());
+        }
         output.append(Tag.END_TAG);
         TestVmSocket.sendMultiLine(Tag.IR_ENCODING, output.toString());
     }

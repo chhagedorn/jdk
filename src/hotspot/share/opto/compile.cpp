@@ -581,11 +581,8 @@ void Compile::print_phase(const char* phase_name) {
   tty->print_cr("%u.\t%s", ++_phase_counter, phase_name);
 }
 
-void Compile::print_ideal_to_ir_framework(const char* compile_phase_name) {
-  // Print out all nodes in ascending order of index.
-  // It is important that we traverse both inputs and outputs of nodes,
-  // so that we reach all nodes that are connected to Root.
-  assert(_use_ir_framework_stream, "sanity");
+void Compile::print_ideal_to_ir_framework(const char* compile_phase_name) const {
+  assert(should_print_to_ir_framework(), "sanity");
   ResourceMark rm;
   stringStream ss;
   ss.print_cr("COMPILE_PHASE: %s", compile_phase_name);
@@ -594,23 +591,25 @@ void Compile::print_ideal_to_ir_framework(const char* compile_phase_name) {
   send_dump_to_ir_framework(ss);
 }
 
-void Compile::print_opto_assembly_to_ir_framework(const char* opto_assembly) {
-  assert(_use_ir_framework_stream, "sanity");
+void Compile::print_opto_assembly_to_ir_framework(PhaseOutput* phase_output) const {
+  assert(should_print_to_ir_framework(), "sanity");
   ResourceMark rm;
   stringStream ss;
-  ss.print_cr("COMPILE_PHASE: PrintOptoAssembly");
-  ss.print_cr("%s", opto_assembly);
+  ss.print_cr("COMPILE_PHASE: PRINT_OPTO_ASSEMBLY");
+  int* pcs = nullptr;
+  phase_output->dump_asm_on(&ss, pcs, unique());
   ss.print_cr("#END#");
   send_dump_to_ir_framework(ss);
 }
 
-void Compile::send_dump_to_ir_framework(stringStream& ss) {
+void Compile::send_dump_to_ir_framework(stringStream& ss) const {
+  assert(!is_osr_compilation(), "we disabled OSR compilations");
   const char* dump = ss.freeze();
   const size_t length = ss.size();
   char* scratch_buffer = NEW_RESOURCE_ARRAY(char, length);
-  _ir_framework_stream.set_scratch_buffer(scratch_buffer, length);
-  _ir_framework_stream.print("%s", dump);
-  _ir_framework_stream.set_scratch_buffer(nullptr, 0);
+  _ir_framework_stream->set_scratch_buffer(scratch_buffer, length);
+  _ir_framework_stream->print("%s", dump);
+  _ir_framework_stream->set_scratch_buffer(nullptr, 0);
 }
 
 void Compile::print_ideal_ir(const char* compile_phase_name) const {
@@ -704,7 +703,7 @@ Compile::Compile(ciEnv* ci_env, ciMethod* target, int osr_bci,
       _congraph(nullptr),
 #ifndef PRODUCT
       _igv_printer(nullptr),
-      _use_ir_framework_stream(init_ir_framework_stream(directive, target)),
+      _ir_framework_stream(init_ir_framework_stream(directive, target)),
 #endif
       _unique(0),
       _dead_node_count(0),
@@ -976,7 +975,7 @@ Compile::Compile(ciEnv* ci_env,
       _congraph(nullptr),
 #ifndef PRODUCT
       _igv_printer(nullptr),
-      _use_ir_framework_stream(false),
+      _ir_framework_stream(nullptr),
 #endif
       _unique(0),
       _dead_node_count(0),
@@ -1057,8 +1056,9 @@ Compile::Compile(ciEnv* ci_env,
 Compile::~Compile() {
   delete _first_failure_details;
 #ifndef PRODUCT
-  if (_use_ir_framework_stream) {
-    _ir_framework_stream.close();
+  if (should_print_to_ir_framework()) {
+    _ir_framework_stream->close();
+    delete _ir_framework_stream;
   }
 #endif
 };
@@ -5255,9 +5255,9 @@ void Compile::print_method(CompilerPhaseType compile_phase, int level, Node* n) 
   C->_latest_stage_start_counter.stamp();
 }
 
-void Compile::print_ideal_ir(CompilerPhaseType compile_phase) {
+void Compile::print_ideal_ir(CompilerPhaseType compile_phase) const {
   const char* compile_phase_name = CompilerPhaseTypeHelper::to_name(compile_phase);
-  if (_use_ir_framework_stream) {
+  if (should_print_to_ir_framework()) {
     print_ideal_to_ir_framework(compile_phase_name);
   } else {
     print_ideal_ir(compile_phase_name);
@@ -5408,24 +5408,25 @@ void Compile::igv_print_graph_to_network(const char* name, GrowableArray<const N
   _debug_network_printer->print(name, C->root(), visible_nodes, fr);
 }
 
-bool Compile::init_ir_framework_stream(DirectiveSet* directive, ciMethod* method) {
-  if (IrFrameworkPort == 0 || strcmp(directive->PrintIdealPhaseOption, "") == 0) {
-    // Stream not used.
-    return false;
+networkStream* Compile::init_ir_framework_stream(DirectiveSet* directive, ciMethod* method) const {
+  if (IrFrameworkPort == 0 || // No IR-Test
+      strcmp(directive->PrintIdealPhaseOption, "") == 0 || // No @IR rules
+      is_osr_compilation()) { // Not interested in OSR compilations
+    return nullptr;
   }
 
-
+  networkStream* stream = new (mtCompiler) networkStream();
   const char* host = "127.0.0.1";
-  if (!_ir_framework_stream.connect(host, IrFrameworkPort)) {
+  if (!stream->connect(host, IrFrameworkPort)) {
     fatal("Could not connect to %s:%d", host, IrFrameworkPort);
   }
 
-  _ir_framework_stream.print_cr("#HotSpot#");
+  stream->print_cr("#HotSpot#");
   ResourceMark rm;
   stringStream ss;
   method->print_short_name(&ss);
-  _ir_framework_stream.print_cr("%s", method->name()->as_klass_external_name());
-  return true;
+  stream->print_cr("%s", method->name()->as_klass_external_name());
+  return stream;
 }
 #endif // !PRODUCT
 

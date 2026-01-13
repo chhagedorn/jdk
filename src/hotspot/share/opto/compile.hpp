@@ -391,8 +391,7 @@ class Compile : public Phase {
   ConnectionGraph*      _congraph;
 #ifndef PRODUCT
   IdealGraphPrinter*    _igv_printer;
-  networkStream         _ir_framework_stream;
-  const bool            _use_ir_framework_stream;
+  networkStream*        _ir_framework_stream;
   static IdealGraphPrinter* _debug_file_printer;
   static IdealGraphPrinter* _debug_network_printer;
 #endif
@@ -668,13 +667,16 @@ public:
   uint          next_igv_idx()                  { return _igv_idx++; }
   bool          trace_opto_output() const       { return _trace_opto_output; }
   void          print_phase(const char* phase_name);
-  void          print_opto_assembly_to_ir_framework(const char* opto_assembly);
+
+  bool          should_print_to_ir_framework() const { return _ir_framework_stream != nullptr; }
+  void          print_opto_assembly_to_ir_framework(PhaseOutput* phase_output) const;
 
  private:
-  void          print_ideal_to_ir_framework(const char* compile_phase_name);
-  void          send_dump_to_ir_framework(stringStream& ss);
+  networkStream* init_ir_framework_stream(DirectiveSet* directive, ciMethod* method) const;
+  void          print_ideal_to_ir_framework(const char* compile_phase_name) const;
+  void          send_dump_to_ir_framework(stringStream& ss) const;
   void          print_ideal_ir(const char* compile_phase_name) const;
-  void          print_ideal_ir(CompilerPhaseType compile_phase);
+  void          print_ideal_ir(CompilerPhaseType compile_phase) const;
   bool          should_print_ideal() const { return _directive->PrintIdealOption; }
 
  public:
@@ -708,8 +710,6 @@ public:
   void igv_print_graph_to_network(const char* name, GrowableArray<const Node*>& visible_nodes, const frame* fr);
   static IdealGraphPrinter* debug_file_printer() { return _debug_file_printer; }
   static IdealGraphPrinter* debug_network_printer() { return _debug_network_printer; }
-
-  bool init_ir_framework_stream(DirectiveSet* directive, ciMethod* method);
 #endif
 
   const GrowableArray<ParsePredicateNode*>& parse_predicates() const {

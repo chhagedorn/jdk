@@ -24,6 +24,7 @@
 package compiler.lib.ir_framework.driver.network.testvm.java;
 
 import compiler.lib.ir_framework.shared.TestFrameworkException;
+import compiler.lib.ir_framework.test.IrEncodingPrinter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +38,10 @@ public class IrEncodingStrategy implements ParsingStrategy<IrEncoding> {
 
     @Override
     public void parseLine(String line) {
+        if (line.equals(IrEncodingPrinter.NO_ENCODING)) {
+            return;
+        }
+
         String[] splitLine = line.split(",");
         if (splitLine.length < 2) {
             throw new TestFrameworkException("Invalid IR match rule encoding. No comma found: " + splitLine[0]);

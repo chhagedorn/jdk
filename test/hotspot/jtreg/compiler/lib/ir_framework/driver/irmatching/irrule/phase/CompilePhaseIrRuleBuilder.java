@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -92,11 +92,11 @@ public class CompilePhaseIrRuleBuilder {
     }
 
     private void createCompilePhaseIrRule(PhaseDump phaseDump, VmInfo vmInfo) {
+        List<Constraint> failOnConstraints = parseRawConstraints(rawFailOnConstraints, phaseDump, vmInfo);
+        List<Constraint> countsConstraints = parseRawConstraints(rawCountsConstraints, phaseDump, vmInfo);
         if (phaseDump.isEmpty()) {
             compilePhaseIrRules.add(new CompilePhaseNoCompilationIRRule(phaseDump.compilePhase()));
         } else {
-            List<Constraint> failOnConstraints = parseRawConstraints(rawFailOnConstraints, phaseDump, vmInfo);
-            List<Constraint> countsConstraints = parseRawConstraints(rawCountsConstraints, phaseDump, vmInfo);
             createValidCompilePhaseIRRule(phaseDump, failOnConstraints, countsConstraints);
         }
     }

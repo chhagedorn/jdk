@@ -26,12 +26,7 @@ public class MethodDumpHistory {
     }
 
     public PhaseDump methodDump(CompilePhase compilePhase) {
-        MethodDump methodDump;
-        if (compilePhase.overrideRepeatedPhase()) {
-            methodDump = dumps.getLast();
-        } else {
-            methodDump = dumps.getFirst();
-        }
+        MethodDump methodDump = dumps.getLast();
         return methodDump.phaseDump(compilePhase);
     }
 }

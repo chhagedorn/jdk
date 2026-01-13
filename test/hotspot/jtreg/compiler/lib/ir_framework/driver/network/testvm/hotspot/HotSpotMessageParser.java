@@ -45,6 +45,7 @@ public class HotSpotMessageParser implements TestVmMessageParser<MethodDump> {
 
     @Override
     public void parse(String line) {
+        System.err.println(line);
         Matcher m = COMPILE_PHASE_PATTERN.matcher(line);
         if (m.matches()) {
             CompilePhase compilePhase = CompilePhase.forName(m.group(1));

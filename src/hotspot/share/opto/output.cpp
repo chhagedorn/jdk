@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1998, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1998, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -1809,11 +1809,8 @@ void PhaseOutput::fill_buffer(C2_MacroAssembler* masm, uint* blk_starts) {
 
 #if defined(SUPPORT_OPTO_ASSEMBLY)
   // Dump the assembly code, including basic-block numbers
-  if (C->should_print_ideal_phase(PHASE_PRINT_OPTO_ASSEMBLY)) {
-    stringStream dump_asm_str;
-    dump_asm_on(&dump_asm_str, node_offsets, node_offset_limit);
-    const char* opto_assembly = dump_asm_str.freeze();
-    C->print_opto_assembly_to_ir_framework(opto_assembly);
+  if (C->should_print_to_ir_framework() && C->should_print_ideal_phase(PHASE_PRINT_OPTO_ASSEMBLY)) {
+    C->print_opto_assembly_to_ir_framework(this);
   } else if (C->print_assembly()) {
     ttyLocker ttyl;  // keep the following output all in one block
     if (!VMThread::should_terminate()) {  // test this under the tty lock
@@ -1845,6 +1842,7 @@ void PhaseOutput::fill_buffer(C2_MacroAssembler* masm, uint* blk_starts) {
       }
       tty->cr();
       tty->print_cr("------------------------ OptoAssembly for Compile_id = %d -----------------------", C->compile_id());
+      tty->print_raw(dump_asm_str.freeze());
       tty->print_cr("--------------------------------------------------------------------------------");
       if (xtty != nullptr) {
         xtty->tail("opto_assembly");

@@ -28,6 +28,7 @@ import compiler.lib.ir_framework.TestFramework;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class PhaseDump {
     private static final PhaseDump INVALID = new PhaseDump(CompilePhase.DEFAULT);
@@ -58,6 +59,20 @@ public class PhaseDump {
 
     void add(String line) {
         dump.add(line);
+    }
+
+    /**
+     * Strips away tabs and white spaces and add 2 leading whitespaces for each non-empty line.
+     * This makes it easier to read when dumping the compilation output.
+     */
+    public String dumpForOptoAssembly() {
+        TestFramework.check(!isInvalid(), "cannot query INVALID");
+        return dump.stream()
+                .map(line -> {
+                    String trimmed = line.trim();
+                    return trimmed.isEmpty() ? "" : " ".repeat(2) + trimmed;
+                })
+                .collect(Collectors.joining(System.lineSeparator()));
     }
 
     public String dump() {
