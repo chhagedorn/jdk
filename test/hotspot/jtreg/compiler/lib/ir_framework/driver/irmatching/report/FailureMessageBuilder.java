@@ -100,7 +100,7 @@ public class FailureMessageBuilder implements MatchResultVisitor {
     }
 
     public void visitMethodNotCompilable(Method method, int failedIRRules) {
-        throw new TestFrameworkException("Sould not reach here");
+        throw new TestFrameworkException("Should not reach here");
     }
 
     @Override
@@ -122,8 +122,7 @@ public class FailureMessageBuilder implements MatchResultVisitor {
 
     private void appendCompilePhaseIRRule(CompilePhase compilePhase) {
         msg.append(indentation)
-           .append("> Phase \"").append(compilePhase.getName()).append("\":")
-           .append(System.lineSeparator());
+           .append("> Phase \"").append(compilePhase.getName()).append("\":");
     }
 
     @Override

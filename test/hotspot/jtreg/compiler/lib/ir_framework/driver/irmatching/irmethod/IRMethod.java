@@ -59,7 +59,8 @@ public class IRMethod implements IRMethodMatchable {
         this.matcher = new MatchableMatcher(createIRRules(method, irRuleIds, methodDumpHistory, vmInfo));
     }
 
-    private List<Matchable> createIRRules(Method method, IrRuleIds irRuleIds, MethodDumpHistory methodDumpHistory, VmInfo vmInfo) {
+    private List<Matchable> createIRRules(Method method, IrRuleIds irRuleIds, MethodDumpHistory methodDumpHistory,
+                                          VmInfo vmInfo) {
         List<Matchable> irRules = new ArrayList<>();
         IR[] irAnnos = method.getAnnotationsByType(IR.class);
         for (int ruleId : irRuleIds) {

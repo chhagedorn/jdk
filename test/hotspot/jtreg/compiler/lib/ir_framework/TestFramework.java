@@ -29,7 +29,7 @@ import compiler.lib.ir_framework.driver.TestVmProcess;
 import compiler.lib.ir_framework.driver.irmatching.IRMatcher;
 import compiler.lib.ir_framework.driver.irmatching.IRViolationException;
 import compiler.lib.ir_framework.driver.irmatching.Matchable;
-import compiler.lib.ir_framework.driver.irmatching.TestClassParser;
+import compiler.lib.ir_framework.driver.irmatching.TestClassBuilder;
 import compiler.lib.ir_framework.shared.*;
 import compiler.lib.ir_framework.test.TestVM;
 import jdk.test.lib.Platform;
@@ -880,8 +880,8 @@ public class TestFramework {
                                                         allowNotCompilable, testClassesOnBootClassPath);
         if (shouldVerifyIR) {
             try {
-                TestClassParser testClassParser = new TestClassParser(testClass, testVmProcess.testVmData());
-                Matchable testClassMatchable = testClassParser.parse();
+                TestClassBuilder testClassBuilder = new TestClassBuilder(testClass, testVmProcess.testVmData());
+                Matchable testClassMatchable = testClassBuilder.build();
                 IRMatcher matcher = new IRMatcher(testClassMatchable);
                 matcher.match();
             } catch (IRViolationException e) {

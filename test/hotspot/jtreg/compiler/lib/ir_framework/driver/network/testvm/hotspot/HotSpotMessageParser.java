@@ -45,7 +45,6 @@ public class HotSpotMessageParser implements TestVmMessageParser<MethodDump> {
 
     @Override
     public void parse(String line) {
-        System.err.println(line);
         Matcher m = COMPILE_PHASE_PATTERN.matcher(line);
         if (m.matches()) {
             CompilePhase compilePhase = CompilePhase.forName(m.group(1));
@@ -59,7 +58,7 @@ public class HotSpotMessageParser implements TestVmMessageParser<MethodDump> {
             phaseDump = INVALID_DUMP;
             return;
         }
-        TestFramework.check(!phaseDump.isInvalid(), "missing COMPILE_PHASE header?");
+        TestFramework.check(!phaseDump.isInvalid(), "missing COMPILE_PHASE header");
         phaseDump.add(line);
     }
 

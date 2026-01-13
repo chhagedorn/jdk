@@ -23,5 +23,13 @@
 
 package compiler.lib.ir_framework.driver.network.testvm;
 
-public interface TestVmMessages {
-}
+import compiler.lib.ir_framework.driver.network.testvm.hotspot.MethodDump;
+import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessage;
+import compiler.lib.ir_framework.shared.TestFrameworkSocket;
+
+/**
+ * We differentiate between two kinds of Test VM messages sent to {@link TestFrameworkSocket}:
+ * - {@link JavaMessage}: Messages sent from Java code.
+ * - {@link MethodDump}: Method dumps sent from HotSpot code.
+ */
+public interface TestVmMessages {}

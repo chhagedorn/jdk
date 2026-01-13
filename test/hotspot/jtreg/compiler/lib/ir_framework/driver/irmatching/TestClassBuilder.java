@@ -41,19 +41,18 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 /**
- * Class to parse the ideal compile phase and PrintOptoAssembly outputs of the test class and store them into a
- * collection of dedicated IRMethod objects used throughout IR matching.
- *
- * @see IRMethod
+ * Class to build a matchable {@link TestClass} object by going over all IR tests, collecting the outputs for all
+ * requested compile phases and storing them in dedicated {@link IRMethod} objects. These are later used by the
+ * {@link IRMatcher}.
  */
-public class TestClassParser {
+public class TestClassBuilder {
     private final Class<?> testClass;
     private final IrEncoding irEncoding;
     private final MethodDumps methodDumps;
     private final boolean allowNotCompilable;
     private final VmInfo vmInfo;
 
-    public TestClassParser(Class<?> testClass, TestVmData testVmData) {
+    public TestClassBuilder(Class<?> testClass, TestVmData testVmData) {
         this.testClass = testClass;
         this.irEncoding = testVmData.irEncoding();
         this.methodDumps = testVmData.methodDumps();
@@ -62,36 +61,47 @@ public class TestClassParser {
     }
 
     /**
-     * Parse the IR encoding and hotspot_pid* file to create a collection of {@link IRMethod} objects.
-     * Return a default/empty TestClass object if there are no applicable @IR rules in any method of the test class.
+     * Build a matchable {@link TestClass} object. Returns a default/empty {@link TestClass} object if there are no
+     * applicable @IR rules in any method of the test class.
      */
-    public Matchable parse() {
+    public Matchable build() {
         if (irEncoding.hasNoMethods()) {
             return new NonIRTestClass();
         }
 
         SortedSet<IRMethodMatchable> irMethods = new TreeSet<>();
-
         for (Method method : testClass.getDeclaredMethods()) {
-            String methodName = method.getName();
-            IrRuleIds irRuleIds = irEncoding.ruleIds(methodName);
-            if (irRuleIds.isEmpty()) {
-                continue;
-            }
-            MethodDumpHistory methodDumpHistory = methodDumps.methodDump(methodName);
-            if (methodDumpHistory.isEmpty()) {
-                Test[] testAnnos = method.getAnnotationsByType(Test.class);
-                boolean allowNotCompilable = this.allowNotCompilable || testAnnos[0].allowNotCompilable();
-                if (allowNotCompilable) {
-                    irMethods.add(new NotCompilableIRMethod(method, irRuleIds.count()));
-                } else {
-                    irMethods.add(new NotCompiledIRMethod(method, irRuleIds.count()));
-                }
-                continue;
-            }
-            irMethods.add(new IRMethod(method, irRuleIds, methodDumpHistory, vmInfo));
+            buildForMethod(method, irMethods);
         }
         TestFormat.throwIfAnyFailures();
         return new TestClass(irMethods);
+    }
+
+    private void buildForMethod(Method method, SortedSet<IRMethodMatchable> irMethods) {
+        IrRuleIds irRuleIds = irEncoding.ruleIds(method.getName());
+        if (irRuleIds.isEmpty()) {
+            // Not an IR test or not interested.
+            return;
+        }
+        IRMethodMatchable irMethod = createIrMethod(method, irRuleIds);
+        irMethods.add(irMethod);
+    }
+
+    private IRMethodMatchable createIrMethod(Method method, IrRuleIds irRuleIds) {
+        MethodDumpHistory methodDumpHistory = methodDumps.methodDump(method.getName());
+        if (methodDumpHistory.isEmpty()) {
+            return createIrMethodForEmptyDump(method, irRuleIds);
+        }
+        return new IRMethod(method, irRuleIds, methodDumpHistory, vmInfo);
+    }
+
+    private IRMethodMatchable createIrMethodForEmptyDump(Method method, IrRuleIds irRuleIds) {
+        Test[] testAnnos = method.getAnnotationsByType(Test.class);
+        boolean allowNotCompilable = this.allowNotCompilable || testAnnos[0].allowNotCompilable();
+        if (allowNotCompilable) {
+            return new NotCompilableIRMethod(method, irRuleIds.count());
+        } else {
+            return new NotCompiledIRMethod(method, irRuleIds.count());
+        }
     }
 }

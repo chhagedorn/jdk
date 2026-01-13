@@ -66,7 +66,6 @@ public class TestVmProcess {
     public TestVmProcess(List<String> additionalFlags, Class<?> testClass, Set<Class<?>> helperClasses, int defaultWarmup,
                          boolean allowNotCompilable, boolean testClassesOnBootClassPath) {
         this.cmds = new ArrayList<>();
-//        cmds.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5557");
         TestFrameworkSocket socket = new TestFrameworkSocket();
         try (socket) {
             prepareTestVMFlags(additionalFlags, socket, testClass, helperClasses, defaultWarmup,
@@ -74,8 +73,6 @@ public class TestVmProcess {
             start();
         }
         checkTestVMExitCode();
-        System.out.println("---------------------------------");
-        System.out.println(oa.getOutput());
         testVmData = socket.testVmData(allowNotCompilable);
         testVmData.printJavaMessages();
     }

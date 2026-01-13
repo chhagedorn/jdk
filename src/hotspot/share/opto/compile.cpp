@@ -586,7 +586,15 @@ void Compile::print_ideal_to_ir_framework(const char* compile_phase_name) const 
   ResourceMark rm;
   stringStream ss;
   ss.print_cr("COMPILE_PHASE: %s", compile_phase_name);
-  root()->dump_bfs(MaxNodeLimit, nullptr, "-+S$", &ss);
+  if (_output == nullptr) {
+    // Print out all nodes in ascending order of index.
+    // It is important that we traverse both inputs and outputs of nodes,
+    // so that we reach all nodes that are connected to Root.
+    root()->dump_bfs(MaxNodeLimit, nullptr, "-+S$", &ss);
+  } else {
+    // Dump the node blockwise if we have a scheduling
+    _output->print_scheduling(&ss);
+  }
   ss.print_cr("#END#");
   send_dump_to_ir_framework(ss);
 }

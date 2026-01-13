@@ -125,7 +125,7 @@ public class CompilationOutputBuilder implements MatchResultVisitor {
 
     @Override
     public void visitMethodNotCompilable(Method method, int failedIRRules) {
-        throw new TestFrameworkException("Sould not reach here");
+        throw new TestFrameworkException("Should not reach here");
     }
 
     @Override

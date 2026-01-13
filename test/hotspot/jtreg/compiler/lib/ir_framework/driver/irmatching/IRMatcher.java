@@ -27,7 +27,7 @@ import compiler.lib.ir_framework.driver.irmatching.report.CompilationOutputBuild
 import compiler.lib.ir_framework.driver.irmatching.report.FailureMessageBuilder;
 
 /**
- * This class performs IR matching on the prepared {@link TestClass} object parsed by {@link TestClassParser}.
+ * This class performs IR matching on the prepared {@link TestClass} object parsed by {@link TestClassBuilder}.
  * All applicable @IR rules are matched with all their defined compilation phases. If there are any IR matching failures,
  * an {@link IRViolationException} is reported which provides a formatted failure message and the compilation outputs
  * of the failed compilation phases.
@@ -40,7 +40,7 @@ public class IRMatcher {
     }
 
     /**
-     * Do an IR matching of all methods with applicable @IR rules prepared with by the {@link TestClassParser}.
+     * Do an IR matching of all methods with applicable @IR rules prepared with by the {@link TestClassBuilder}.
      */
     public void match() {
         MatchResult result = testClass.match();

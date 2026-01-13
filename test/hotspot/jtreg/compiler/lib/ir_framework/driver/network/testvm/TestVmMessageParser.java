@@ -23,6 +23,9 @@
 
 package compiler.lib.ir_framework.driver.network.testvm;
 
+/**
+ * Interface for
+ */
 public interface TestVmMessageParser<Output extends TestVmMessages> {
     void parse(String line);
     Output output();
