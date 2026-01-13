@@ -41,20 +41,17 @@ import java.util.*;
 import java.util.concurrent.*;
 
 /**
- * Dedicated driver VM socket to receive data from test VM Java and HotSpot code.
+ * Dedicated Driver VM socket to receive data from the Test VM. Could either be received from Java and HotSpot code.
  */
 public class TestFrameworkSocket implements AutoCloseable {
-
     private static final String HOTSPOT_IDENTITY = "#HotSpot#";
-
-    // Static fields used for test VM only.
     private static final String SERVER_PORT_PROPERTY = "ir.framework.server.port";
 
     private final int serverSocketPort;
     private final ServerSocket serverSocket;
     private boolean running;
     private final ExecutorService executor;
-    private final List<Future<MethodDump>> methodDumps;
+    private final List<Future<MethodDump>> methodDumpFutures;
     private Future<JavaMessages> testVmFuture;
 
     public TestFrameworkSocket() {
@@ -66,7 +63,7 @@ public class TestFrameworkSocket implements AutoCloseable {
         }
         serverSocketPort = serverSocket.getLocalPort();
         executor = Executors.newCachedThreadPool();
-        methodDumps = Collections.synchronizedList(new ArrayList<>());
+        methodDumpFutures = Collections.synchronizedList(new ArrayList<>());
         if (TestFramework.VERBOSE) {
             System.out.println("TestFramework server socket uses port " + serverSocketPort);
         }
@@ -86,10 +83,13 @@ public class TestFrameworkSocket implements AutoCloseable {
         executor.submit(this::acceptLoop);
     }
 
+    /**
+     * Main loop to wait for new client connections and handling them upon connection request.
+     */
     private void acceptLoop() {
         while (running) {
             try {
-                handleClientConnection();
+                acceptNewClientConnection();
             } catch (TestFrameworkException e) {
                 running = false;
                 throw e;
@@ -100,7 +100,11 @@ public class TestFrameworkSocket implements AutoCloseable {
         }
     }
 
-    private void handleClientConnection() throws IOException {
+    /**
+     * Accept new client connection by first reading the identity of the connection (either coming from Java or HotSpot)
+     * and then submitting a task accordingly to manage incoming message on that connection/sockt.
+     */
+    private void acceptNewClientConnection() throws IOException {
         Socket client = serverSocket.accept();
         BufferedReader reader = new BufferedReader(new InputStreamReader(client.getInputStream()));
         String identity = readIdentity(client, reader).trim();
@@ -119,14 +123,18 @@ public class TestFrameworkSocket implements AutoCloseable {
         return identity;
     }
 
+    /**
+     * Submit dedicated tasks which are wrapped into {@link Future} objects. The tasks will read all messages sent
+     * over that connection.
+     */
     private void submitTask(String identity, Socket client, BufferedReader reader) {
         if (identity.equals(TestVM.IDENTITY)) {
             testVmFuture = executor.submit(new TestVmMessageReader<>(client, reader, new JavaMessageParser()));
         } else if (identity.equals(HOTSPOT_IDENTITY)) {
             Future<MethodDump> future = executor.submit(new HotSpotMessageReader(client, reader));
-            methodDumps.add(future);
+            methodDumpFutures.add(future);
         } else {
-            throw new TestFrameworkException("Wrong identity: " + identity);
+            throw new TestFrameworkException("Unrecognized identity: " + identity);
         }
     }
 
@@ -159,7 +167,7 @@ public class TestFrameworkSocket implements AutoCloseable {
 
     private MethodDumps methodDumps() {
         MethodDumps methodDumps = new MethodDumps();
-        for (Future<MethodDump> future : this.methodDumps) {
+        for (Future<MethodDump> future : this.methodDumpFutures) {
             try {
                 MethodDump methodDump = future.get();
                 methodDumps.add(methodDump);
@@ -170,4 +178,3 @@ public class TestFrameworkSocket implements AutoCloseable {
         return methodDumps;
     }
 }
-

@@ -24,12 +24,19 @@
 package compiler.lib.ir_framework.driver.network.testvm;
 
 import compiler.lib.ir_framework.shared.TestFrameworkException;
+import compiler.lib.ir_framework.shared.TestFrameworkSocket;
 
 import java.io.BufferedReader;
 import java.net.Socket;
 import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
 
-public class TestVmMessageReader<Output extends TestVmMessages> implements Callable<Output> {
+/**
+ * Dedicated reader for Test VM messages received by the {@link TestFrameworkSocket}. The reader is used as a task
+ * wrapped in a {@link Future}. The received messages are parsed with the provided {@link TestVmMessageParser}. Once the
+ * client connection is closed, the parsed messages can be fetched with {@link Future#get()} which calls {@link #call()}.
+ */
+public class TestVmMessageReader<Output> implements Callable<Output> {
     private final Socket socket;
     private final BufferedReader reader; // identity already consumed
     private final TestVmMessageParser<Output> messageParser;
@@ -45,7 +52,7 @@ public class TestVmMessageReader<Output extends TestVmMessages> implements Calla
         try (socket; reader) {
             String line;
             while ((line = reader.readLine()) != null) {
-                messageParser.parse(line);
+                messageParser.parseLine(line);
             }
             return messageParser.output();
         } catch (Exception e) {

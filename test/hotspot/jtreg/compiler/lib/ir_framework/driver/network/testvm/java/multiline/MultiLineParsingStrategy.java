@@ -21,30 +21,9 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network.testvm.java;
+package compiler.lib.ir_framework.driver.network.testvm.java.multiline;
 
-import compiler.lib.ir_framework.shared.TestFrameworkException;
-
-public class VmInfoStrategy implements ParsingStrategy<VmInfo> {
-    private final VmInfo vmInfo;
-
-    public VmInfoStrategy() {
-        this.vmInfo = new VmInfo();
-    }
-
-    @Override
-    public void parseLine(String line) {
-        String[] splitLine = line.split(":", 2);
-        if (splitLine.length != 2) {
-            throw new TestFrameworkException("Invalid VmInfo key:value encoding. Found: " + splitLine[0]);
-        }
-        String key = splitLine[0];
-        String value = splitLine[1];
-        vmInfo.add(key, value);
-    }
-
-    @Override
-    public VmInfo output() {
-        return vmInfo;
-    }
+public interface MultiLineParsingStrategy<Output> {
+    void parseLine(String line);
+    Output output();
 }

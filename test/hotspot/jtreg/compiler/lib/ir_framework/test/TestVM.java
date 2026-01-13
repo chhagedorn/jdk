@@ -26,6 +26,8 @@ package compiler.lib.ir_framework.test;
 import compiler.lib.ir_framework.*;
 import compiler.lib.ir_framework.Compiler;
 import compiler.lib.ir_framework.shared.*;
+import compiler.lib.ir_framework.test.network.MessageTag;
+import compiler.lib.ir_framework.test.network.TestVmSocket;
 import jdk.test.lib.Platform;
 import jdk.test.lib.Utils;
 import jdk.test.whitebox.WhiteBox;
@@ -860,7 +862,7 @@ public class TestVM {
                 System.out.println("Run " + test.toString());
             }
             if (testFilterPresent) {
-                TestVmSocket.sendWithTag(Tag.TEST_LIST_TAG, "Run " + test.toString());
+                TestVmSocket.sendWithTag(MessageTag.TEST_LIST, "Run " + test.toString());
             }
             try {
                 test.run();
@@ -879,7 +881,7 @@ public class TestVM {
                 if (VERBOSE) {
                     System.out.println("Done " + test.getName() + ": " + duration + " ns = " + (duration / 1000000) + " ms");
                 }
-                TestVmSocket.sendWithTag(Tag.PRINT_TIMES_TAG, String.format("%-25s%15d ns%n", test.getName() + ":", duration));
+                TestVmSocket.sendWithTag(MessageTag.PRINT_TIMES, String.format("%-25s%15d ns%n", test.getName() + ":", duration));
             }
             if (GC_AFTER) {
                 System.out.println("doing GC");

@@ -23,11 +23,17 @@
 
 package compiler.lib.ir_framework.driver.network;
 
+import compiler.lib.ir_framework.driver.irmatching.IRMatcher;
 import compiler.lib.ir_framework.driver.network.testvm.hotspot.MethodDumps;
 import compiler.lib.ir_framework.driver.network.testvm.java.IrEncoding;
 import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessages;
 import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
+import compiler.lib.ir_framework.shared.TestFrameworkSocket;
 
+/**
+ * This class collects all the parsed data received over the {@link TestFrameworkSocket}. This data is required later
+ * in the {@link IRMatcher}.
+ */
 public class TestVmData {
     private final JavaMessages javaMessages;
     private final MethodDumps methodDumps;

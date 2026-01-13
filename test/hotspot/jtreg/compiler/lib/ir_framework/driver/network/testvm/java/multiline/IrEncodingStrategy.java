@@ -21,15 +21,20 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network.testvm.java;
+package compiler.lib.ir_framework.driver.network.testvm.java.multiline;
 
+import compiler.lib.ir_framework.driver.network.testvm.java.IrEncoding;
+import compiler.lib.ir_framework.driver.network.testvm.java.IrRuleIds;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 import compiler.lib.ir_framework.test.IrEncodingPrinter;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class IrEncodingStrategy implements ParsingStrategy<IrEncoding> {
+/**
+ * Dedicated strategy to parse the multi-line IR Encoding message into a new {@link IrEncoding} object.
+ */
+public class IrEncodingStrategy implements MultiLineParsingStrategy<IrEncoding> {
     private final IrEncoding irEncoding;
 
     public IrEncodingStrategy() {

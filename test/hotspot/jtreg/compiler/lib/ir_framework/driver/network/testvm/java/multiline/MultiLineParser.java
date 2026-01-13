@@ -21,31 +21,40 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network.testvm.java;
+package compiler.lib.ir_framework.driver.network.testvm.java.multiline;
 
 import compiler.lib.ir_framework.TestFramework;
+import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessage;
+import compiler.lib.ir_framework.test.network.MessageTag;
 
-class LineParser<Output> {
+/**
+ * Generic multi-line parser that takes a {@link MultiLineParsingStrategy} to decide how to parse a single line of
+ * a multi line {@link JavaMessage}. Once parsing is done, the strategy is queried for the final parsed output.
+ */
+public class MultiLineParser<Output extends JavaMessage> {
     private enum ParserState {
         NOTHING_PARSED, PARSING, FINISHED_PARSING
     }
 
     private ParserState parserState;
-    private final ParsingStrategy<Output> parsingStrategy;
+    private final MultiLineParsingStrategy<Output> multiLineParsingStrategy;
 
-    public LineParser(ParsingStrategy<Output> parsingStrategy) {
-        this.parsingStrategy = parsingStrategy;
+    public MultiLineParser(MultiLineParsingStrategy<Output> multiLineParsingStrategy) {
+        this.multiLineParsingStrategy = multiLineParsingStrategy;
         this.parserState = ParserState.NOTHING_PARSED;
     }
 
-    public void parse(String line) {
+    public void parseLine(String line) {
         TestFramework.check(parserState != ParserState.FINISHED_PARSING,
                             "cannot parse when already queried");
         parserState = ParserState.PARSING;
-        parsingStrategy.parseLine(line);
+        multiLineParsingStrategy.parseLine(line);
     }
 
-    public void finish() {
+    /**
+     * Once the {@link MessageTag#END_MARKER} was seen, this method is called to mark the end of this multi-line message.
+     */
+    public void markFinished() {
         TestFramework.check(parserState == ParserState.PARSING,
                             "can only query if we parsed something");
         parserState = ParserState.FINISHED_PARSING;
@@ -53,6 +62,6 @@ class LineParser<Output> {
 
     public Output output() {
         TestFramework.check(parserState != ParserState.PARSING, "either nothing parsed or finished");
-        return parsingStrategy.output();
+        return multiLineParsingStrategy.output();
     }
 }

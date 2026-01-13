@@ -26,11 +26,14 @@ package compiler.lib.ir_framework.driver.network.testvm.hotspot;
 import compiler.lib.ir_framework.CompilePhase;
 import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.driver.network.testvm.TestVmMessageParser;
-import compiler.lib.ir_framework.test.Tag;
+import compiler.lib.ir_framework.test.network.MessageTag;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Dedicated parser for {@link MethodDump}s received from the C2 compiler of the HotSpot Test VM.
+ */
 public class HotSpotMessageParser implements TestVmMessageParser<MethodDump> {
     private static final Pattern COMPILE_PHASE_PATTERN = Pattern.compile("^COMPILE_PHASE: (.*)$");
     private static final PhaseDump INVALID_DUMP = PhaseDump.createInvalid();
@@ -44,22 +47,30 @@ public class HotSpotMessageParser implements TestVmMessageParser<MethodDump> {
     }
 
     @Override
-    public void parse(String line) {
+    public void parseLine(String line) {
         Matcher m = COMPILE_PHASE_PATTERN.matcher(line);
         if (m.matches()) {
-            CompilePhase compilePhase = CompilePhase.forName(m.group(1));
-            TestFramework.check(phaseDump.isInvalid(), "can only have one active phase dump");
-            phaseDump = new PhaseDump(compilePhase);
-            methodDump.add(compilePhase, phaseDump);
+            parseCompilePhase(m);
             return;
         }
-        if (line.equals(Tag.END_TAG)) {
-            TestFramework.check(!phaseDump.isInvalid(), "must have an active phase dump");
-            phaseDump = INVALID_DUMP;
+        if (line.equals(MessageTag.END_MARKER)) {
+            parseEndTag();
             return;
         }
         TestFramework.check(!phaseDump.isInvalid(), "missing COMPILE_PHASE header");
         phaseDump.add(line);
+    }
+
+    private void parseCompilePhase(Matcher m) {
+        CompilePhase compilePhase = CompilePhase.forName(m.group(1));
+        TestFramework.check(phaseDump.isInvalid(), "can only have one active phase dump");
+        phaseDump = new PhaseDump(compilePhase);
+        methodDump.add(compilePhase, phaseDump);
+    }
+
+    private void parseEndTag() {
+        TestFramework.check(!phaseDump.isInvalid(), "must have an active phase dump");
+        phaseDump = INVALID_DUMP;
     }
 
     @Override

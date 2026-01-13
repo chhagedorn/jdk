@@ -23,11 +23,17 @@
 
 package compiler.lib.ir_framework.driver.network.testvm.java;
 
+import compiler.lib.ir_framework.IR;
+import compiler.lib.ir_framework.driver.irmatching.irmethod.IRMethod;
+
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Stream;
 
+/**
+ * Class to hold the indices of the applicable {@link IR @IR} rules of an {@link IRMethod}.
+ */
 public class IrRuleIds implements Iterable<Integer> {
     private static final IrRuleIds EMPTY = new IrRuleIds(new ArrayList<>());
     private final List<Integer> ruleIds;

@@ -26,6 +26,7 @@ package compiler.lib.ir_framework.test;
 import compiler.lib.ir_framework.*;
 import compiler.lib.ir_framework.shared.TestRun;
 import compiler.lib.ir_framework.shared.TestRunException;
+import compiler.lib.ir_framework.test.network.TestVmSocket;
 import jdk.test.whitebox.WhiteBox;
 
 import java.lang.reflect.Constructor;

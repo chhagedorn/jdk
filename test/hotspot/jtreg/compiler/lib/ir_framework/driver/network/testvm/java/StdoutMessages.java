@@ -23,10 +23,17 @@
 
 package compiler.lib.ir_framework.driver.network.testvm.java;
 
+import compiler.lib.ir_framework.test.network.MessageTag;
+
 import java.util.ArrayList;
 import java.util.List;
 
-public class StdoutMessages implements JavaMessage {
+
+/**
+ * Class to collect all Java Messages sent with tag {@link MessageTag#STDOUT}. These messages are generated at various
+ * places in the Test VM and are unconditionally shown in the Driver VM output.
+ */
+class StdoutMessages implements JavaMessage {
     private final List<String> messages;
 
     public StdoutMessages() {

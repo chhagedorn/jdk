@@ -23,13 +23,16 @@
 
 package compiler.lib.ir_framework.driver.network.testvm.java;
 
-import compiler.lib.ir_framework.driver.network.testvm.TestVmMessages;
+import compiler.lib.ir_framework.shared.TestFrameworkException;
 
-public class JavaMessages implements TestVmMessages {
+/**
+ * Class to collect all Java messages sent from the Test VM to the Driver VM.
+ */
+public class JavaMessages {
     private final StdoutMessages stdoutMessages;
     private final MethodTimes methodTimes;
     private final ExecutedTests executedTests;
-    private VmInfo vmInfo; // TODO: Better pass into constructor?
+    private VmInfo vmInfo;
     private IrEncoding irEncoding;
 
     JavaMessages() {
@@ -40,6 +43,10 @@ public class JavaMessages implements TestVmMessages {
         this.irEncoding = new IrEncoding();
     }
 
+    /**
+     * Should only be queried when IR Matching will be done. Otherwise, the VM Info is empty and a
+     * {@link TestFrameworkException} is thrown.
+     */
     public VmInfo vmInfo() {
         vmInfo.verify();
         return vmInfo;

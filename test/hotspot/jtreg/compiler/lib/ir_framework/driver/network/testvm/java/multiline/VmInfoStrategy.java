@@ -21,9 +21,34 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network.testvm.java;
+package compiler.lib.ir_framework.driver.network.testvm.java.multiline;
 
-interface ParsingStrategy<Output> {
-    void parseLine(String line);
-    Output output();
+import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
+import compiler.lib.ir_framework.shared.TestFrameworkException;
+
+/**
+ * Dedicated strategy to parse the multi-line VM info message into a new {@link VmInfo} object.
+ */
+public class VmInfoStrategy implements MultiLineParsingStrategy<VmInfo> {
+    private final VmInfo vmInfo;
+
+    public VmInfoStrategy() {
+        this.vmInfo = new VmInfo();
+    }
+
+    @Override
+    public void parseLine(String line) {
+        String[] splitLine = line.split(":", 2);
+        if (splitLine.length != 2) {
+            throw new TestFrameworkException("Invalid VmInfo key:value encoding. Found: " + splitLine[0]);
+        }
+        String key = splitLine[0];
+        String value = splitLine[1];
+        vmInfo.add(key, value);
+    }
+
+    @Override
+    public VmInfo output() {
+        return vmInfo;
+    }
 }

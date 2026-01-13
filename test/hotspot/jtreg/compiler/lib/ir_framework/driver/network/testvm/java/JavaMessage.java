@@ -23,6 +23,13 @@
 
 package compiler.lib.ir_framework.driver.network.testvm.java;
 
+import compiler.lib.ir_framework.shared.TestFrameworkSocket;
+import compiler.lib.ir_framework.test.network.MessageTag;
+
+/**
+ * Interface for a message sent from Java code to the Driver VM via the {@link TestFrameworkSocket}. We differentiate
+ * between different messages depending on the leading {@link MessageTag} of a received message.
+ */
 public interface JavaMessage {
     void print();
 }

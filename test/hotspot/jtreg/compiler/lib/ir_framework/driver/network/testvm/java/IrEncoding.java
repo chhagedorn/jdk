@@ -23,12 +23,18 @@
 
 package compiler.lib.ir_framework.driver.network.testvm.java;
 
+import compiler.lib.ir_framework.IR;
 import compiler.lib.ir_framework.TestFramework;
+import compiler.lib.ir_framework.driver.irmatching.IRMatcher;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Class to hold the IR Encoding sent by the Test VM. It specifies which {@link IR @IR} rules the {@link IRMatcher}
+ * need to check. This can be different depending on the used VM flags or the machine the test is run on itself.
+ */
 public class IrEncoding implements JavaMessage {
     private static final boolean PRINT_IR_ENCODING = Boolean.parseBoolean(System.getProperty("PrintIREncoding", "false"))
                                                      || TestFramework.VERBOSE;
@@ -36,7 +42,7 @@ public class IrEncoding implements JavaMessage {
     private final Map<String, IrRuleIds> methods;
 
     public IrEncoding() {
-        methods = new HashMap<>();
+        this.methods = new HashMap<>();
     }
 
     public void add(String method, IrRuleIds irRuleIds) {

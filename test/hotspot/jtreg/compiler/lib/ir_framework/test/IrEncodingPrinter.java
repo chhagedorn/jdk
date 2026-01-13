@@ -27,6 +27,8 @@ import compiler.lib.ir_framework.IR;
 import compiler.lib.ir_framework.IRNode;
 import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.shared.*;
+import compiler.lib.ir_framework.test.network.MessageTag;
+import compiler.lib.ir_framework.test.network.TestVmSocket;
 import jdk.test.lib.Platform;
 import jdk.test.whitebox.WhiteBox;
 
@@ -513,8 +515,8 @@ public class IrEncodingPrinter {
         if (output.isEmpty()) {
             output.append(NO_ENCODING).append(System.lineSeparator());
         }
-        output.append(Tag.END_TAG);
-        TestVmSocket.sendMultiLine(Tag.IR_ENCODING, output.toString());
+        output.append(MessageTag.END_MARKER);
+        TestVmSocket.sendMultiLine(MessageTag.IR_ENCODING, output.toString());
     }
 }
 

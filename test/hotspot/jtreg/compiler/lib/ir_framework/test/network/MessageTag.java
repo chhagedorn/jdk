@@ -21,15 +21,13 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network.testvm;
+package compiler.lib.ir_framework.test.network;
 
-import compiler.lib.ir_framework.driver.network.testvm.hotspot.MethodDump;
-import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessage;
-import compiler.lib.ir_framework.shared.TestFrameworkSocket;
-
-/**
- * We differentiate between two kinds of Test VM messages sent to {@link TestFrameworkSocket}:
- * - {@link JavaMessage}: Messages sent from Java code.
- * - {@link MethodDump}: Method dumps sent from HotSpot code.
- */
-public interface TestVmMessages {}
+public class MessageTag {
+    public static final String STDOUT = "[STDOUT]";
+    public static final String TEST_LIST = "[TEST_LIST]";
+    public static final String PRINT_TIMES = "[PRINT_TIMES]";
+    public static final String VM_INFO = "[VM_INFO]";
+    public static final String IR_ENCODING = "[IR_ENCODING]"; // TODO: Rename?
+    public static final String END_MARKER = "#END#";
+}

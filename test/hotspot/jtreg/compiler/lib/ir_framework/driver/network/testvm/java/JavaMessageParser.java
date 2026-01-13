@@ -25,82 +25,76 @@ package compiler.lib.ir_framework.driver.network.testvm.java;
 
 import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.driver.network.testvm.TestVmMessageParser;
+import compiler.lib.ir_framework.driver.network.testvm.java.multiline.IrEncodingStrategy;
+import compiler.lib.ir_framework.driver.network.testvm.java.multiline.MultiLineParser;
+import compiler.lib.ir_framework.driver.network.testvm.java.multiline.VmInfoStrategy;
+import compiler.lib.ir_framework.test.network.MessageTag;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static compiler.lib.ir_framework.test.Tag.*;
+import static compiler.lib.ir_framework.test.network.MessageTag.*;
 
+/**
+ * Dedicated parser for {@link JavaMessages} received from the Test VM. Depending on the parsed{@link MessageTag}, the
+ * message is parsed differently.
+ */
 public class JavaMessageParser implements TestVmMessageParser<JavaMessages> {
     private static final Pattern TAG_PATTERN = Pattern.compile("^(\\[[^]]+])\\s*(.*)$");
-    private static final LineParser<? extends JavaMessage> EMPTY_PARSER = new LineParser<>(null);
+    private static final MultiLineParser<? extends JavaMessage> EMPTY_PARSER = new MultiLineParser<>(null);
 
     private final JavaMessages javaMessages;
-    private LineParser<? extends JavaMessage> testVmParser;
-    private final LineParser<VmInfo> vmInfoParser;
-    private final LineParser<IrEncoding> irEncodingParser;
+    private MultiLineParser<? extends JavaMessage> multiLineParser;
+    private final MultiLineParser<VmInfo> vmInfoParser;
+    private final MultiLineParser<IrEncoding> irEncodingParser;
 
     public JavaMessageParser() {
         this.javaMessages = new JavaMessages();
-        this.testVmParser = EMPTY_PARSER;
-        this.vmInfoParser = new LineParser<>(new VmInfoStrategy());
-        this.irEncodingParser = new LineParser<>(new IrEncodingStrategy());
+        this.multiLineParser = EMPTY_PARSER;
+        this.vmInfoParser = new MultiLineParser<>(new VmInfoStrategy());
+        this.irEncodingParser = new MultiLineParser<>(new IrEncodingStrategy());
     }
 
     @Override
-    public void parse(String line) {
+    public void parseLine(String line) {
         line = line.trim();
-        Matcher m = TAG_PATTERN.matcher(line);
-        if (m.matches()) {
-            String tag = m.group(1);
-            String message = m.group(2);
-            parseTagLine(tag, message);
-        } else {
-            parseLine(line);
+        Matcher tagLineMatcher = TAG_PATTERN.matcher(line);
+        if (tagLineMatcher.matches()) {
+            assertNoActiveParser();
+            parseTagLine(tagLineMatcher);
+            return;
         }
-    }
-
-    private void parseTagLine(String tag, String message) {
-        switch (tag) {
-            case STDOUT_TAG -> {
-                assertNoActiveParser();
-                javaMessages.addStdoutLine(message);
-            }
-            case TEST_LIST_TAG -> {
-                assertNoActiveParser();
-                javaMessages.addExecutedTest(message);
-            }
-            case PRINT_TIMES_TAG -> {
-                assertNoActiveParser();
-                javaMessages.addMethodTime(message);
-            }
-            case VM_INFO -> {
-                assertNoActiveParser();
-                testVmParser = vmInfoParser;
-            }
-            case IR_ENCODING -> {
-                assertNoActiveParser();
-                testVmParser = irEncodingParser;
-            }
+        assertActiveParser();
+        if (line.equals(END_MARKER)) {
+            parseEndTag();
+            return;
         }
+        multiLineParser.parseLine(line);
     }
 
     private void assertNoActiveParser() {
-        TestFramework.check(testVmParser.equals(EMPTY_PARSER), "Unexpected new tag while parsing block");
+        TestFramework.check(multiLineParser.equals(EMPTY_PARSER), "Unexpected new tag while parsing block");
     }
 
-    private void parseLine(String line) {
-        assertActiveParser();
-        if (line.equals(END_TAG)) {
-            testVmParser.finish();
-            testVmParser = EMPTY_PARSER;
-            return;
+    private void parseTagLine(Matcher tagLineMatcher) {
+        String tag = tagLineMatcher.group(1);
+        String message = tagLineMatcher.group(2);
+        switch (tag) {
+            case STDOUT -> javaMessages.addStdoutLine(message);
+            case TEST_LIST -> javaMessages.addExecutedTest(message);
+            case PRINT_TIMES -> javaMessages.addMethodTime(message);
+            case VM_INFO -> multiLineParser = vmInfoParser;
+            case IR_ENCODING -> multiLineParser = irEncodingParser;
         }
-        testVmParser.parse(line);
     }
 
     private void assertActiveParser() {
-        TestFramework.check(!testVmParser.equals(EMPTY_PARSER), "unexpected new tag while parsing block");
+        TestFramework.check(!multiLineParser.equals(EMPTY_PARSER), "unexpected new tag while parsing block");
+    }
+
+    private void parseEndTag() {
+        multiLineParser.markFinished();
+        multiLineParser = EMPTY_PARSER;
     }
 
     @Override

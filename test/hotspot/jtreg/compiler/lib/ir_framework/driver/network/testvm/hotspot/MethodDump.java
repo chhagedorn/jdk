@@ -25,11 +25,10 @@ package compiler.lib.ir_framework.driver.network.testvm.hotspot;
 
 import compiler.lib.ir_framework.CompilePhase;
 import compiler.lib.ir_framework.TestFramework;
-import compiler.lib.ir_framework.driver.network.testvm.TestVmMessages;
 
 import java.util.*;
 
-public class MethodDump implements TestVmMessages {
+public class MethodDump {
     private final String methodName;
     private final Map<CompilePhase, PhaseDump> phaseDumps;
 

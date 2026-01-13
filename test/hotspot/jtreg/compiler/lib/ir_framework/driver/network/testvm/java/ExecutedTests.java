@@ -23,10 +23,16 @@
 
 package compiler.lib.ir_framework.driver.network.testvm.java;
 
+import compiler.lib.ir_framework.test.network.MessageTag;
+
 import java.util.ArrayList;
 import java.util.List;
 
-public class ExecutedTests implements JavaMessage {
+/**
+ * Class to collect all Java Messages sent with tag {@link MessageTag#TEST_LIST}. These are only generated when the
+ * user runs with {@code -DTest=myTest}.
+ */
+class ExecutedTests implements JavaMessage {
     private final List<String> tests;
 
     public ExecutedTests() {

@@ -23,10 +23,28 @@
 
 package compiler.lib.ir_framework.driver.network.testvm;
 
+import compiler.lib.ir_framework.driver.network.testvm.hotspot.MethodDump;
+import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessage;
+import compiler.lib.ir_framework.shared.TestFrameworkSocket;
+
 /**
- * Interface for
+ * We differentiate between two kinds of Test VM messages sent to the  {@link TestFrameworkSocket}:
+ * - {@link JavaMessage}: A message sent from Java code.
+ * - {@link MethodDump}: A Method dump sent from HotSpot code.
+ *
+ * <p>
+ * Both kinds of messages are parsed differently by classing implementing this interface.
  */
-public interface TestVmMessageParser<Output extends TestVmMessages> {
-    void parse(String line);
+public interface TestVmMessageParser<Output> {
+    /**
+     * Parse a single line of a received Test VM message.
+     *
+     * @param line A single message line forwarded by {@link TestVmMessageReader}.
+     */
+    void parseLine(String line);
+
+    /**
+     * Once parsing is done, this method returns the final output.
+     */
     Output output();
 }

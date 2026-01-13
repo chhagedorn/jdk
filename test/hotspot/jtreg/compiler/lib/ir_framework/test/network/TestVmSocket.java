@@ -21,10 +21,11 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.test;
+package compiler.lib.ir_framework.test.network;
 
 import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.shared.TestRunException;
+import compiler.lib.ir_framework.test.TestVM;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -39,10 +40,17 @@ public class TestVmSocket {
     private static Socket socket = null;
     private static PrintWriter writer = null;
 
+    /**
+     * Send a message to the Driver VM which is unconditionally shown in the Driver VM output.
+     */
     public static void send(String message) {
-        sendWithTag(Tag.STDOUT_TAG, message);
+        sendWithTag(MessageTag.STDOUT, message);
     }
 
+    /**
+     * Send a message with multiple lines to the Driver VM with a {@link MessageTag}. Not all messages are shown in the
+     * by default in the Driver VM output and require setting some property flags first like {@code -DPrintTimes=true}.
+     */
     public static void sendMultiLine(String tag, String message) {
         if (REPRODUCE) {
             // Debugging Test VM: Skip writing due to -DReproduce;
@@ -53,6 +61,10 @@ public class TestVmSocket {
         writer.println(tag + System.lineSeparator() + message);
     }
 
+    /**
+     * Send a message to the Driver VM with a {@link MessageTag}. Not all messages are shown in the by default in the
+     * Driver VM output and require setting some property flags first like {@code -DPrintTimes=true}.
+     */
     public static void sendWithTag(String tag, String message) {
         if (REPRODUCE) {
             // Debugging Test VM: Skip writing due to -DReproduce;
