@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -122,16 +122,10 @@ public class FlagVM {
     }
 
     private static void addIRVerificationFlags(ArrayList<String> cmds, Class<?> testClass) {
-        cmds.addAll(Arrays.asList(getPrintFlags()));
-//        cmds.add("-XX:+LogCompilation");
         CompilerDirectivesFlagBuilder compilerDirectivesFlagBuilder = new CompilerDirectivesFlagBuilder(testClass);
         cmds.addAll(compilerDirectivesFlagBuilder.build());
         // Always trap for exception throwing to not confuse IR verification
         cmds.add("-XX:-OmitStackTraceInFastThrow");
         cmds.add("-DShouldDoIRVerification=true");
-    }
-
-    private static String[] getPrintFlags() {
-        return new String[] {};
     }
 }
