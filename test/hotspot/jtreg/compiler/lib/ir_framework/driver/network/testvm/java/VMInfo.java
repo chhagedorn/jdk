@@ -81,9 +81,9 @@ public class VMInfo implements JavaMessage {
     public boolean isDefaultCascadeLake() {
         // See VM_Version::is_default_intel_cascade_lake
         return isCascadeLake() &&
-                getLongValue("MaxVectorSizeIsDefault") == 1 &&
-                getLongValue("UseAVXIsDefault") == 1 &&
-                getLongValue("UseAVX") > 2;
+               getLongValue("MaxVectorSizeIsDefault") == 1 &&
+               getLongValue("UseAVXIsDefault") == 1 &&
+               getLongValue("UseAVX") > 2;
     }
 
     /**
