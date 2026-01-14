@@ -33,14 +33,14 @@ public class JavaMessages {
     private final MethodTimes methodTimes;
     private final ExecutedTests executedTests;
     private VMInfo vmInfo;
-    private IREncoding irEncoding;
+    private ApplicableIRRules applicableIrRules;
 
     JavaMessages() {
         this.stdoutMessages = new StdoutMessages();
         this.executedTests = new ExecutedTests();
         this.methodTimes = new MethodTimes();
         this.vmInfo = new VMInfo();
-        this.irEncoding = new IREncoding();
+        this.applicableIrRules = new ApplicableIRRules();
     }
 
     /**
@@ -52,8 +52,8 @@ public class JavaMessages {
         return vmInfo;
     }
 
-    public IREncoding irEncoding() {
-        return irEncoding;
+    public ApplicableIRRules applicableIRRules() {
+        return applicableIrRules;
     }
 
     void addStdoutLine(String line) {
@@ -72,8 +72,8 @@ public class JavaMessages {
         this.vmInfo = vmInfo;
     }
 
-    void addIrEncoding(IREncoding irEncoding) {
-        this.irEncoding = irEncoding;
+    void addApplicableIRRules(ApplicableIRRules applicableIrRules) {
+        this.applicableIrRules = applicableIrRules;
     }
 
     public void print() {
@@ -81,6 +81,6 @@ public class JavaMessages {
         methodTimes.print();
         executedTests.print();
         vmInfo.print();
-        irEncoding.print();
+        applicableIrRules.print();
     }
 }

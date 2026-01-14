@@ -23,41 +23,41 @@
 
 package compiler.lib.ir_framework.driver.network.testvm.java.multiline;
 
-import compiler.lib.ir_framework.driver.network.testvm.java.IREncoding;
+import compiler.lib.ir_framework.driver.network.testvm.java.ApplicableIRRules;
 import compiler.lib.ir_framework.driver.network.testvm.java.IRRuleIds;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
-import compiler.lib.ir_framework.test.IREncodingPrinter;
+import compiler.lib.ir_framework.test.ApplicableIRRulesPrinter;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Dedicated strategy to parse the multi-line IR Encoding message into a new {@link IREncoding} object.
+ * Dedicated strategy to parse the multi-line Applicable IR Rules message into a new {@link ApplicableIRRules} object.
  */
-public class IrEncodingStrategy implements MultiLineParsingStrategy<IREncoding> {
-    private final IREncoding irEncoding;
+public class ApplicableIRRulesStrategy implements MultiLineParsingStrategy<ApplicableIRRules> {
+    private final ApplicableIRRules applicableIrRules;
 
-    public IrEncodingStrategy() {
-        this.irEncoding = new IREncoding();
+    public ApplicableIRRulesStrategy() {
+        this.applicableIrRules = new ApplicableIRRules();
     }
 
     @Override
     public void parseLine(String line) {
-        if (line.equals(IREncodingPrinter.NO_ENCODING)) {
+        if (line.equals(ApplicableIRRulesPrinter.NO_RULES)) {
             return;
         }
 
         String[] splitLine = line.split(",");
         if (splitLine.length < 2) {
-            throw new TestFrameworkException("Invalid IR match rule encoding. No comma found: " + splitLine[0]);
+            throw new TestFrameworkException("Invalid Applicable IR Rules format. No comma found: " + splitLine[0]);
         }
         String testName = splitLine[0];
         IRRuleIds irRulesIds = parseIrRulesIds(splitLine);
-        irEncoding.add(testName, irRulesIds);
+        applicableIrRules.add(testName, irRulesIds);
     }
 
     /**
-     * Parse rule indexes from IR encoding line of the format: <method,idx1,idx2,...>
+     * Parse rule indexes from a single line of the Applicable IR Rules in the format: <method,idx1,idx2,...>
      */
     private IRRuleIds parseIrRulesIds(String[] splitLine) {
         List<Integer> irRuleIds = new ArrayList<>();
@@ -65,14 +65,14 @@ public class IrEncodingStrategy implements MultiLineParsingStrategy<IREncoding> 
             try {
                 irRuleIds.add(Integer.parseInt(splitLine[i]));
             } catch (NumberFormatException e) {
-                throw new TestFrameworkException("Invalid IR match rule encoding. No number found: " + splitLine[i]);
+                throw new TestFrameworkException("Invalid Applicable IR Rules format. No number found: " + splitLine[i]);
             }
         }
         return new IRRuleIds(irRuleIds);
     }
 
     @Override
-    public IREncoding output() {
-        return irEncoding;
+    public ApplicableIRRules output() {
+        return applicableIrRules;
     }
 }

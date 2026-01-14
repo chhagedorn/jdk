@@ -47,7 +47,7 @@ import java.util.function.Function;
  * termination of the Test VM. IR rule indices start at 1.
  */
 public class ApplicableIRRulesPrinter {
-    public static final String NO_ENCODING = "<no encoding>";
+    public static final String NO_RULES = "<no IR rules>";
 
     private static final WhiteBox WHITE_BOX = WhiteBox.getWhiteBox();
     private static final List<Function<String, Object>> LONG_GETTERS = Arrays.asList(
@@ -514,10 +514,10 @@ public class ApplicableIRRulesPrinter {
 
     public void emit() {
         if (output.isEmpty()) {
-            output.append(NO_ENCODING).append(System.lineSeparator());
+            output.append(NO_RULES).append(System.lineSeparator());
         }
         output.append(MessageTag.END_MARKER);
-        TestVmSocket.sendMultiLine(MessageTag.IR_ENCODING, output.toString());
+        TestVmSocket.sendMultiLine(MessageTag.APPLICABLE_IR_RULES, output.toString());
     }
 }
 

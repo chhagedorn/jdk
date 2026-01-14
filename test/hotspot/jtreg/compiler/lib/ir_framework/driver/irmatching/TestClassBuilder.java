@@ -31,7 +31,7 @@ import compiler.lib.ir_framework.driver.irmatching.irmethod.NotCompiledIRMethod;
 import compiler.lib.ir_framework.driver.network.testVMData;
 import compiler.lib.ir_framework.driver.network.testvm.c2.MethodDumpHistory;
 import compiler.lib.ir_framework.driver.network.testvm.c2.MethodDumps;
-import compiler.lib.ir_framework.driver.network.testvm.java.IREncoding;
+import compiler.lib.ir_framework.driver.network.testvm.java.ApplicableIRRules;
 import compiler.lib.ir_framework.driver.network.testvm.java.IRRuleIds;
 import compiler.lib.ir_framework.driver.network.testvm.java.VMInfo;
 import compiler.lib.ir_framework.shared.TestFormat;
@@ -47,14 +47,14 @@ import java.util.TreeSet;
  */
 public class TestClassBuilder {
     private final Class<?> testClass;
-    private final IREncoding irEncoding;
+    private final ApplicableIRRules applicableIrRules;
     private final MethodDumps methodDumps;
     private final boolean allowNotCompilable;
     private final VMInfo vmInfo;
 
     public TestClassBuilder(Class<?> testClass, testVMData testVmData) {
         this.testClass = testClass;
-        this.irEncoding = testVmData.irEncoding();
+        this.applicableIrRules = testVmData.applicableIRRules();
         this.methodDumps = testVmData.methodDumps();
         this.allowNotCompilable = testVmData.allowNotCompilable();
         this.vmInfo = testVmData.vmInfo();
@@ -65,7 +65,7 @@ public class TestClassBuilder {
      * applicable @IR rules in any method of the test class.
      */
     public Matchable build() {
-        if (irEncoding.hasNoMethods()) {
+        if (applicableIrRules.hasNoMethods()) {
             return new NonIRTestClass();
         }
 
@@ -78,7 +78,7 @@ public class TestClassBuilder {
     }
 
     private void buildForMethod(Method method, SortedSet<IRMethodMatchable> irMethods) {
-        IRRuleIds irRuleIds = irEncoding.ruleIds(method.getName());
+        IRRuleIds irRuleIds = applicableIrRules.ruleIds(method.getName());
         if (irRuleIds.isEmpty()) {
             // Not an IR test or not interested.
             return;

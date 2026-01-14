@@ -32,16 +32,17 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Class to hold the IR Encoding sent by the Test VM. It specifies which {@link IR @IR} rules the {@link IRMatcher}
- * need to check. This can be different depending on the used VM flags or the machine the test is run on itself.
+ * Class to hold the Applicable IR Rules sent by the Test VM. It specifies which {@link IR @IR} rules the
+ * {@link IRMatcher} need to check. This can be different depending on the used VM flags or the machine the test is run
+ * on itself.
  */
-public class IREncoding implements JavaMessage {
-    private static final boolean PRINT_IR_ENCODING = Boolean.parseBoolean(System.getProperty("PrintIREncoding", "false"))
+public class ApplicableIRRules implements JavaMessage {
+    private static final boolean APPLICABLE_IR_RULES = Boolean.parseBoolean(System.getProperty("ApplicableIRRules", "false"))
                                                      || TestFramework.VERBOSE;
 
     private final Map<String, IRRuleIds> methods;
 
-    public IREncoding() {
+    public ApplicableIRRules() {
         this.methods = new HashMap<>();
     }
 
@@ -59,13 +60,13 @@ public class IREncoding implements JavaMessage {
 
     @Override
     public void print() {
-        if (!PRINT_IR_ENCODING) {
+        if (!APPLICABLE_IR_RULES) {
             return;
         }
 
         System.out.println();
-        System.out.println("IR Encoding");
-        System.out.println("-----------");
+        System.out.println("Applicable IR Rules");
+        System.out.println("-------------------");
         for (var entry : methods.entrySet()) {
             String method = entry.getKey();
             String ruleIds = entry.getValue().stream().map(String::valueOf).collect(Collectors.joining(", "));

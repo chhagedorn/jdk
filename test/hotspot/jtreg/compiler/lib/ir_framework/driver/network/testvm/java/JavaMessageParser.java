@@ -25,7 +25,7 @@ package compiler.lib.ir_framework.driver.network.testvm.java;
 
 import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.driver.network.testvm.TestVmMessageParser;
-import compiler.lib.ir_framework.driver.network.testvm.java.multiline.IrEncodingStrategy;
+import compiler.lib.ir_framework.driver.network.testvm.java.multiline.ApplicableIRRulesStrategy;
 import compiler.lib.ir_framework.driver.network.testvm.java.multiline.MultiLineParser;
 import compiler.lib.ir_framework.driver.network.testvm.java.multiline.VMInfoStrategy;
 import compiler.lib.ir_framework.test.network.MessageTag;
@@ -46,13 +46,13 @@ public class JavaMessageParser implements TestVmMessageParser<JavaMessages> {
     private final JavaMessages javaMessages;
     private MultiLineParser<? extends JavaMessage> multiLineParser;
     private final MultiLineParser<VMInfo> vmInfoParser;
-    private final MultiLineParser<IREncoding> irEncodingParser;
+    private final MultiLineParser<ApplicableIRRules> applicableIRRulesParser;
 
     public JavaMessageParser() {
         this.javaMessages = new JavaMessages();
         this.multiLineParser = EMPTY_PARSER;
         this.vmInfoParser = new MultiLineParser<>(new VMInfoStrategy());
-        this.irEncodingParser = new MultiLineParser<>(new IrEncodingStrategy());
+        this.applicableIRRulesParser = new MultiLineParser<>(new ApplicableIRRulesStrategy());
     }
 
     @Override
@@ -84,7 +84,7 @@ public class JavaMessageParser implements TestVmMessageParser<JavaMessages> {
             case TEST_LIST -> javaMessages.addExecutedTest(message);
             case PRINT_TIMES -> javaMessages.addMethodTime(message);
             case VM_INFO -> multiLineParser = vmInfoParser;
-            case IR_ENCODING -> multiLineParser = irEncodingParser;
+            case APPLICABLE_IR_RULES -> multiLineParser = applicableIRRulesParser;
         }
     }
 
@@ -100,7 +100,7 @@ public class JavaMessageParser implements TestVmMessageParser<JavaMessages> {
     @Override
     public JavaMessages output() {
         javaMessages.addVmInfo(vmInfoParser.output());
-        javaMessages.addIrEncoding(irEncodingParser.output());
+        javaMessages.addApplicableIRRules(applicableIRRulesParser.output());
         return javaMessages;
     }
 }

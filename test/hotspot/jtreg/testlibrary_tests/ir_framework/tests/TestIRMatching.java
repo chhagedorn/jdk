@@ -448,8 +448,8 @@ public class TestIRMatching {
     }
 
     private static void assertNoIds(String output, String methodName) {
-        String irEncoding = output.split("IR Encoding")[1];
-        if (irEncoding.contains(methodName)) {
+        String applicableIRRules = output.split("Applicable IR Rules")[1];
+        if (applicableIRRules.contains(methodName)) {
             addException(new RuntimeException("Should not find ids for \"" + methodName + "\"" + System.lineSeparator()));
         }
     }
