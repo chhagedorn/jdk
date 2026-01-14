@@ -45,8 +45,8 @@ public class JavaMessageParser implements TestVmMessageParser<JavaMessages> {
 
     private final JavaMessages javaMessages;
     private MultiLineParser<? extends JavaMessage> multiLineParser;
-    private final MultiLineParser<VmInfo> vmInfoParser;
-    private final MultiLineParser<IrEncoding> irEncodingParser;
+    private final MultiLineParser<VMInfo> vmInfoParser;
+    private final MultiLineParser<IREncoding> irEncodingParser;
 
     public JavaMessageParser() {
         this.javaMessages = new JavaMessages();

@@ -35,13 +35,13 @@ import java.util.stream.Collectors;
  * Class to hold the IR Encoding sent by the Test VM. It specifies which {@link IR @IR} rules the {@link IRMatcher}
  * need to check. This can be different depending on the used VM flags or the machine the test is run on itself.
  */
-public class IrEncoding implements JavaMessage {
+public class IREncoding implements JavaMessage {
     private static final boolean PRINT_IR_ENCODING = Boolean.parseBoolean(System.getProperty("PrintIREncoding", "false"))
                                                      || TestFramework.VERBOSE;
 
     private final Map<String, IrRuleIds> methods;
 
-    public IrEncoding() {
+    public IREncoding() {
         this.methods = new HashMap<>();
     }
 

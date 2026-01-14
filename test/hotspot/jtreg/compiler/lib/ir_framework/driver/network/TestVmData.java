@@ -25,9 +25,9 @@ package compiler.lib.ir_framework.driver.network;
 
 import compiler.lib.ir_framework.driver.irmatching.IRMatcher;
 import compiler.lib.ir_framework.driver.network.testvm.c2.MethodDumps;
-import compiler.lib.ir_framework.driver.network.testvm.java.IrEncoding;
+import compiler.lib.ir_framework.driver.network.testvm.java.IREncoding;
 import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessages;
-import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
+import compiler.lib.ir_framework.driver.network.testvm.java.VMInfo;
 import compiler.lib.ir_framework.shared.TestFrameworkSocket;
 
 /**
@@ -45,7 +45,7 @@ public class TestVmData {
         this.allowNotCompilable = allowNotCompilable;
     }
 
-    public IrEncoding irEncoding() {
+    public IREncoding irEncoding() {
         return javaMessages.irEncoding();
     }
 
@@ -61,7 +61,7 @@ public class TestVmData {
         javaMessages.print();
     }
 
-    public VmInfo vmInfo() {
+    public VMInfo vmInfo() {
         return javaMessages.vmInfo();
     }
 }

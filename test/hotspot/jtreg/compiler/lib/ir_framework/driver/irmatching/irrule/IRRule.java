@@ -31,7 +31,7 @@ import compiler.lib.ir_framework.driver.irmatching.MatchableMatcher;
 import compiler.lib.ir_framework.driver.irmatching.irrule.phase.CompilePhaseIRRule;
 import compiler.lib.ir_framework.driver.irmatching.irrule.phase.CompilePhaseIrRuleBuilder;
 import compiler.lib.ir_framework.driver.network.testvm.c2.MethodDumpHistory;
-import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
+import compiler.lib.ir_framework.driver.network.testvm.java.VMInfo;
 
 /**
  * This class represents a generic {@link IR @IR} rule of an IR method. It contains a list of compile phase specific
@@ -40,12 +40,12 @@ import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
  * @see CompilePhaseIRRule
  * @see IRRuleMatchResult
  */
-public class IrRule implements Matchable {
+public class IRRule implements Matchable {
     private final int ruleId;
     private final IR irAnno;
     private final MatchableMatcher matcher;
 
-    public IrRule(int ruleId, IR irAnno, MethodDumpHistory methodDumpHistory, VmInfo vmInfo) {
+    public IRRule(int ruleId, IR irAnno, MethodDumpHistory methodDumpHistory, VMInfo vmInfo) {
         this.ruleId = ruleId;
         this.irAnno = irAnno;
         this.matcher = new MatchableMatcher(new CompilePhaseIrRuleBuilder(irAnno, methodDumpHistory).build(vmInfo));

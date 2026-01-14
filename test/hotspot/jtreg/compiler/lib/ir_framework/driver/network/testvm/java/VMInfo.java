@@ -34,7 +34,7 @@ import java.util.regex.Pattern;
 /**
  * This class stores the key value mapping from the VmInfo.
  */
-public class VmInfo implements JavaMessage {
+public class VMInfo implements JavaMessage {
     /**
      * Stores the key-value mapping.
      */
@@ -43,7 +43,7 @@ public class VmInfo implements JavaMessage {
     private static final Pattern CPU_SKYLAKE_PATTERN =
             Pattern.compile("family 6 model 85 stepping (\\d+) ");
 
-    public VmInfo() {
+    public VMInfo() {
         this.keyValueMap = new HashMap<>();
     }
 

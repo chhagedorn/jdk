@@ -24,7 +24,7 @@
 package compiler.lib.ir_framework;
 
 import compiler.lib.ir_framework.driver.irmatching.mapping.*;
-import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
+import compiler.lib.ir_framework.driver.network.testvm.java.VMInfo;
 import compiler.lib.ir_framework.shared.CheckedTestFrameworkException;
 import compiler.lib.ir_framework.shared.TestFormat;
 import compiler.lib.ir_framework.shared.TestFormatException;
@@ -3353,7 +3353,7 @@ public class IRNode {
     /**
      * Parse {@code sizeString} and generate a regex pattern to match for the size in the IR dump.
      */
-    public static String parseVectorNodeSize(String sizeString, String typeString, VmInfo vmInfo) {
+    public static String parseVectorNodeSize(String sizeString, String typeString, VMInfo vmInfo) {
         if (sizeString.equals(VECTOR_SIZE_TAG_ANY)) {
             return "\\\\d+"; // match with any number
         }
@@ -3381,7 +3381,7 @@ public class IRNode {
     /**
      * If {@code sizeTagString} is a size tag, return the list of accepted sizes, else return sizeTagString.
      */
-    public static String parseVectorNodeSizeTag(String sizeTagString, String typeString, VmInfo vmInfo) {
+    public static String parseVectorNodeSizeTag(String sizeTagString, String typeString, VMInfo vmInfo) {
         // Parse out "min(a,b,c,...)"
         if (sizeTagString.startsWith("min(") && sizeTagString.endsWith(")")) {
             return parseVectorNodeSizeTagMin(sizeTagString, typeString, vmInfo);
@@ -3405,7 +3405,7 @@ public class IRNode {
     /**
      * Parse {@code sizeTagString}, which must be a min-clause.
      */
-    public static String parseVectorNodeSizeTagMin(String sizeTagString, String typeString, VmInfo vmInfo) {
+    public static String parseVectorNodeSizeTagMin(String sizeTagString, String typeString, VMInfo vmInfo) {
         String[] tags = sizeTagString.substring(4, sizeTagString.length() - 1).split(",");
         TestFormat.checkNoReport(tags.length > 1, "Vector node size \"min(...)\" must have at least 2 comma separated arguments, got \"" + sizeTagString + "\"");
         int minVal = 1024;
@@ -3425,7 +3425,7 @@ public class IRNode {
     /**
      * Return maximal number of elements that can fit in a vector of the specified type.
      */
-    public static long getMaxElementsForType(String typeString, VmInfo vmInfo) {
+    public static long getMaxElementsForType(String typeString, VMInfo vmInfo) {
         long maxVectorSize = vmInfo.getLongValue("MaxVectorSize");
         TestFormat.checkNoReport(maxVectorSize > 0, "VmInfo: MaxVectorSize is not larger than zero");
         long maxBytes = maxVectorSize;
@@ -3442,7 +3442,7 @@ public class IRNode {
     /**
      * Return maximal number of elements that can fit in a vector of the specified type, on x86 / x64.
      */
-    public static long getMaxElementsForTypeOnX86(String typeString, VmInfo vmInfo) {
+    public static long getMaxElementsForTypeOnX86(String typeString, VMInfo vmInfo) {
         // restrict maxBytes for specific features, see Matcher::vector_width_in_bytes in x86.ad:
         boolean avx1 = vmInfo.hasCPUFeature("avx");
         boolean avx2 = vmInfo.hasCPUFeature("avx2");

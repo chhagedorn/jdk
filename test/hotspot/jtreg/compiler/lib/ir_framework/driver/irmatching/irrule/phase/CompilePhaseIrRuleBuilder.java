@@ -35,7 +35,7 @@ import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.Constraint;
 import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.raw.RawConstraint;
 import compiler.lib.ir_framework.driver.network.testvm.c2.MethodDumpHistory;
 import compiler.lib.ir_framework.driver.network.testvm.c2.CompilePhaseDump;
-import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
+import compiler.lib.ir_framework.driver.network.testvm.java.VMInfo;
 import compiler.lib.ir_framework.shared.TestFormat;
 
 import java.util.*;
@@ -62,7 +62,7 @@ public class CompilePhaseIrRuleBuilder {
         this.rawCountsConstraints = new RawCounts(irAnno.counts()).createRawConstraints();
     }
 
-    public SortedSet<CompilePhaseIRRuleMatchable> build(VmInfo vmInfo) {
+    public SortedSet<CompilePhaseIRRuleMatchable> build(VMInfo vmInfo) {
         CompilePhase[] compilePhases = irAnno.phase();
         TestFormat.checkNoReport(new HashSet<>(List.of(compilePhases)).size() == compilePhases.length,
                                  "Cannot specify a compile phase twice");
@@ -77,7 +77,7 @@ public class CompilePhaseIrRuleBuilder {
         return compilePhaseIrRules;
     }
 
-    private void createCompilePhaseIrRulesForDefault(VmInfo vmInfo) {
+    private void createCompilePhaseIrRulesForDefault(VMInfo vmInfo) {
         DefaultPhaseRawConstraintParser parser = new DefaultPhaseRawConstraintParser(methodDumpHistory);
         Map<CompilePhase, List<Matchable>> checkAttributesForCompilePhase =
                 parser.parse(rawFailOnConstraints, rawCountsConstraints, vmInfo);
@@ -91,7 +91,7 @@ public class CompilePhaseIrRuleBuilder {
         });
     }
 
-    private void createCompilePhaseIrRule(CompilePhaseDump compilePhaseDump, VmInfo vmInfo) {
+    private void createCompilePhaseIrRule(CompilePhaseDump compilePhaseDump, VMInfo vmInfo) {
         List<Constraint> failOnConstraints = parseRawConstraints(rawFailOnConstraints, compilePhaseDump, vmInfo);
         List<Constraint> countsConstraints = parseRawConstraints(rawCountsConstraints, compilePhaseDump, vmInfo);
         if (compilePhaseDump.isEmpty()) {
@@ -117,7 +117,7 @@ public class CompilePhaseIrRuleBuilder {
 
     private List<Constraint> parseRawConstraints(List<RawConstraint> rawConstraints,
                                                  CompilePhaseDump compilePhaseDump,
-                                                 VmInfo vmInfo) {
+                                                 VMInfo vmInfo) {
         List<Constraint> constraintResultList = new ArrayList<>();
         for (RawConstraint rawConstraint : rawConstraints) {
             constraintResultList.add(rawConstraint.parse(compilePhaseDump, vmInfo));

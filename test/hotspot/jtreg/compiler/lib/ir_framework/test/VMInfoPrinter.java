@@ -30,7 +30,7 @@ import jdk.test.whitebox.WhiteBox;
 /**
  * Prints some test VM info to the socket.
  */
-public class VmInfoPrinter {
+public class VMInfoPrinter {
     private static final WhiteBox WHITE_BOX = WhiteBox.getWhiteBox();
 
     public static void emit() {

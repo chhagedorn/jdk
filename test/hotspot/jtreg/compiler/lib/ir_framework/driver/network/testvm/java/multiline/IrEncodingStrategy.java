@@ -23,7 +23,7 @@
 
 package compiler.lib.ir_framework.driver.network.testvm.java.multiline;
 
-import compiler.lib.ir_framework.driver.network.testvm.java.IrEncoding;
+import compiler.lib.ir_framework.driver.network.testvm.java.IREncoding;
 import compiler.lib.ir_framework.driver.network.testvm.java.IrRuleIds;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 import compiler.lib.ir_framework.test.IrEncodingPrinter;
@@ -32,13 +32,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Dedicated strategy to parse the multi-line IR Encoding message into a new {@link IrEncoding} object.
+ * Dedicated strategy to parse the multi-line IR Encoding message into a new {@link IREncoding} object.
  */
-public class IrEncodingStrategy implements MultiLineParsingStrategy<IrEncoding> {
-    private final IrEncoding irEncoding;
+public class IrEncodingStrategy implements MultiLineParsingStrategy<IREncoding> {
+    private final IREncoding irEncoding;
 
     public IrEncodingStrategy() {
-        this.irEncoding = new IrEncoding();
+        this.irEncoding = new IREncoding();
     }
 
     @Override
@@ -72,7 +72,7 @@ public class IrEncodingStrategy implements MultiLineParsingStrategy<IrEncoding> 
     }
 
     @Override
-    public IrEncoding output() {
+    public IREncoding output() {
         return irEncoding;
     }
 }

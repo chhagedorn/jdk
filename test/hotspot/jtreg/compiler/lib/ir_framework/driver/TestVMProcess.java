@@ -48,7 +48,7 @@ import java.util.regex.Pattern;
  * @see TestVM
  * @see TestFrameworkSocket
  */
-public class TestVmProcess {
+public class TestVMProcess {
     private static final boolean VERBOSE = Boolean.getBoolean("Verbose");
     private static final boolean PREFER_COMMAND_LINE_FLAGS = Boolean.getBoolean("PreferCommandLineFlags");
     private static final int WARMUP_ITERATIONS = Integer.getInteger("Warmup", -1);
@@ -63,7 +63,7 @@ public class TestVmProcess {
     private OutputAnalyzer oa;
     private final TestVmData testVmData;
 
-    public TestVmProcess(List<String> additionalFlags, Class<?> testClass, Set<Class<?>> helperClasses, int defaultWarmup,
+    public TestVMProcess(List<String> additionalFlags, Class<?> testClass, Set<Class<?>> helperClasses, int defaultWarmup,
                          boolean allowNotCompilable, boolean testClassesOnBootClassPath) {
         this.cmds = new ArrayList<>();
         TestFrameworkSocket socket = new TestFrameworkSocket();

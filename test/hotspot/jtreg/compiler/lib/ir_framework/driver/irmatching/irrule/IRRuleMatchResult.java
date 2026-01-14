@@ -33,11 +33,11 @@ import compiler.lib.ir_framework.driver.irmatching.visitor.MatchResultVisitor;
 import java.util.List;
 
 /**
- * This class represents a match result of an {@link IrRule} (applied to all compile phases specified in
+ * This class represents a match result of an {@link IRRule} (applied to all compile phases specified in
  * {@link IR#phase()}). The {@link CompilePhaseIRRuleMatchResult} are kept in the definition order of the compile phases
  * in {@link CompilePhase}.
  *
- * @see IrRule
+ * @see IRRule
  */
 public class IRRuleMatchResult implements MatchResult {
     private final AcceptChildren acceptChildren;

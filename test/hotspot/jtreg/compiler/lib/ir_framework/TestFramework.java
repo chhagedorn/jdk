@@ -25,7 +25,7 @@ package compiler.lib.ir_framework;
 
 import compiler.lib.ir_framework.driver.FlagVMProcess;
 import compiler.lib.ir_framework.driver.TestVMException;
-import compiler.lib.ir_framework.driver.TestVmProcess;
+import compiler.lib.ir_framework.driver.TestVMProcess;
 import compiler.lib.ir_framework.driver.irmatching.IRMatcher;
 import compiler.lib.ir_framework.driver.irmatching.IRViolationException;
 import compiler.lib.ir_framework.driver.irmatching.Matchable;
@@ -509,7 +509,7 @@ public class TestFramework {
      * @return the last test VM output.
      */
     public static String getLastTestVMOutput() {
-        return TestVmProcess.getLastTestVMOutput();
+        return TestVMProcess.getLastTestVMOutput();
     }
 
     /*
@@ -839,7 +839,7 @@ public class TestFramework {
             runTestVM(additionalFlags);
         } finally {
             if (scenario != null) {
-                scenario.setTestVMOutput(TestVmProcess.getLastTestVMOutput());
+                scenario.setTestVMOutput(TestVMProcess.getLastTestVMOutput());
             }
             System.out.println();
         }
@@ -876,7 +876,7 @@ public class TestFramework {
     }
 
     private void runTestVM(List<String> additionalFlags) {
-        TestVmProcess testVmProcess = new TestVmProcess(additionalFlags, testClass, helperClasses, defaultWarmup,
+        TestVMProcess testVmProcess = new TestVMProcess(additionalFlags, testClass, helperClasses, defaultWarmup,
                                                         allowNotCompilable, testClassesOnBootClassPath);
         if (shouldVerifyIR) {
             try {

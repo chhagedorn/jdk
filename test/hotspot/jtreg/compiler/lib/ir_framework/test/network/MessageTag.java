@@ -28,6 +28,6 @@ public class MessageTag {
     public static final String TEST_LIST = "[TEST_LIST]";
     public static final String PRINT_TIMES = "[PRINT_TIMES]";
     public static final String VM_INFO = "[VM_INFO]";
-    public static final String IR_ENCODING = "[IR_ENCODING]"; // TODO: Rename?
+    public static final String IR_ENCODING = "[IR_ENCODING]";
     public static final String END_MARKER = "#END#";
 }

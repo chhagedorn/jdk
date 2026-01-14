@@ -31,9 +31,9 @@ import compiler.lib.ir_framework.driver.irmatching.irmethod.NotCompiledIRMethod;
 import compiler.lib.ir_framework.driver.network.TestVmData;
 import compiler.lib.ir_framework.driver.network.testvm.c2.MethodDumpHistory;
 import compiler.lib.ir_framework.driver.network.testvm.c2.MethodDumps;
-import compiler.lib.ir_framework.driver.network.testvm.java.IrEncoding;
+import compiler.lib.ir_framework.driver.network.testvm.java.IREncoding;
 import compiler.lib.ir_framework.driver.network.testvm.java.IrRuleIds;
-import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
+import compiler.lib.ir_framework.driver.network.testvm.java.VMInfo;
 import compiler.lib.ir_framework.shared.TestFormat;
 
 import java.lang.reflect.Method;
@@ -47,10 +47,10 @@ import java.util.TreeSet;
  */
 public class TestClassBuilder {
     private final Class<?> testClass;
-    private final IrEncoding irEncoding;
+    private final IREncoding irEncoding;
     private final MethodDumps methodDumps;
     private final boolean allowNotCompilable;
-    private final VmInfo vmInfo;
+    private final VMInfo vmInfo;
 
     public TestClassBuilder(Class<?> testClass, TestVmData testVmData) {
         this.testClass = testClass;

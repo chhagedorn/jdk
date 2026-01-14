@@ -32,7 +32,7 @@ import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.Constraint;
 import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.raw.RawConstraint;
 import compiler.lib.ir_framework.driver.network.testvm.c2.MethodDumpHistory;
 import compiler.lib.ir_framework.driver.network.testvm.c2.CompilePhaseDump;
-import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
+import compiler.lib.ir_framework.driver.network.testvm.java.VMInfo;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 
 import java.util.ArrayList;
@@ -55,7 +55,7 @@ class DefaultPhaseRawConstraintParser {
 
     public Map<CompilePhase, List<Matchable>> parse(List<RawConstraint> rawFailOnConstraints,
                                                     List<RawConstraint> rawCountsConstraints,
-                                                    VmInfo vmInfo) {
+                                                    VMInfo vmInfo) {
         Map<CompilePhase, Matchable> failOnForCompilePhase = parseRawConstraints(rawFailOnConstraints,
                                                                                  CheckAttributeType.FAIL_ON,
                                                                                  vmInfo);
@@ -67,7 +67,7 @@ class DefaultPhaseRawConstraintParser {
 
     private Map<CompilePhase, Matchable> parseRawConstraints(List<RawConstraint> rawConstraints,
                                                              CheckAttributeType checkAttributeType,
-                                                             VmInfo vmInfo) {
+                                                             VMInfo vmInfo) {
         Map<CompilePhase, List<Constraint>> matchableForCompilePhase = new HashMap<>();
         for (RawConstraint rawConstraint : rawConstraints) {
             CompilePhase compilePhase = rawConstraint.defaultCompilePhase();

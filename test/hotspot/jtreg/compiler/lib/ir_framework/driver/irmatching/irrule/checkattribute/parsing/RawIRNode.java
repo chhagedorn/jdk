@@ -25,7 +25,7 @@ package compiler.lib.ir_framework.driver.irmatching.irrule.checkattribute.parsin
 
 import compiler.lib.ir_framework.CompilePhase;
 import compiler.lib.ir_framework.IRNode;
-import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
+import compiler.lib.ir_framework.driver.network.testvm.java.VMInfo;
 import compiler.lib.ir_framework.shared.Comparison;
 import compiler.lib.ir_framework.shared.TestFormat;
 import compiler.lib.ir_framework.driver.SuccessOnlyConstraintException;
@@ -57,7 +57,7 @@ public class RawIRNode {
         return IRNode.getDefaultPhase(node);
     }
 
-    public String regex(CompilePhase compilePhase, VmInfo vmInfo, Comparison.Bound bound) {
+    public String regex(CompilePhase compilePhase, VMInfo vmInfo, Comparison.Bound bound) {
         String nodeRegex = node;
         if (IRNode.isIRNode(node)) {
             nodeRegex = IRNode.getRegexForCompilePhase(node, compilePhase);
@@ -70,7 +70,7 @@ public class RawIRNode {
         return nodeRegex;
     }
 
-    private String regexForVectorIRNode(String nodeRegex, VmInfo vmInfo, Comparison.Bound bound) {
+    private String regexForVectorIRNode(String nodeRegex, VMInfo vmInfo, Comparison.Bound bound) {
         String type = IRNode.getVectorNodeType(node);
         TestFormat.checkNoReport(IRNode.getTypeSizeInBytes(type) > 0,
                                  "Vector node's type must have valid type, got \"" + type + "\" for \"" + node + "\"");

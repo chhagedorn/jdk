@@ -29,10 +29,10 @@ import compiler.lib.ir_framework.Test;
 import compiler.lib.ir_framework.driver.irmatching.MatchResult;
 import compiler.lib.ir_framework.driver.irmatching.Matchable;
 import compiler.lib.ir_framework.driver.irmatching.MatchableMatcher;
-import compiler.lib.ir_framework.driver.irmatching.irrule.IrRule;
+import compiler.lib.ir_framework.driver.irmatching.irrule.IRRule;
 import compiler.lib.ir_framework.driver.network.testvm.c2.MethodDumpHistory;
 import compiler.lib.ir_framework.driver.network.testvm.java.IrRuleIds;
-import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
+import compiler.lib.ir_framework.driver.network.testvm.java.VMInfo;
 import compiler.lib.ir_framework.shared.TestFormat;
 import compiler.lib.ir_framework.shared.TestFormatException;
 
@@ -47,25 +47,25 @@ import static compiler.lib.ir_framework.TestFramework.PRINT_RULE_MATCHING_TIME;
  * {@link IR @IR} rules.
  *
  * @see IR
- * @see IrRule
+ * @see IRRule
  * @see IRMethodMatchResult
  */
 public class IRMethod implements IRMethodMatchable {
     private final Method method;
     private final MatchableMatcher matcher;
 
-    public IRMethod(Method method, IrRuleIds irRuleIds, MethodDumpHistory methodDumpHistory, VmInfo vmInfo) {
+    public IRMethod(Method method, IrRuleIds irRuleIds, MethodDumpHistory methodDumpHistory, VMInfo vmInfo) {
         this.method = method;
         this.matcher = new MatchableMatcher(createIRRules(method, irRuleIds, methodDumpHistory, vmInfo));
     }
 
     private List<Matchable> createIRRules(Method method, IrRuleIds irRuleIds, MethodDumpHistory methodDumpHistory,
-                                          VmInfo vmInfo) {
+                                          VMInfo vmInfo) {
         List<Matchable> irRules = new ArrayList<>();
         IR[] irAnnos = method.getAnnotationsByType(IR.class);
         for (int ruleId : irRuleIds) {
             try {
-                irRules.add(new IrRule(ruleId, irAnnos[ruleId - 1], methodDumpHistory, vmInfo));
+                irRules.add(new IRRule(ruleId, irAnnos[ruleId - 1], methodDumpHistory, vmInfo));
             } catch (TestFormatException e) {
                 String postfixErrorMsg = " for IR rule " + ruleId + " at " + method + ".";
                 TestFormat.failNoThrow(e.getMessage() + postfixErrorMsg);

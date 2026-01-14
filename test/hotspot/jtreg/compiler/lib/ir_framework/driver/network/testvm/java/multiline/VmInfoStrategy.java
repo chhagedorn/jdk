@@ -23,17 +23,17 @@
 
 package compiler.lib.ir_framework.driver.network.testvm.java.multiline;
 
-import compiler.lib.ir_framework.driver.network.testvm.java.VmInfo;
+import compiler.lib.ir_framework.driver.network.testvm.java.VMInfo;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 
 /**
- * Dedicated strategy to parse the multi-line VM info message into a new {@link VmInfo} object.
+ * Dedicated strategy to parse the multi-line VM info message into a new {@link VMInfo} object.
  */
-public class VmInfoStrategy implements MultiLineParsingStrategy<VmInfo> {
-    private final VmInfo vmInfo;
+public class VmInfoStrategy implements MultiLineParsingStrategy<VMInfo> {
+    private final VMInfo vmInfo;
 
     public VmInfoStrategy() {
-        this.vmInfo = new VmInfo();
+        this.vmInfo = new VMInfo();
     }
 
     @Override
@@ -48,7 +48,7 @@ public class VmInfoStrategy implements MultiLineParsingStrategy<VmInfo> {
     }
 
     @Override
-    public VmInfo output() {
+    public VMInfo output() {
         return vmInfo;
     }
 }

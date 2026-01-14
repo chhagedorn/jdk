@@ -32,27 +32,27 @@ public class JavaMessages {
     private final StdoutMessages stdoutMessages;
     private final MethodTimes methodTimes;
     private final ExecutedTests executedTests;
-    private VmInfo vmInfo;
-    private IrEncoding irEncoding;
+    private VMInfo vmInfo;
+    private IREncoding irEncoding;
 
     JavaMessages() {
         this.stdoutMessages = new StdoutMessages();
         this.executedTests = new ExecutedTests();
         this.methodTimes = new MethodTimes();
-        this.vmInfo = new VmInfo();
-        this.irEncoding = new IrEncoding();
+        this.vmInfo = new VMInfo();
+        this.irEncoding = new IREncoding();
     }
 
     /**
      * Should only be queried when IR Matching will be done. Otherwise, the VM Info is empty and a
      * {@link TestFrameworkException} is thrown.
      */
-    public VmInfo vmInfo() {
+    public VMInfo vmInfo() {
         vmInfo.verify();
         return vmInfo;
     }
 
-    public IrEncoding irEncoding() {
+    public IREncoding irEncoding() {
         return irEncoding;
     }
 
@@ -68,11 +68,11 @@ public class JavaMessages {
         methodTimes.add(methodTime);
     }
 
-    void addVmInfo(VmInfo vmInfo) {
+    void addVmInfo(VMInfo vmInfo) {
         this.vmInfo = vmInfo;
     }
 
-    void addIrEncoding(IrEncoding irEncoding) {
+    void addIrEncoding(IREncoding irEncoding) {
         this.irEncoding = irEncoding;
     }
 
