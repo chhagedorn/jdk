@@ -26,7 +26,9 @@ package compiler.lib.ir_framework.shared;
 import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.driver.network.*;
 import compiler.lib.ir_framework.driver.network.testvm.TestVmMessageReader;
+import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessageParser;
 import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessages;
+import compiler.lib.ir_framework.test.TestVM;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -94,15 +96,32 @@ public class TestFrameworkSocket implements AutoCloseable {
     private void acceptNewClientConnection() throws IOException {
         Socket client = serverSocket.accept();
         BufferedReader reader = new BufferedReader(new InputStreamReader(client.getInputStream()));
-        submitTask(client, reader);
+        String identity = readIdentity(client, reader).trim();
+        submitTask(identity, client, reader);
+    }
+
+    private String readIdentity(Socket client, BufferedReader reader) throws IOException {
+        String identity;
+        try {
+            client.setSoTimeout(10000);
+            identity = reader.readLine();
+            client.setSoTimeout(0);
+        } catch (SocketTimeoutException e) {
+            throw new TestFrameworkException("Did not receive initial identity message after 10s", e);
+        }
+        return identity;
     }
 
     /**
      * Submit dedicated tasks which are wrapped into {@link Future} objects. The tasks will read all messages sent
      * over that connection.
      */
-    private void submitTask(Socket client, BufferedReader reader) {
-        javaFuture = executor.submit(new TestVmMessageReader(client, reader));
+    private void submitTask(String identity, Socket client, BufferedReader reader) {
+        if (identity.equals(TestVM.IDENTITY)) {
+            javaFuture = executor.submit(new TestVmMessageReader<>(client, reader, new JavaMessageParser()));
+        } else {
+            throw new TestFrameworkException("Unrecognized identity: " + identity);
+        }
     }
 
     @Override

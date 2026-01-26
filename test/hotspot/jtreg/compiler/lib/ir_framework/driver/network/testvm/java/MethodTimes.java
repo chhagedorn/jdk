@@ -21,13 +21,41 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.test.network;
+package compiler.lib.ir_framework.driver.network.testvm.java;
 
-public class MessageTag {
-    public static final String STDOUT = "[STDOUT]";
-    public static final String TEST_LIST = "[TEST_LIST]";
-    public static final String PRINT_TIMES = "[PRINT_TIMES]";
-    public static final String VM_INFO = "[VM_INFO]";
-    public static final String APPLICABLE_IR_RULES = "[APPLICABLE_IR_RULES]";
-    public static final String END_MARKER = "#END#";
+import compiler.lib.ir_framework.test.network.MessageTag;
+
+import java.util.ArrayList;
+import java.util.List;
+
+
+/**
+ * Class to collect all Java Messages sent with tag {@link MessageTag#PRINT_TIMES}. These are only generated when the
+ * user runs with {@code -DPrintTimes=true}.
+ */
+class MethodTimes implements JavaMessage {
+    private final List<String> methodTimes;
+
+    public MethodTimes() {
+        this.methodTimes = new ArrayList<>();
+    }
+
+    public void add(String time) {
+        methodTimes.add(time);
+    }
+
+    @Override
+    public void print() {
+        if (methodTimes.isEmpty()) {
+            return;
+        }
+
+        System.out.println();
+        System.out.println("Test Execution Times");
+        System.out.println("--------------------");
+        for (String methodTime : methodTimes) {
+            System.out.println("- " + methodTime);
+        }
+        System.out.println();
+    }
 }

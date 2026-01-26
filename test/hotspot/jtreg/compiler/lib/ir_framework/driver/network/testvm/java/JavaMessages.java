@@ -23,23 +23,62 @@
 
 package compiler.lib.ir_framework.driver.network.testvm.java;
 
+import compiler.lib.ir_framework.TestFramework;
+
 /**
  * Class to collect all Java messages sent from the Test VM to the Driver VM.
  */
 public class JavaMessages {
-    private final String output;
-    private final boolean receivedStdOut;
+    private static final boolean PRINT_APPLICABLE_IR_RULES = Boolean.parseBoolean(System.getProperty("PrintApplicableIRRules", "false"));
 
-    public JavaMessages(String output, boolean receivedStdOut) {
-        this.output = output;
-        this.receivedStdOut = receivedStdOut;
+    private final StdoutMessages stdoutMessages;
+    private final MethodTimes methodTimes;
+    private final ExecutedTests executedTests;
+    private String applicableIrRules;
+    private String vmInfo;
+
+    JavaMessages() {
+        this.stdoutMessages = new StdoutMessages();
+        this.executedTests = new ExecutedTests();
+        this.methodTimes = new MethodTimes();
+        this.applicableIrRules = "";
     }
 
-    public String output() {
-        return output;
+    public String applicableIRRules() {
+        return applicableIrRules;
     }
 
-    public boolean hasStdOut() {
-        return receivedStdOut;
+    public String vmInfo() {
+        return vmInfo;
+    }
+
+    void addStdoutLine(String line) {
+        stdoutMessages.add(line);
+    }
+
+    void addExecutedTest(String test) {
+        executedTests.add(test);
+    }
+
+    void addMethodTime(String methodTime) {
+        methodTimes.add(methodTime);
+    }
+
+    void addApplicableIRRules(String applicableIrRules) {
+        this.applicableIrRules = applicableIrRules;
+    }
+
+    void addVmInfo(String vmInfo) {
+        this.vmInfo = vmInfo;
+    }
+
+    public void print() {
+        stdoutMessages.print();
+        methodTimes.print();
+        executedTests.print();
+        if (TestFramework.VERBOSE || PRINT_APPLICABLE_IR_RULES) {
+            System.out.println("Read Applicable IR Rules from Test VM:");
+            System.out.println(applicableIrRules);
+        }
     }
 }
