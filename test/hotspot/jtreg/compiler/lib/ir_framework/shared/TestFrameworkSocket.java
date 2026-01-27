@@ -26,6 +26,7 @@ package compiler.lib.ir_framework.shared;
 import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.driver.network.*;
 import compiler.lib.ir_framework.driver.network.testvm.TestVmMessageReader;
+import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessageParser;
 import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessages;
 
 import java.io.BufferedReader;
@@ -101,7 +102,7 @@ public class TestFrameworkSocket implements AutoCloseable {
      * over that connection.
      */
     private void submitTask(Socket client, BufferedReader reader) {
-        javaFuture = executor.submit(new TestVmMessageReader(client, reader));
+        javaFuture = executor.submit(new TestVmMessageReader<>(client, reader, new JavaMessageParser()));
     }
 
     @Override

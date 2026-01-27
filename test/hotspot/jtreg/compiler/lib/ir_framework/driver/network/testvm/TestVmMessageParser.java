@@ -21,13 +21,29 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.test.network;
+package compiler.lib.ir_framework.driver.network.testvm;
 
-public class MessageTag {
-    public static final String STDOUT = "[STDOUT]";
-    public static final String TEST_LIST = "[TEST_LIST]";
-    public static final String PRINT_TIMES = "[PRINT_TIMES]";
-    public static final String VM_INFO = "[VM_INFO]";
-    public static final String APPLICABLE_IR_RULES = "[APPLICABLE_IR_RULES]";
-    public static final String END_MARKER = "#END#";
+import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessage;
+import compiler.lib.ir_framework.shared.TestFrameworkSocket;
+
+/**
+ * We currently have only one type of Test VM messages sent to the {@link TestFrameworkSocket}:
+ * - {@link JavaMessage}: A message sent from Java code.
+ *
+ * <p>
+ * Later, we will add C2 messages as well as second type with JDK-8375270.
+ * Both kinds of messages are parsed differently by classing implementing this interface.
+ */
+public interface TestVmMessageParser<Output> {
+    /**
+     * Parse a single line of a received Test VM message.
+     *
+     * @param line A single message line forwarded by {@link TestVmMessageReader}.
+     */
+    void parseLine(String line);
+
+    /**
+     * Once parsing is done, this method returns the final output.
+     */
+    Output output();
 }

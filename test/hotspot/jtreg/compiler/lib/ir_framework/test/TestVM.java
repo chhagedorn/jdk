@@ -836,7 +836,6 @@ public class TestVM {
      * Once all framework tests are collected, they are run in this method.
      */
     private void runTests() {
-        TreeMap<Long, String> durations = PRINT_TIMES ? new TreeMap<>() : null;
         long startTime = System.nanoTime();
         List<AbstractTest> testList;
         boolean testFilterPresent = testFilterPresent();
@@ -865,7 +864,7 @@ public class TestVM {
                 System.out.println("Run " + test.toString());
             }
             if (testFilterPresent) {
-                TestVmSocket.send(MessageTag.TEST_LIST + "Run " + test.toString());
+                TestVmSocket.sendWithTag(MessageTag.TEST_LIST, "Run " + test.toString());
             }
             try {
                 test.run();
@@ -880,22 +879,14 @@ public class TestVM {
             if (PRINT_TIMES) {
                 long endTime = System.nanoTime();
                 long duration = (endTime - startTime);
-                durations.put(duration, test.getName());
                 if (VERBOSE) {
                     System.out.println("Done " + test.getName() + ": " + duration + " ns = " + (duration / 1000000) + " ms");
                 }
+                TestVmSocket.sendWithTag(MessageTag.PRINT_TIMES, String.format("%-25s%15d ns%n", test.getName() + ":", duration));
             }
             if (GC_AFTER) {
                 System.out.println("doing GC");
                 WHITE_BOX.fullGC();
-            }
-        }
-
-        // Print execution times
-        if (PRINT_TIMES) {
-            TestVmSocket.send(MessageTag.PRINT_TIMES + " Test execution times:");
-            for (Map.Entry<Long, String> entry : durations.entrySet()) {
-                TestVmSocket.send(MessageTag.PRINT_TIMES + String.format("%-25s%15d ns%n", entry.getValue() + ":", entry.getKey()));
             }
         }
 
