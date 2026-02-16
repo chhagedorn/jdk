@@ -24,7 +24,6 @@
 package compiler.lib.ir_framework.driver.network.testvm.java;
 
 import compiler.lib.ir_framework.TestFramework;
-import compiler.lib.ir_framework.driver.network.testvm.TestVmMessageParser;
 import compiler.lib.ir_framework.test.network.MessageTag;
 
 import java.util.regex.Matcher;
@@ -33,10 +32,10 @@ import java.util.regex.Pattern;
 import static compiler.lib.ir_framework.test.network.MessageTag.*;
 
 /**
- * Dedicated parser for {@link JavaMessages} received from the Test VM. Depending on the parsed{@link MessageTag}, the
+ * Dedicated parser for {@link JavaMessages} received from the Test VM. Depending on the parsed {@link MessageTag}, the
  * message is parsed differently.
  */
-public class JavaMessageParser implements TestVmMessageParser<JavaMessages> {
+public class JavaMessageParser {
     private static final Pattern TAG_PATTERN = Pattern.compile("^(\\[[^]]+])\\s*(.*)$");
     private static final StringBuilder EMPTY_BUILDER = new StringBuilder();
 
@@ -52,7 +51,6 @@ public class JavaMessageParser implements TestVmMessageParser<JavaMessages> {
         this.applicableIrRules = new StringBuilder();
     }
 
-    @Override
     public void parseLine(String line) {
         line = line.trim();
         Matcher tagLineMatcher = TAG_PATTERN.matcher(line);
@@ -93,7 +91,6 @@ public class JavaMessageParser implements TestVmMessageParser<JavaMessages> {
         currentBuilder = EMPTY_BUILDER;
     }
 
-    @Override
     public JavaMessages output() {
         javaMessages.addVmInfo(vmInfoBuilder.toString());
         javaMessages.addApplicableIRRules(applicableIrRules.toString());

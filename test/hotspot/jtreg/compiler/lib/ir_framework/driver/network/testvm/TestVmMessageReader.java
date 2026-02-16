@@ -23,6 +23,8 @@
 
 package compiler.lib.ir_framework.driver.network.testvm;
 
+import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessageParser;
+import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessages;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 import compiler.lib.ir_framework.shared.TestFrameworkSocket;
 
@@ -33,23 +35,23 @@ import java.util.concurrent.Future;
 
 /**
  * Dedicated reader for Test VM messages received by the {@link TestFrameworkSocket}. The reader is used as a task
- * wrapped in a {@link Future}. The received messages are parsed with the provided {@link TestVmMessageParser}. Once the
- * Test VM is terminated, client connection is closed and the parsed messages can be fetched with {@link Future#get()}
- * which calls {@link #call()}.
+ * wrapped in a {@link Future}. The received messages are parsed with the {@link JavaMessageParser}. Once the Test VM
+ * is terminated, client connection is closed and the parsed messages can be fetched with {@link Future#get()} which
+ * calls {@link #call()}.
  */
-public class TestVmMessageReader<Output> implements Callable<Output> {
+public class TestVmMessageReader implements Callable<JavaMessages> {
     private final Socket socket;
     private final BufferedReader reader;
-    private final TestVmMessageParser<Output> messageParser;
+    private final JavaMessageParser messageParser;
 
-    public TestVmMessageReader(Socket socket, BufferedReader reader, TestVmMessageParser<Output> messageParser) {
+    public TestVmMessageReader(Socket socket, BufferedReader reader) {
         this.socket = socket;
         this.reader = reader;
-        this.messageParser = messageParser;
+        this.messageParser = new JavaMessageParser();
     }
 
     @Override
-    public Output call() {
+    public JavaMessages call() {
         try (socket; reader) {
             String line;
             while ((line = reader.readLine()) != null) {
