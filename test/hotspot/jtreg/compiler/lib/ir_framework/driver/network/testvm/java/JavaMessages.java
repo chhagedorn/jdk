@@ -32,16 +32,18 @@ public class JavaMessages {
     private static final boolean PRINT_APPLICABLE_IR_RULES = Boolean.parseBoolean(System.getProperty("PrintApplicableIRRules", "false"));
 
     private final StdoutMessages stdoutMessages;
-    private final MethodTimes methodTimes;
     private final ExecutedTests executedTests;
-    private String applicableIrRules;
-    private String vmInfo;
+    private final MethodTimes methodTimes;
+    private final String applicableIrRules;
+    private final String vmInfo;
 
-    JavaMessages() {
-        this.stdoutMessages = new StdoutMessages();
-        this.executedTests = new ExecutedTests();
-        this.methodTimes = new MethodTimes();
-        this.applicableIrRules = "";
+    JavaMessages(StdoutMessages stdoutMessages, ExecutedTests executedTests, MethodTimes methodTimes,
+                 String applicableIrRules, String vmInfo) {
+        this.stdoutMessages = stdoutMessages;
+        this.executedTests = executedTests;
+        this.methodTimes = methodTimes;
+        this.applicableIrRules = applicableIrRules;
+        this.vmInfo = vmInfo;
     }
 
     public String applicableIRRules() {
@@ -50,26 +52,6 @@ public class JavaMessages {
 
     public String vmInfo() {
         return vmInfo;
-    }
-
-    void addStdoutLine(String line) {
-        stdoutMessages.add(line);
-    }
-
-    void addExecutedTest(String test) {
-        executedTests.add(test);
-    }
-
-    void addMethodTime(String methodTime) {
-        methodTimes.add(methodTime);
-    }
-
-    void addApplicableIRRules(String applicableIrRules) {
-        this.applicableIrRules = applicableIrRules;
-    }
-
-    void addVmInfo(String vmInfo) {
-        this.vmInfo = vmInfo;
     }
 
     public void print() {

@@ -25,23 +25,19 @@ package compiler.lib.ir_framework.driver.network.testvm.java;
 
 import compiler.lib.ir_framework.test.network.MessageTag;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 
 /**
  * Class to collect all Java Messages sent with tag {@link MessageTag#PRINT_TIMES}. These are only generated when the
- * user runs with {@code -DPrintTimes=true}.
+ * user runs with {@code -DPrintTimes=true} and represent the execution times for methods.
  */
 class MethodTimes implements JavaMessage {
-    private final List<String> methodTimes;
+    private final Map<String, Long> methodTimes;
 
-    public MethodTimes() {
-        this.methodTimes = new ArrayList<>();
-    }
-
-    public void add(String time) {
-        methodTimes.add(time);
+    public MethodTimes(Map<String, Long> methodTimes) {
+        this.methodTimes = methodTimes;
     }
 
     @Override
@@ -53,9 +49,37 @@ class MethodTimes implements JavaMessage {
         System.out.println();
         System.out.println("Test Execution Times");
         System.out.println("--------------------");
-        for (String methodTime : methodTimes) {
-            System.out.println("- " + methodTime);
+
+        int maxWidthNames = maxMethodNameWidth();
+        int maxDurationsWidth = maxDurationsWidth();
+        List<Map.Entry<String, Long>>  sortedMethodTimes = sortByDurationAsc();
+
+        for (Map.Entry<String, Long> entry : sortedMethodTimes) {
+            System.out.printf("- %-" + (maxWidthNames + 3) + "s %" + maxDurationsWidth + "d ns%n",
+                              entry.getKey() + ":", entry.getValue());
         }
+
         System.out.println();
     }
+
+    private int maxMethodNameWidth() {
+        return methodTimes.keySet().stream()
+                .mapToInt(String::length)
+                .max()
+                .orElseThrow();
+    }
+
+    private int maxDurationsWidth() {
+        return methodTimes.values().stream()
+                .mapToInt(v -> Long.toString(v).length())
+                .max()
+                .orElseThrow();
+    }
+
+    private List<Map.Entry<String, Long>> sortByDurationAsc() {
+        return methodTimes.entrySet().stream()
+                .sorted(Map.Entry.comparingByValue())
+                .toList();
+    }
+
 }
