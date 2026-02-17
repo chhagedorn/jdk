@@ -25,7 +25,6 @@ package compiler.lib.ir_framework.driver.network.testvm.java;
 
 import compiler.lib.ir_framework.test.network.MessageTag;
 
-import java.util.ArrayList;
 import java.util.List;
 
 
@@ -36,12 +35,8 @@ import java.util.List;
 class StdoutMessages implements JavaMessage {
     private final List<String> messages;
 
-    public StdoutMessages() {
-        this.messages = new ArrayList<>();
-    }
-
-    public void add(String time) {
-        messages.add(time);
+    public StdoutMessages(List<String> messages) {
+        this.messages = messages;
     }
 
     @Override

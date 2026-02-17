@@ -26,6 +26,8 @@ package compiler.lib.ir_framework.driver.network.testvm.java;
 import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.test.network.MessageTag;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -39,16 +41,21 @@ public class JavaMessageParser {
     private static final Pattern TAG_PATTERN = Pattern.compile("^(\\[[^]]+])\\s*(.*)$");
     private static final StringBuilder EMPTY_BUILDER = new StringBuilder();
 
-    private final JavaMessages javaMessages;
-    private StringBuilder currentBuilder;
+    private final List<String> stdoutMessages;
+    private final List<String> executedTests;
+    private final List<String> methodTimes;
     private final StringBuilder vmInfoBuilder;
     private final StringBuilder applicableIrRules;
 
+    private StringBuilder currentBuilder;
+
     public JavaMessageParser() {
-        this.javaMessages = new JavaMessages();
-        this.currentBuilder = EMPTY_BUILDER;
+        this.stdoutMessages = new ArrayList<>();
+        this.methodTimes = new ArrayList<>();
+        this.executedTests = new ArrayList<>();
         this.vmInfoBuilder = new StringBuilder();
         this.applicableIrRules = new StringBuilder();
+        this.currentBuilder = EMPTY_BUILDER;
     }
 
     public void parseLine(String line) {
@@ -75,9 +82,9 @@ public class JavaMessageParser {
         String tag = tagLineMatcher.group(1);
         String message = tagLineMatcher.group(2);
         switch (tag) {
-            case STDOUT -> javaMessages.addStdoutLine(message);
-            case TEST_LIST -> javaMessages.addExecutedTest(message);
-            case PRINT_TIMES -> javaMessages.addMethodTime(message);
+            case STDOUT -> stdoutMessages.add(message);
+            case TEST_LIST -> executedTests.add(message);
+            case PRINT_TIMES -> methodTimes.add(message);
             case VM_INFO -> currentBuilder = vmInfoBuilder;
             case APPLICABLE_IR_RULES -> currentBuilder = applicableIrRules;
         }
@@ -92,8 +99,10 @@ public class JavaMessageParser {
     }
 
     public JavaMessages output() {
-        javaMessages.addVmInfo(vmInfoBuilder.toString());
-        javaMessages.addApplicableIRRules(applicableIrRules.toString());
-        return javaMessages;
+        return new JavaMessages(new StdoutMessages(stdoutMessages),
+                                new ExecutedTests(executedTests),
+                                new MethodTimes(methodTimes),
+                                applicableIrRules.toString(),
+                                vmInfoBuilder.toString());
     }
 }

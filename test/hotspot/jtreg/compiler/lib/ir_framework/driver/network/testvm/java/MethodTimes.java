@@ -25,23 +25,18 @@ package compiler.lib.ir_framework.driver.network.testvm.java;
 
 import compiler.lib.ir_framework.test.network.MessageTag;
 
-import java.util.ArrayList;
 import java.util.List;
 
 
 /**
  * Class to collect all Java Messages sent with tag {@link MessageTag#PRINT_TIMES}. These are only generated when the
- * user runs with {@code -DPrintTimes=true}.
+ * user runs with {@code -DPrintTimes=true} and represent the execution times for methods.
  */
 class MethodTimes implements JavaMessage {
     private final List<String> methodTimes;
 
-    public MethodTimes() {
-        this.methodTimes = new ArrayList<>();
-    }
-
-    public void add(String time) {
-        methodTimes.add(time);
+    public MethodTimes(List<String> methodTimes) {
+        this.methodTimes = methodTimes;
     }
 
     @Override
