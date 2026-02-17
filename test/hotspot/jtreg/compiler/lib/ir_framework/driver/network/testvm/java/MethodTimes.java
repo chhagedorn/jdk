@@ -25,7 +25,8 @@ package compiler.lib.ir_framework.driver.network.testvm.java;
 
 import compiler.lib.ir_framework.test.network.MessageTag;
 
-import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 
 /**
@@ -33,9 +34,9 @@ import java.util.List;
  * user runs with {@code -DPrintTimes=true} and represent the execution times for methods.
  */
 class MethodTimes implements JavaMessage {
-    private final List<String> methodTimes;
+    private final TreeMap<Long, String> methodTimes;
 
-    public MethodTimes(List<String> methodTimes) {
+    public MethodTimes(TreeMap<Long, String> methodTimes) {
         this.methodTimes = methodTimes;
     }
 
@@ -48,8 +49,8 @@ class MethodTimes implements JavaMessage {
         System.out.println();
         System.out.println("Test Execution Times");
         System.out.println("--------------------");
-        for (String methodTime : methodTimes) {
-            System.out.println("- " + methodTime);
+        for (Map.Entry<Long, String> entry : methodTimes.entrySet()) {
+            System.out.printf("- %-25s%15d ns%n", entry.getValue() + ":", entry.getKey());
         }
         System.out.println();
     }

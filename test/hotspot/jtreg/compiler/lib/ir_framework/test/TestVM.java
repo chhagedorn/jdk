@@ -882,7 +882,8 @@ public class TestVM {
                 if (VERBOSE) {
                     System.out.println("Done " + test.getName() + ": " + duration + " ns = " + (duration / 1000000) + " ms");
                 }
-                TestVmSocket.sendWithTag(MessageTag.PRINT_TIMES, String.format("%-25s%15d ns%n", test.getName() + ":", duration));
+                // Will be correctly formatted later.
+                TestVmSocket.sendWithTag(MessageTag.PRINT_TIMES, duration + "," + test.getName());
             }
             if (GC_AFTER) {
                 System.out.println("doing GC");

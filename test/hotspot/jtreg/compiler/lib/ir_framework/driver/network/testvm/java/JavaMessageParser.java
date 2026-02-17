@@ -24,10 +24,12 @@
 package compiler.lib.ir_framework.driver.network.testvm.java;
 
 import compiler.lib.ir_framework.TestFramework;
+import compiler.lib.ir_framework.shared.TestFrameworkException;
 import compiler.lib.ir_framework.test.network.MessageTag;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -43,7 +45,7 @@ public class JavaMessageParser {
 
     private final List<String> stdoutMessages;
     private final List<String> executedTests;
-    private final List<String> methodTimes;
+    private final TreeMap<Long, String> methodTimes;
     private final StringBuilder vmInfoBuilder;
     private final StringBuilder applicableIrRules;
 
@@ -51,7 +53,7 @@ public class JavaMessageParser {
 
     public JavaMessageParser() {
         this.stdoutMessages = new ArrayList<>();
-        this.methodTimes = new ArrayList<>();
+        this.methodTimes = new TreeMap<>();
         this.executedTests = new ArrayList<>();
         this.vmInfoBuilder = new StringBuilder();
         this.applicableIrRules = new StringBuilder();
@@ -62,15 +64,20 @@ public class JavaMessageParser {
         line = line.trim();
         Matcher tagLineMatcher = TAG_PATTERN.matcher(line);
         if (tagLineMatcher.matches()) {
+            // New tag
             assertNoActiveParser();
             parseTagLine(tagLineMatcher);
             return;
         }
+
         assertActiveParser();
         if (line.equals(END_MARKER)) {
+            // End tag
             parseEndTag();
             return;
         }
+
+        // Multi-line message for single tag.
         currentBuilder.append(line).append(System.lineSeparator());
     }
 
@@ -84,9 +91,21 @@ public class JavaMessageParser {
         switch (tag) {
             case STDOUT -> stdoutMessages.add(message);
             case TEST_LIST -> executedTests.add(message);
-            case PRINT_TIMES -> methodTimes.add(message);
+            case PRINT_TIMES -> parsePrintTimes(message);
             case VM_INFO -> currentBuilder = vmInfoBuilder;
             case APPLICABLE_IR_RULES -> currentBuilder = applicableIrRules;
+        }
+    }
+
+    void parsePrintTimes(String message) {
+        String[] split = message.split(",");
+        TestFramework.check(split.length == 2, "unexpected format");
+        try {
+            long duration = Long.parseLong(split[0]);
+            String methodName = split[1];
+            methodTimes.put(duration, methodName);
+        } catch (NumberFormatException e) {
+            throw new TestFrameworkException("invalid duration", e);
         }
     }
 
