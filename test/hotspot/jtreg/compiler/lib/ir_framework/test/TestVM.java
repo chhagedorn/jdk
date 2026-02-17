@@ -594,8 +594,8 @@ public class TestVM {
                 "Cannot overload @Test methods, but method " + m + " has " + overloads.size() + " overload" + (overloads.size() == 1 ? "" : "s") + ":" +
                 overloads.stream().map(String::valueOf).collect(Collectors.joining("\n    - ", "\n    - ", ""))
         );
-        TestFormat.check(!testMethodMap.containsKey(m.getName()),
-                         "Cannot overload two @Test methods: " + m + ", " + testMethodMap.get(m.getName()));
+        TestFramework.check(!testMethodMap.containsKey(m.getName()),
+                            "Cannot overload two @Test methods: " + m + ", " + testMethodMap.get(m.getName()));
         TestFormat.check(testAnno != null, m + " must be a method with a @Test annotation");
 
         Check checkAnno = getAnnotation(m, Check.class);
