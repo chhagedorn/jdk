@@ -880,10 +880,10 @@ public class TestVM {
                 long endTime = System.nanoTime();
                 long duration = (endTime - startTime);
                 if (VERBOSE) {
-                    System.out.println("Done " + test.getName() + ": " + duration + " ns = " + (duration / 1000000) + " ms");
+                    System.out.println("Done " + test.getName() + ": " + duration + " ns = " + (duration / 1_000_000) + " ms");
                 }
                 // Will be correctly formatted later.
-                TestVmSocket.sendWithTag(MessageTag.PRINT_TIMES, duration + "," + test.getName());
+                TestVmSocket.sendWithTag(MessageTag.PRINT_TIMES, test.getName() + "," + duration);
             }
             if (GC_AFTER) {
                 System.out.println("doing GC");

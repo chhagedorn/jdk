@@ -27,9 +27,7 @@ import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 import compiler.lib.ir_framework.test.network.MessageTag;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -41,11 +39,10 @@ import static compiler.lib.ir_framework.test.network.MessageTag.*;
  */
 public class JavaMessageParser {
     private static final Pattern TAG_PATTERN = Pattern.compile("^(\\[[^]]+])\\s*(.*)$");
-    private static final StringBuilder EMPTY_BUILDER = new StringBuilder();
 
     private final List<String> stdoutMessages;
     private final List<String> executedTests;
-    private final TreeMap<Long, String> methodTimes;
+    private final Map<String, Long> methodTimes;
     private final StringBuilder vmInfoBuilder;
     private final StringBuilder applicableIrRules;
 
@@ -53,11 +50,11 @@ public class JavaMessageParser {
 
     public JavaMessageParser() {
         this.stdoutMessages = new ArrayList<>();
-        this.methodTimes = new TreeMap<>();
+        this.methodTimes = new HashMap<>();
         this.executedTests = new ArrayList<>();
         this.vmInfoBuilder = new StringBuilder();
         this.applicableIrRules = new StringBuilder();
-        this.currentBuilder = EMPTY_BUILDER;
+        this.currentBuilder = null;
     }
 
     public void parseLine(String line) {
@@ -82,7 +79,7 @@ public class JavaMessageParser {
     }
 
     private void assertNoActiveParser() {
-        TestFramework.check(currentBuilder == EMPTY_BUILDER, "Unexpected new tag while parsing block");
+        TestFramework.check(currentBuilder == null, "Unexpected new tag while parsing block");
     }
 
     private void parseTagLine(Matcher tagLineMatcher) {
@@ -94,27 +91,28 @@ public class JavaMessageParser {
             case PRINT_TIMES -> parsePrintTimes(message);
             case VM_INFO -> currentBuilder = vmInfoBuilder;
             case APPLICABLE_IR_RULES -> currentBuilder = applicableIrRules;
+            default -> throw new TestFrameworkException("unknown tag");
         }
     }
 
-    void parsePrintTimes(String message) {
+    private void parsePrintTimes(String message) {
         String[] split = message.split(",");
         TestFramework.check(split.length == 2, "unexpected format");
+        String methodName = split[0];
         try {
-            long duration = Long.parseLong(split[0]);
-            String methodName = split[1];
-            methodTimes.put(duration, methodName);
+            long duration = Long.parseLong(split[1]);
+            methodTimes.put(methodName, duration);
         } catch (NumberFormatException e) {
             throw new TestFrameworkException("invalid duration", e);
         }
     }
 
     private void assertActiveParser() {
-        TestFramework.check(currentBuilder != EMPTY_BUILDER, "unexpected new tag while parsing block");
+        TestFramework.check(currentBuilder != null, "Received non-tag line outside of any tag block");
     }
 
     private void parseEndTag() {
-        currentBuilder = EMPTY_BUILDER;
+        currentBuilder = null;
     }
 
     public JavaMessages output() {

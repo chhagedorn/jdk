@@ -25,8 +25,8 @@ package compiler.lib.ir_framework.driver.network.testvm.java;
 
 import compiler.lib.ir_framework.test.network.MessageTag;
 
+import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 
 
 /**
@@ -34,9 +34,9 @@ import java.util.TreeMap;
  * user runs with {@code -DPrintTimes=true} and represent the execution times for methods.
  */
 class MethodTimes implements JavaMessage {
-    private final TreeMap<Long, String> methodTimes;
+    private final Map<String, Long> methodTimes;
 
-    public MethodTimes(TreeMap<Long, String> methodTimes) {
+    public MethodTimes(Map<String, Long> methodTimes) {
         this.methodTimes = methodTimes;
     }
 
@@ -49,9 +49,37 @@ class MethodTimes implements JavaMessage {
         System.out.println();
         System.out.println("Test Execution Times");
         System.out.println("--------------------");
-        for (Map.Entry<Long, String> entry : methodTimes.entrySet()) {
-            System.out.printf("- %-25s%15d ns%n", entry.getValue() + ":", entry.getKey());
+
+        int maxWidthNames = maxMethodNameWidth();
+        int maxDurationsWidth = maxDurationsWidth();
+        List<Map.Entry<String, Long>>  sortedMethodTimes = sortByDurationAsc();
+
+        for (Map.Entry<String, Long> entry : sortedMethodTimes) {
+            System.out.printf("- %-" + (maxWidthNames + 3) + "s %" + maxDurationsWidth + "d ns%n",
+                              entry.getKey() + ":", entry.getValue());
         }
+
         System.out.println();
     }
+
+    private int maxMethodNameWidth() {
+        return methodTimes.keySet().stream()
+                .mapToInt(String::length)
+                .max()
+                .orElseThrow();
+    }
+
+    private int maxDurationsWidth() {
+        return methodTimes.values().stream()
+                .mapToInt(v -> Long.toString(v).length())
+                .max()
+                .orElseThrow();
+    }
+
+    private List<Map.Entry<String, Long>> sortByDurationAsc() {
+        return methodTimes.entrySet().stream()
+                .sorted(Map.Entry.comparingByValue())
+                .toList();
+    }
+
 }
