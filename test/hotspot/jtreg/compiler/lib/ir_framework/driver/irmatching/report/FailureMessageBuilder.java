@@ -25,6 +25,7 @@ package compiler.lib.ir_framework.driver.irmatching.report;
 
 import compiler.lib.ir_framework.CompilePhase;
 import compiler.lib.ir_framework.IR;
+import compiler.lib.ir_framework.driver.network.testvm.c2.CompilePhaseDump;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 import compiler.lib.ir_framework.driver.irmatching.MatchResult;
 import compiler.lib.ir_framework.driver.irmatching.irrule.checkattribute.CheckAttributeType;
@@ -100,7 +101,7 @@ public class FailureMessageBuilder implements MatchResultVisitor {
     }
 
     public void visitMethodNotCompilable(Method method, int failedIRRules) {
-        throw new TestFrameworkException("Sould not reach here");
+        throw new TestFrameworkException("Should not reach here");
     }
 
     @Override
@@ -113,17 +114,16 @@ public class FailureMessageBuilder implements MatchResultVisitor {
     }
 
     @Override
-    public void visitCompilePhaseIRRule(AcceptChildren acceptChildren, CompilePhase compilePhase, String compilationOutput) {
+    public void visitCompilePhaseIRRule(AcceptChildren acceptChildren, CompilePhaseDump compilePhaseDump) {
         indentation.add();
-        appendCompilePhaseIRRule(compilePhase);
+        appendCompilePhaseIRRule(compilePhaseDump.compilePhase());
         acceptChildren.accept(this);
         indentation.sub();
     }
 
     private void appendCompilePhaseIRRule(CompilePhase compilePhase) {
         msg.append(indentation)
-           .append("> Phase \"").append(compilePhase.getName()).append("\":")
-           .append(System.lineSeparator());
+           .append("> Phase \"").append(compilePhase.getName()).append("\":");
     }
 
     @Override

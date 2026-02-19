@@ -21,45 +21,29 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network.testvm.java;
+package compiler.lib.ir_framework.driver.network.testvm.c2;
 
 import compiler.lib.ir_framework.IR;
-import compiler.lib.ir_framework.driver.irmatching.irmethod.IRMethod;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.stream.Stream;
+import java.util.*;
 
 /**
- * Class to hold the indices of the applicable {@link IR @IR} rules of an {@link IRMethod}.
+ * This class holds all {@link MethodDump}s of all {@link IR @IR}-annoted method of the test class.
  */
-public class IRRuleIds implements Iterable<Integer> {
-    private static final IRRuleIds EMPTY = new IRRuleIds(new ArrayList<>());
-    private final List<Integer> ruleIds;
+public class MethodDumps {
+    private final Map<String, MethodDumpHistory> methodDumps;
 
-    public IRRuleIds(List<Integer> ruleIds) {
-        this.ruleIds = ruleIds;
+    public MethodDumps() {
+        this.methodDumps = new HashMap<>();
     }
 
-    public static IRRuleIds createEmpty() {
-        return EMPTY;
+    public void add(MethodDump methodDump) {
+        String methodName = methodDump.methodName();
+        methodDumps.computeIfAbsent(methodName, _ -> new MethodDumpHistory())
+                .add(methodDump);
     }
 
-    public boolean isEmpty() {
-        return equals(EMPTY);
-    }
-
-    public int count() {
-        return ruleIds.size();
-    }
-
-    @Override
-    public Iterator<Integer> iterator() {
-        return ruleIds.iterator();
-    }
-
-    public Stream<Integer> stream() {
-        return ruleIds.stream();
+    public MethodDumpHistory methodDump(String methodName) {
+        return methodDumps.computeIfAbsent(methodName, _ -> MethodDumpHistory.createEmpty());
     }
 }

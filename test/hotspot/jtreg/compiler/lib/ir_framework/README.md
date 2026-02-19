@@ -1,5 +1,5 @@
 # IR Test Framework
-This folder contains a test framework whose main purpose is to perform regex-based checks on the C2 IR shape of test methods emitted by the VM flags `-XX:+PrintIdeal`, `-XX:CompileCommand=PrintIdealPhase` and/or `-XX:+PrintOptoAssembly`. The framework can also be used for other non-IR matching (and non-compiler) tests by providing easy to use annotations for commonly used testing patterns and compiler control flags.
+This folder contains a test framework whose main purpose is to perform regex-based checks on the C2 IR shapes of test methods emitted by the Compile Command `-XX:CompileCommand=PrintIdealPhase`. Each compiled method can dump several ideal graph dumps, mach dumps and/or Opto Assembly dump (subset of `-XX:+PrintOptoAssembly`). The framework can also be used for other non-IR matching (and non-compiler) tests by providing easy to use annotations for commonly used testing patterns and compiler control flags.
 
 ## 1. How to Use the Framework
 The framework is intended to be used in JTreg tests. The JTreg header of the test must contain `@library /test/lib /` (2 paths) and should be run as a driver with `@run driver`. Annotate the test code with the supported framework annotations and call the framework from within the test's `main()` method. A simple example is shown below:

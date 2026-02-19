@@ -23,22 +23,20 @@
 
 package compiler.lib.ir_framework.driver.network.testvm.java;
 
-import compiler.lib.ir_framework.TestFramework;
+import compiler.lib.ir_framework.shared.TestFrameworkException;
 
 /**
  * Class to collect all Java messages sent from the Test VM to the Driver VM.
  */
 public class JavaMessages {
-    private static final boolean PRINT_APPLICABLE_IR_RULES = Boolean.parseBoolean(System.getProperty("PrintApplicableIRRules", "false"));
-
     private final StdoutMessages stdoutMessages;
     private final ExecutedTests executedTests;
     private final MethodTimes methodTimes;
-    private final String applicableIrRules;
-    private final String vmInfo;
+    private final ApplicableIRRules applicableIrRules;
+    private final VMInfo vmInfo;
 
     JavaMessages(StdoutMessages stdoutMessages, ExecutedTests executedTests, MethodTimes methodTimes,
-                 String applicableIrRules, String vmInfo) {
+                 ApplicableIRRules applicableIrRules, VMInfo vmInfo) {
         this.stdoutMessages = stdoutMessages;
         this.executedTests = executedTests;
         this.methodTimes = methodTimes;
@@ -46,21 +44,24 @@ public class JavaMessages {
         this.vmInfo = vmInfo;
     }
 
-    public String applicableIRRules() {
-        return applicableIrRules;
+    /**
+     * Should only be queried when IR Matching will be done. Otherwise, the VM Info is empty and a
+     * {@link TestFrameworkException} is thrown. TODO: Check again if this is good... better error reporting?
+     */
+    public VMInfo vmInfo() {
+        vmInfo.verify();
+        return vmInfo;
     }
 
-    public String vmInfo() {
-        return vmInfo;
+    public ApplicableIRRules applicableIRRules() {
+        return applicableIrRules;
     }
 
     public void print() {
         stdoutMessages.print();
         methodTimes.print();
         executedTests.print();
-        if (TestFramework.VERBOSE || PRINT_APPLICABLE_IR_RULES) {
-            System.out.println("Read Applicable IR Rules from Test VM:");
-            System.out.println(applicableIrRules);
-        }
+        vmInfo.print();
+        applicableIrRules.print();
     }
 }

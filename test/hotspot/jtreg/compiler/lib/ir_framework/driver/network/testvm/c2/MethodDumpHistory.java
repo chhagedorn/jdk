@@ -21,28 +21,22 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network.testvm.java;
+package compiler.lib.ir_framework.driver.network.testvm.c2;
 
-import compiler.lib.ir_framework.IR;
-import compiler.lib.ir_framework.driver.irmatching.irmethod.IRMethod;
+import compiler.lib.ir_framework.CompilePhase;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
-import java.util.stream.Stream;
 
-/**
- * Class to hold the indices of the applicable {@link IR @IR} rules of an {@link IRMethod}.
- */
-public class IRRuleIds implements Iterable<Integer> {
-    private static final IRRuleIds EMPTY = new IRRuleIds(new ArrayList<>());
-    private final List<Integer> ruleIds;
+public class MethodDumpHistory {
+    private static final MethodDumpHistory EMPTY = new MethodDumpHistory();
+    private final List<MethodDump> dumps;
 
-    public IRRuleIds(List<Integer> ruleIds) {
-        this.ruleIds = ruleIds;
+    public MethodDumpHistory() {
+        this.dumps = new ArrayList<>();
     }
 
-    public static IRRuleIds createEmpty() {
+    public static MethodDumpHistory createEmpty() {
         return EMPTY;
     }
 
@@ -50,16 +44,12 @@ public class IRRuleIds implements Iterable<Integer> {
         return equals(EMPTY);
     }
 
-    public int count() {
-        return ruleIds.size();
+    public void add(MethodDump methodDump) {
+        dumps.add(methodDump);
     }
 
-    @Override
-    public Iterator<Integer> iterator() {
-        return ruleIds.iterator();
-    }
-
-    public Stream<Integer> stream() {
-        return ruleIds.stream();
+    public CompilePhaseDump methodDump(CompilePhase compilePhase) {
+        MethodDump methodDump = dumps.getLast();
+        return methodDump.phaseDump(compilePhase);
     }
 }

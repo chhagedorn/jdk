@@ -31,9 +31,10 @@ import compiler.lib.ir_framework.driver.irmatching.Matchable;
 import compiler.lib.ir_framework.driver.irmatching.irrule.checkattribute.CheckAttributeType;
 import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.CountsConstraintFailure;
 import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.FailOnConstraintFailure;
-import compiler.lib.ir_framework.driver.irmatching.parser.TestClassParser;
+import compiler.lib.ir_framework.driver.irmatching.TestClassBuilder;
 import compiler.lib.ir_framework.driver.irmatching.visitor.AcceptChildren;
 import compiler.lib.ir_framework.driver.irmatching.visitor.MatchResultVisitor;
+import compiler.lib.ir_framework.driver.network.testvm.c2.CompilePhaseDump;
 import jdk.test.lib.Asserts;
 
 import java.lang.annotation.Repeatable;
@@ -67,9 +68,9 @@ public class TestPhaseIRMatching {
         List<String> noAdditionalFlags = new ArrayList<>();
         FlagVMProcess flagVMProcess = new FlagVMProcess(testClass, noAdditionalFlags);
         List<String> testVMFlags = flagVMProcess.getTestVMFlags();
-        TestVMProcess testVMProcess = new TestVMProcess(testVMFlags, testClass, null, -1, false, false);
-        TestClassParser testClassParser = new TestClassParser(testClass, false);
-        Matchable testClassMatchable = testClassParser.parse(testVMProcess.testVmData());
+        TestVMProcess testVMProcess = new TestVMProcess(testVMFlags, testClass, null, -1, false, false, true);
+        TestClassBuilder testClassBuilder = new TestClassBuilder(testClass, testVMProcess.testVmData());
+        Matchable testClassMatchable = testClassBuilder.build();
         MatchResult result = testClassMatchable.match();
         List<Failure> expectedFails = new ExpectedFailsBuilder().build(testClass);
         List<Failure> foundFailures = new FailureBuilder().build(result);
@@ -434,8 +435,8 @@ class FailureBuilder implements MatchResultVisitor {
     }
 
     @Override
-    public void visitCompilePhaseIRRule(AcceptChildren acceptChildren, CompilePhase compilePhase, String compilationOutput) {
-        this.compilePhase = compilePhase;
+    public void visitCompilePhaseIRRule(AcceptChildren acceptChildren, CompilePhaseDump compilePhaseDump) {
+        this.compilePhase = compilePhaseDump.compilePhase();
         acceptChildren.accept(this);
     }
 

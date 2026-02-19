@@ -392,6 +392,7 @@ class Compile : public Phase {
   ConnectionGraph*      _congraph;
 #ifndef PRODUCT
   IdealGraphPrinter*    _igv_printer;
+  networkStream*        _ir_framework_stream;
   static IdealGraphPrinter* _debug_file_printer;
   static IdealGraphPrinter* _debug_network_printer;
 #endif
@@ -667,8 +668,19 @@ public:
   uint          next_igv_idx()                  { return _igv_idx++; }
   bool          trace_opto_output() const       { return _trace_opto_output; }
   void          print_phase(const char* phase_name);
+
+  bool          should_print_to_ir_framework() const { return _ir_framework_stream != nullptr; }
+  void          print_opto_assembly_to_ir_framework(PhaseOutput* phase_output) const;
+
+ private:
+  networkStream* init_ir_framework_stream(DirectiveSet* directive, ciMethod* method) const;
+  void          print_ideal_to_ir_framework(const char* compile_phase_name) const;
+  void          send_dump_to_ir_framework(stringStream& ss) const;
   void          print_ideal_ir(const char* compile_phase_name) const;
-  bool          should_print_ideal() const      { return _directive->PrintIdealOption; }
+  void          print_ideal_ir(CompilerPhaseType compile_phase) const;
+  bool          should_print_ideal() const { return _directive->PrintIdealOption; }
+
+ public:
   bool              parsed_irreducible_loop() const { return _parsed_irreducible_loop; }
   void          set_parsed_irreducible_loop(bool z) { _parsed_irreducible_loop = z; }
   int _in_dump_cnt;  // Required for dumping ir nodes.

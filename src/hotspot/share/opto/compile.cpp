@@ -581,6 +581,45 @@ void Compile::print_phase(const char* phase_name) {
   tty->print_cr("%u.\t%s", ++_phase_counter, phase_name);
 }
 
+void Compile::print_ideal_to_ir_framework(const char* compile_phase_name) const {
+  assert(should_print_to_ir_framework(), "sanity");
+  ResourceMark rm;
+  stringStream ss;
+  ss.print_cr("COMPILE_PHASE: %s", compile_phase_name);
+  if (_output == nullptr) {
+    // Print out all nodes in ascending order of index.
+    // It is important that we traverse both inputs and outputs of nodes,
+    // so that we reach all nodes that are connected to Root.
+    root()->dump_bfs(MaxNodeLimit, nullptr, "-+S$", &ss);
+  } else {
+    // Dump the node blockwise if we have a scheduling
+    _output->print_scheduling(&ss);
+  }
+  ss.print_cr("#END#");
+  send_dump_to_ir_framework(ss);
+}
+
+void Compile::print_opto_assembly_to_ir_framework(PhaseOutput* phase_output) const {
+  assert(should_print_to_ir_framework(), "sanity");
+  ResourceMark rm;
+  stringStream ss;
+  ss.print_cr("COMPILE_PHASE: PRINT_OPTO_ASSEMBLY");
+  int* pcs = nullptr;
+  phase_output->dump_asm_on(&ss, pcs, unique());
+  ss.print_cr("#END#");
+  send_dump_to_ir_framework(ss);
+}
+
+void Compile::send_dump_to_ir_framework(stringStream& ss) const {
+  assert(!is_osr_compilation(), "we disabled OSR compilations");
+  const char* dump = ss.freeze();
+  const size_t length = ss.size();
+  char* scratch_buffer = NEW_RESOURCE_ARRAY(char, length);
+  _ir_framework_stream->set_scratch_buffer(scratch_buffer, length);
+  _ir_framework_stream->print("%s", dump);
+  _ir_framework_stream->set_scratch_buffer(nullptr, 0);
+}
+
 void Compile::print_ideal_ir(const char* compile_phase_name) const {
   // keep the following output all in one block
   // This output goes directly to the tty, not the compiler log.
@@ -670,7 +709,10 @@ Compile::Compile(ciEnv* ci_env, ciMethod* target, int osr_bci,
       _unstable_if_traps(comp_arena(), 8, 0, nullptr),
       _coarsened_locks(comp_arena(), 8, 0, nullptr),
       _congraph(nullptr),
-      NOT_PRODUCT(_igv_printer(nullptr) COMMA)
+#ifndef PRODUCT
+      _igv_printer(nullptr),
+      _ir_framework_stream(init_ir_framework_stream(directive, target)),
+#endif
       _unique(0),
       _dead_node_count(0),
       _dead_node_list(comp_arena()),
@@ -864,7 +906,9 @@ Compile::Compile(ciEnv* ci_env, ciMethod* target, int osr_bci,
   NOT_PRODUCT( verify_graph_edges(); )
 
 #ifndef PRODUCT
-  if (should_print_ideal()) {
+  if (should_print_ideal_phase(PHASE_PRINT_IDEAL)) {
+    print_ideal_ir(PHASE_PRINT_IDEAL);
+  } else if (should_print_ideal()) {
     print_ideal_ir("PrintIdeal");
   }
 #endif
@@ -937,7 +981,10 @@ Compile::Compile(ciEnv* ci_env,
       _for_post_loop_igvn(comp_arena(), 8, 0, nullptr),
       _for_merge_stores_igvn(comp_arena(), 8, 0, nullptr),
       _congraph(nullptr),
-      NOT_PRODUCT(_igv_printer(nullptr) COMMA)
+#ifndef PRODUCT
+      _igv_printer(nullptr),
+      _ir_framework_stream(nullptr),
+#endif
       _unique(0),
       _dead_node_count(0),
       _dead_node_list(comp_arena()),
@@ -1016,6 +1063,12 @@ Compile::Compile(ciEnv* ci_env,
 
 Compile::~Compile() {
   delete _first_failure_details;
+#ifndef PRODUCT
+  if (should_print_to_ir_framework()) {
+    _ir_framework_stream->close();
+    delete _ir_framework_stream;
+  }
+#endif
 };
 
 //------------------------------Init-------------------------------------------
@@ -5225,11 +5278,22 @@ void Compile::print_method(CompilerPhaseType compile_phase, int level, Node* n) 
     print_phase(name);
   }
   if (should_print_ideal_phase(compile_phase)) {
-    print_ideal_ir(CompilerPhaseTypeHelper::to_name(compile_phase));
+    print_ideal_ir(compile_phase);
   }
 #endif
   C->_latest_stage_start_counter.stamp();
 }
+
+#ifndef PRODUCT
+void Compile::print_ideal_ir(CompilerPhaseType compile_phase) const {
+  const char* compile_phase_name = CompilerPhaseTypeHelper::to_name(compile_phase);
+  if (should_print_to_ir_framework()) {
+    print_ideal_to_ir_framework(compile_phase_name);
+  } else {
+    print_ideal_ir(compile_phase_name);
+  }
+}
+#endif // NOT_PRODUCT
 
 // Only used from CompileWrapper
 void Compile::begin_method() {
@@ -5373,6 +5437,27 @@ void Compile::igv_print_graph_to_network(const char* name, GrowableArray<const N
   }
   tty->print_cr("Method printed over network stream to IGV");
   _debug_network_printer->print(name, C->root(), visible_nodes, fr);
+}
+
+networkStream* Compile::init_ir_framework_stream(DirectiveSet* directive, ciMethod* method) const {
+  if (IrFrameworkPort == 0 || // No IR-Test
+      strcmp(directive->PrintIdealPhaseOption, "") == 0 || // No @IR rules
+      is_osr_compilation()) { // Not interested in OSR compilations
+    return nullptr;
+  }
+
+  networkStream* stream = new (mtCompiler) networkStream();
+  const char* host = "127.0.0.1";
+  if (!stream->connect(host, IrFrameworkPort)) {
+    fatal("Could not connect to %s:%d", host, IrFrameworkPort);
+  }
+
+  stream->print_cr("#C2#");
+  ResourceMark rm;
+  stringStream ss;
+  method->print_short_name(&ss);
+  stream->print_cr("%s", method->name()->as_klass_external_name());
+  return stream;
 }
 #endif // !PRODUCT
 

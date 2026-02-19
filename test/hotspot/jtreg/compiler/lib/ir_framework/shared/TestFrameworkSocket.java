@@ -26,6 +26,9 @@ package compiler.lib.ir_framework.shared;
 import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.driver.network.*;
 import compiler.lib.ir_framework.driver.network.testvm.TestVmMessageReader;
+import compiler.lib.ir_framework.driver.network.testvm.c2.C2MessageReader;
+import compiler.lib.ir_framework.driver.network.testvm.c2.MethodDump;
+import compiler.lib.ir_framework.driver.network.testvm.c2.MethodDumps;
 import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessageParser;
 import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessages;
 import compiler.lib.ir_framework.test.TestVM;
@@ -34,18 +37,21 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.*;
+import java.util.*;
 import java.util.concurrent.*;
 
 /**
  * Dedicated Driver VM socket to receive data from the Test VM. Could either be received from Java and C2 code.
  */
 public class TestFrameworkSocket implements AutoCloseable {
+    private static final String C2_IDENTITY = "#C2#";
     private static final String SERVER_PORT_PROPERTY = "ir.framework.server.port";
 
     private final int serverSocketPort;
     private final ServerSocket serverSocket;
     private boolean running;
     private final ExecutorService executor;
+    private final List<Future<MethodDump>> methodDumpFutures;
     private Future<JavaMessages> javaFuture;
 
     public TestFrameworkSocket() {
@@ -57,6 +63,7 @@ public class TestFrameworkSocket implements AutoCloseable {
         }
         serverSocketPort = serverSocket.getLocalPort();
         executor = Executors.newCachedThreadPool();
+        methodDumpFutures = Collections.synchronizedList(new ArrayList<>());
         if (TestFramework.VERBOSE) {
             System.out.println("TestFramework server socket uses port " + serverSocketPort);
         }
@@ -65,6 +72,10 @@ public class TestFrameworkSocket implements AutoCloseable {
 
     public String getPortPropertyFlag() {
         return "-D" + SERVER_PORT_PROPERTY + "=" + serverSocketPort;
+    }
+
+    public int serverSocketPort() {
+        return serverSocketPort;
     }
 
     private void start() {
@@ -119,6 +130,9 @@ public class TestFrameworkSocket implements AutoCloseable {
     private void submitTask(String identity, Socket client, BufferedReader reader) {
         if (identity.equals(TestVM.IDENTITY)) {
             javaFuture = executor.submit(new TestVmMessageReader<>(client, reader, new JavaMessageParser()));
+        } else if (identity.equals(C2_IDENTITY)) {
+            Future<MethodDump> future = executor.submit(new C2MessageReader(client, reader));
+            methodDumpFutures.add(future);
         } else {
             throw new TestFrameworkException("Unrecognized identity: " + identity);
         }
@@ -135,9 +149,10 @@ public class TestFrameworkSocket implements AutoCloseable {
         executor.shutdown();
     }
 
-    public TestVMData testVmData(String hotspotPidFileName, boolean allowNotCompilable) {
+    public TestVMData testVmData(boolean allowNotCompilable) {
         JavaMessages javaMessages = testVmMessages();
-        return new TestVMData(javaMessages, hotspotPidFileName, allowNotCompilable);
+        MethodDumps methodDumps = methodDumps();
+        return new TestVMData(javaMessages, methodDumps, allowNotCompilable);
     }
 
     private JavaMessages testVmMessages() {
@@ -148,5 +163,18 @@ public class TestFrameworkSocket implements AutoCloseable {
         } catch (Exception e) {
             throw new TestFrameworkException("Error while fetching Test VM Future", e);
         }
+    }
+
+    private MethodDumps methodDumps() {
+        MethodDumps methodDumps = new MethodDumps();
+        for (Future<MethodDump> future : this.methodDumpFutures) {
+            try {
+                MethodDump methodDump = future.get();
+                methodDumps.add(methodDump);
+            } catch (Exception e) {
+                throw new TestFrameworkException("Error while fetching C2 Future", e);
+            }
+        }
+        return methodDumps;
     }
 }

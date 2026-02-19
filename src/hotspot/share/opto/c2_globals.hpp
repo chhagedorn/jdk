@@ -446,7 +446,7 @@
                                                                             \
   develop(intx, PrintIdealGraphPort, 4444,                                  \
           "Ideal graph printer to network port")                            \
-          range(0, SHRT_MAX)                                                \
+          range(0, USHRT_MAX)                                               \
                                                                             \
   develop(ccstr, PrintIdealGraphAddress, "127.0.0.1",                       \
           "IP address to connect to visualizer")                            \
@@ -454,6 +454,10 @@
   develop(ccstr, PrintIdealGraphFile, nullptr,                              \
           "File to dump ideal graph to.  If set overrides the "             \
           "use of the network")                                             \
+                                                                            \
+  develop(uint, IrFrameworkPort, 0,                                         \
+          "Ideal graph printer to network port")                            \
+          range(0, USHRT_MAX)                                               \
                                                                             \
   product(bool, UseBimorphicInlining, true,                                 \
           "Profiling based inlining for two receivers")                     \

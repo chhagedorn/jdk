@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -30,6 +30,7 @@ import compiler.lib.ir_framework.driver.irmatching.Matchable;
 import compiler.lib.ir_framework.driver.irmatching.MatchableMatcher;
 import compiler.lib.ir_framework.driver.irmatching.irrule.checkattribute.Counts;
 import compiler.lib.ir_framework.driver.irmatching.irrule.checkattribute.FailOn;
+import compiler.lib.ir_framework.driver.network.testvm.c2.CompilePhaseDump;
 
 import java.util.List;
 
@@ -45,17 +46,17 @@ import java.util.List;
 public class CompilePhaseIRRule implements CompilePhaseIRRuleMatchable {
     private final CompilePhase compilePhase;
     private final MatchableMatcher matcher;
-    private final String compilationOutput;
+    private final CompilePhaseDump compilePhaseDump;
 
-    public CompilePhaseIRRule(CompilePhase compilePhase, List<Matchable> checkAttributes, String compilationOutput) {
-        this.compilePhase = compilePhase;
+    public CompilePhaseIRRule(List<Matchable> checkAttributes, CompilePhaseDump compilePhaseDump) {
+        this.compilePhase = compilePhaseDump.compilePhase();
         this.matcher = new MatchableMatcher(checkAttributes);
-        this.compilationOutput = compilationOutput;
+        this.compilePhaseDump = compilePhaseDump;
     }
 
     @Override
     public MatchResult match() {
-        return new CompilePhaseIRRuleMatchResult(compilePhase, compilationOutput, matcher.match());
+        return new CompilePhaseIRRuleMatchResult(compilePhaseDump, matcher.match());
     }
 
     @Override
