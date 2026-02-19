@@ -47,8 +47,8 @@ class StdoutMessages implements JavaMessage {
         System.out.println();
         System.out.println("Test VM Messages");
         System.out.println("----------------");
-        for (String methodTime : messages) {
-            System.out.println("- " + methodTime);
+        for (String message : messages) {
+            System.out.println("- " + message);
         }
     }
 }
