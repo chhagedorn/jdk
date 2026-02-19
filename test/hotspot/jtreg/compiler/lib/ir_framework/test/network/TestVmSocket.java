@@ -48,8 +48,8 @@ public class TestVmSocket {
     }
 
     /**
-     * Send a message with multiple lines to the Driver VM with a {@link MessageTag}. Not all messages are shown by
-     * default in the Driver VM output and require setting some property flags first like {@code -DPrintTimes=true}.
+     * Send a message with multiple lines to the Driver VM with a {@link MessageTag}. Not all messages are shown in the
+     * by default in the Driver VM output and require setting some property flags first like {@code -DPrintTimes=true}.
      */
     public static void sendMultiLine(String tag, String message) {
         if (REPRODUCE) {
@@ -62,7 +62,7 @@ public class TestVmSocket {
     }
 
     /**
-     * Send a message to the Driver VM with a {@link MessageTag}. Not all messages are shown by default in the
+     * Send a message to the Driver VM with a {@link MessageTag}. Not all messages are shown in the by default in the
      * Driver VM output and require setting some property flags first like {@code -DPrintTimes=true}.
      */
     public static void sendWithTag(String tag, String message) {
@@ -88,6 +88,7 @@ public class TestVmSocket {
             // Keep the client socket open until the test VM terminates (calls closeClientSocket before exiting main()).
             socket = new Socket(InetAddress.getLoopbackAddress(), SERVER_PORT);
             writer = new PrintWriter(socket.getOutputStream(), true);
+            writer.println(TestVM.IDENTITY);
         } catch (Exception e) {
             // When the test VM is directly run, we should ignore all messages that would normally be sent to the
             // driver VM.

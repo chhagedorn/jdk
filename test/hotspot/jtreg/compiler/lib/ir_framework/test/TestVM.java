@@ -107,6 +107,8 @@ public class TestVM {
     private static final boolean FLIP_C1_C2 = Boolean.getBoolean("FlipC1C2");
     private static final boolean IGNORE_COMPILER_CONTROLS = Boolean.getBoolean("IgnoreCompilerControls");
 
+    public static final String IDENTITY = "#TestVM#";
+
     private final HashMap<Method, DeclaredTest> declaredTests = new HashMap<>();
     private final List<AbstractTest> allTests = new ArrayList<>();
     private final HashMap<String, Method> testMethodMap = new HashMap<>();

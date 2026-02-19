@@ -24,6 +24,7 @@
 package compiler.lib.ir_framework.driver.network.testvm.java;
 
 import compiler.lib.ir_framework.TestFramework;
+import compiler.lib.ir_framework.driver.network.testvm.TestVmMessageParser;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 import compiler.lib.ir_framework.test.network.MessageTag;
 
@@ -37,7 +38,7 @@ import static compiler.lib.ir_framework.test.network.MessageTag.*;
  * Dedicated parser for {@link JavaMessages} received from the Test VM. Depending on the parsed {@link MessageTag}, the
  * message is parsed differently.
  */
-public class JavaMessageParser {
+public class JavaMessageParser implements TestVmMessageParser<JavaMessages> {
     private static final Pattern TAG_PATTERN = Pattern.compile("^(\\[[^]]+])\\s*(.*)$");
 
     private final List<String> stdoutMessages;
@@ -57,6 +58,7 @@ public class JavaMessageParser {
         this.currentBuilder = null;
     }
 
+    @Override
     public void parseLine(String line) {
         line = line.trim();
         Matcher tagLineMatcher = TAG_PATTERN.matcher(line);
@@ -115,6 +117,7 @@ public class JavaMessageParser {
         currentBuilder = null;
     }
 
+    @Override
     public JavaMessages output() {
         return new JavaMessages(new StdoutMessages(stdoutMessages),
                                 new ExecutedTests(executedTests),
