@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -25,6 +25,7 @@ package compiler.lib.ir_framework.driver.irmatching.report;
 
 import compiler.lib.ir_framework.CompilePhase;
 import compiler.lib.ir_framework.IR;
+import compiler.lib.ir_framework.driver.network.testvm.c2.CompilePhaseDump;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 import compiler.lib.ir_framework.driver.irmatching.MatchResult;
 import compiler.lib.ir_framework.driver.irmatching.irrule.checkattribute.CheckAttributeType;
@@ -124,7 +125,7 @@ public class CompilationOutputBuilder implements MatchResultVisitor {
 
     @Override
     public void visitMethodNotCompilable(Method method, int failedIRRules) {
-        throw new TestFrameworkException("Sould not reach here");
+        throw new TestFrameworkException("Should not reach here");
     }
 
     @Override
@@ -133,9 +134,10 @@ public class CompilationOutputBuilder implements MatchResultVisitor {
     }
 
     @Override
-    public void visitCompilePhaseIRRule(AcceptChildren acceptChildren, CompilePhase compilePhase, String compilationOutput) {
+    public void visitCompilePhaseIRRule(AcceptChildren acceptChildren, CompilePhaseDump compilePhaseDump) {
+        CompilePhase compilePhase = compilePhaseDump.compilePhase();
         if (!failedCompilePhases.containsKey(compilePhase)) {
-            failedCompilePhases.put(compilePhase, compilationOutput);
+            failedCompilePhases.put(compilePhase, compilePhaseDump(compilePhaseDump));
             compilePhaseCount++;
         }
         // No need to visit check attributes
@@ -145,10 +147,25 @@ public class CompilationOutputBuilder implements MatchResultVisitor {
     public void visitNoCompilePhaseCompilation(CompilePhase compilePhase) {
         if (!failedCompilePhases.containsKey(compilePhase)) {
             failedCompilePhases.put(compilePhase,
-                                    "> Phase \"" + compilePhase.getName() + "\":" + System.lineSeparator() + "<empty>" +
-                                    System.lineSeparator());
+                                    compilePhaseHeader(compilePhase) + "<empty>" + System.lineSeparator());
             compilePhaseCount++;
         }
+    }
+
+    private String compilePhaseDump(CompilePhaseDump compilePhaseDump) {
+        CompilePhase compilePhase = compilePhaseDump.compilePhase();
+        String dump;
+        if (compilePhase == CompilePhase.PRINT_OPTO_ASSEMBLY) {
+            dump = compilePhaseDump.dumpForOptoAssembly();
+        } else {
+            dump = compilePhaseDump.dump();
+        }
+        return compilePhaseHeader(compilePhaseDump.compilePhase()) + System.lineSeparator() + dump +
+                System.lineSeparator();
+    }
+
+    private String compilePhaseHeader(CompilePhase compilePhase) {
+        return "> Phase \"" + compilePhase.getName() + "\":" + System.lineSeparator();
     }
 
     @Override

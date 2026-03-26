@@ -21,30 +21,29 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network.testvm;
+package compiler.lib.ir_framework.driver.network.testvm.c2;
 
-import compiler.lib.ir_framework.driver.network.testvm.c2.MethodDump;
-import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessage;
-import compiler.lib.ir_framework.shared.TestFrameworkSocket;
+import compiler.lib.ir_framework.IR;
+
+import java.util.*;
 
 /**
- * We differentiate between two kinds of Test VM messages sent to the {@link TestFrameworkSocket}:
- * - {@link JavaMessage}: A message sent from Java code.
- * - {@link MethodDump}: A Method dump directly sent from the C2 compiler during compilation.
- *
- * <p>
- * Both kinds of messages are parsed differently by classes implementing this interface.
+ * This class holds all {@link MethodDump}s of all {@link IR @IR}-annoted method of the test class.
  */
-public interface TestVmMessageParser<Output> {
-    /**
-     * Parse a single line of a received Test VM message.
-     *
-     * @param line A single message line forwarded by {@link TestVmMessageReader}.
-     */
-    void parseLine(String line);
+public class MethodDumps {
+    private final Map<String, MethodDumpHistory> methodDumps;
 
-    /**
-     * Once parsing is done, this method returns the final output.
-     */
-    Output output();
+    public MethodDumps() {
+        this.methodDumps = new HashMap<>();
+    }
+
+    public void add(MethodDump methodDump) {
+        String methodName = methodDump.methodName();
+        methodDumps.computeIfAbsent(methodName, _ -> new MethodDumpHistory())
+                .add(methodDump);
+    }
+
+    public MethodDumpHistory methodDump(String methodName) {
+        return methodDumps.computeIfAbsent(methodName, _ -> MethodDumpHistory.createEmpty());
+    }
 }

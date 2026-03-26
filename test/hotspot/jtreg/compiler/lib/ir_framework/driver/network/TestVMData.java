@@ -24,6 +24,7 @@
 package compiler.lib.ir_framework.driver.network;
 
 import compiler.lib.ir_framework.driver.irmatching.IRMatcher;
+import compiler.lib.ir_framework.driver.network.testvm.c2.MethodDumps;
 import compiler.lib.ir_framework.driver.network.testvm.java.ApplicableIRRules;
 import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessages;
 import compiler.lib.ir_framework.driver.network.testvm.java.VMInfo;
@@ -35,12 +36,12 @@ import compiler.lib.ir_framework.shared.TestFrameworkSocket;
  */
 public class TestVMData {
     private final JavaMessages javaMessages;
+    private final MethodDumps methodDumps;
     private final boolean allowNotCompilable;
-    private final String hotspotPidFileName;
 
-    public TestVMData(JavaMessages javaMessages, String hotspotPidFileName, boolean allowNotCompilable) {
+    public TestVMData(JavaMessages javaMessages, MethodDumps methodDumps, boolean allowNotCompilable) {
         this.javaMessages = javaMessages;
-        this.hotspotPidFileName = hotspotPidFileName;
+        this.methodDumps = methodDumps;
         this.allowNotCompilable = allowNotCompilable;
     }
 
@@ -52,8 +53,8 @@ public class TestVMData {
         return javaMessages.vmInfo();
     }
 
-    public String hotspotPidFileName() {
-        return hotspotPidFileName;
+    public MethodDumps methodDumps() {
+        return methodDumps;
     }
 
     public boolean allowNotCompilable() {

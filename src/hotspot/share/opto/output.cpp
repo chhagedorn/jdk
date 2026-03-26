@@ -1800,7 +1800,9 @@ void PhaseOutput::fill_buffer(C2_MacroAssembler* masm, uint* blk_starts) {
 
 #if defined(SUPPORT_OPTO_ASSEMBLY)
   // Dump the assembly code, including basic-block numbers
-  if (C->print_assembly()) {
+  if (C->should_print_to_ir_framework() && C->should_print_ideal_phase(PHASE_PRINT_OPTO_ASSEMBLY)) {
+    C->print_opto_assembly_to_ir_framework(this);
+  } else if (C->print_assembly()) {
     ttyLocker ttyl;  // keep the following output all in one block
     if (!VMThread::should_terminate()) {  // test this under the tty lock
       // print_metadata and dump_asm may safepoint which makes us loose the ttylock.

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -29,6 +29,7 @@ import compiler.lib.ir_framework.driver.irmatching.MatchResult;
 import compiler.lib.ir_framework.driver.irmatching.irrule.checkattribute.CheckAttributeType;
 import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.CountsConstraintFailure;
 import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.FailOnConstraintFailure;
+import compiler.lib.ir_framework.driver.network.testvm.c2.CompilePhaseDump;
 
 import java.lang.reflect.Method;
 
@@ -41,7 +42,7 @@ public interface MatchResultVisitor {
     void visitMethodNotCompiled(Method method, int failedIRRules);
     void visitMethodNotCompilable(Method method, int failedIRRules);
     void visitIRRule(AcceptChildren acceptChildren, int irRuleId, IR irAnno);
-    void visitCompilePhaseIRRule(AcceptChildren acceptChildren, CompilePhase compilePhase, String compilationOutput);
+    void visitCompilePhaseIRRule(AcceptChildren acceptChildren, CompilePhaseDump compilePhaseDump);
     void visitNoCompilePhaseCompilation(CompilePhase compilePhase);
     void visitCheckAttribute(AcceptChildren acceptChildren, CheckAttributeType checkAttributeType);
     void visitFailOnConstraint(FailOnConstraintFailure failOnConstraintFailure);

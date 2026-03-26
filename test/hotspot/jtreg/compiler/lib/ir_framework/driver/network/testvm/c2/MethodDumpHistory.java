@@ -21,30 +21,35 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.network.testvm;
+package compiler.lib.ir_framework.driver.network.testvm.c2;
 
-import compiler.lib.ir_framework.driver.network.testvm.c2.MethodDump;
-import compiler.lib.ir_framework.driver.network.testvm.java.JavaMessage;
-import compiler.lib.ir_framework.shared.TestFrameworkSocket;
+import compiler.lib.ir_framework.CompilePhase;
 
-/**
- * We differentiate between two kinds of Test VM messages sent to the {@link TestFrameworkSocket}:
- * - {@link JavaMessage}: A message sent from Java code.
- * - {@link MethodDump}: A Method dump directly sent from the C2 compiler during compilation.
- *
- * <p>
- * Both kinds of messages are parsed differently by classes implementing this interface.
- */
-public interface TestVmMessageParser<Output> {
-    /**
-     * Parse a single line of a received Test VM message.
-     *
-     * @param line A single message line forwarded by {@link TestVmMessageReader}.
-     */
-    void parseLine(String line);
+import java.util.ArrayList;
+import java.util.List;
 
-    /**
-     * Once parsing is done, this method returns the final output.
-     */
-    Output output();
+public class MethodDumpHistory {
+    private static final MethodDumpHistory EMPTY = new MethodDumpHistory();
+    private final List<MethodDump> dumps;
+
+    public MethodDumpHistory() {
+        this.dumps = new ArrayList<>();
+    }
+
+    public static MethodDumpHistory createEmpty() {
+        return EMPTY;
+    }
+
+    public boolean isEmpty() {
+        return equals(EMPTY);
+    }
+
+    public void add(MethodDump methodDump) {
+        dumps.add(methodDump);
+    }
+
+    public CompilePhaseDump methodDump(CompilePhase compilePhase) {
+        MethodDump methodDump = dumps.getLast();
+        return methodDump.phaseDump(compilePhase);
+    }
 }

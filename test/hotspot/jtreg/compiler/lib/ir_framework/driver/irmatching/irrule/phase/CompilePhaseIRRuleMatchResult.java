@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,10 +23,10 @@
 
 package compiler.lib.ir_framework.driver.irmatching.irrule.phase;
 
-import compiler.lib.ir_framework.CompilePhase;
 import compiler.lib.ir_framework.driver.irmatching.MatchResult;
 import compiler.lib.ir_framework.driver.irmatching.visitor.AcceptChildren;
 import compiler.lib.ir_framework.driver.irmatching.visitor.MatchResultVisitor;
+import compiler.lib.ir_framework.driver.network.testvm.c2.CompilePhaseDump;
 
 import java.util.List;
 
@@ -38,15 +38,13 @@ import java.util.List;
 public class CompilePhaseIRRuleMatchResult implements MatchResult {
     private final AcceptChildren acceptChildren;
     private final boolean failed;
-    private final CompilePhase compilePhase;
-    private final String compilationOutput;
+    private final CompilePhaseDump compilePhaseDump;
 
-    public CompilePhaseIRRuleMatchResult(CompilePhase compilePhase, String compilationOutput,
+    public CompilePhaseIRRuleMatchResult(CompilePhaseDump compilePhaseDump,
                                          List<MatchResult> matchResults) {
         this.acceptChildren = new AcceptChildren(matchResults);
         this.failed = !matchResults.isEmpty();
-        this.compilePhase = compilePhase;
-        this.compilationOutput = compilationOutput;
+        this.compilePhaseDump = compilePhaseDump;
     }
 
     @Override
@@ -56,6 +54,6 @@ public class CompilePhaseIRRuleMatchResult implements MatchResult {
 
     @Override
     public void accept(MatchResultVisitor visitor) {
-        visitor.visitCompilePhaseIRRule(acceptChildren, compilePhase, compilationOutput);
+        visitor.visitCompilePhaseIRRule(acceptChildren, compilePhaseDump);
     }
 }
