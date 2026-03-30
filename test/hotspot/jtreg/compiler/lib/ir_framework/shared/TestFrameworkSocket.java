@@ -42,9 +42,12 @@ public class TestFrameworkSocket implements AutoCloseable {
 
     private final int serverSocketPort;
     private final ServerSocket serverSocket;
-    private volatile boolean running;
     private final ExecutorService acceptExecutor;
     private final ExecutorService clientExecutor;
+
+    // Make these volatile such that the main thread can observe an update written by the worker threads in the executor
+    // services to avoid stale values.
+    private volatile boolean running;
     private volatile Future<JavaMessages> javaFuture;
 
     public TestFrameworkSocket() {
