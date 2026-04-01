@@ -119,7 +119,7 @@ public class TestFrameworkSocket implements AutoCloseable {
 
     /**
      * Accept new client connection by first reading the identity of the connection (either coming from Java or C2)
-     * and then submitting a task accordingly to manage incoming message on that connection/sockt.
+     * and then submitting a task accordingly to manage incoming messages on that connection/socket.
      */
     private void acceptNewClientConnection() throws IOException {
         Socket client = serverSocket.accept();
