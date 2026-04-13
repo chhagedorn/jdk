@@ -25,8 +25,8 @@
  * @test NullCheckDroppingsTest
  * @bug 8054492
  * @summary Casting can result in redundant null checks in generated code
- * @requires vm.hasJFR
- * @requires vm.flavor == "server" & !vm.graal.enabled
+ * @requires vm.hasJFR & vm.flavor == "server" & !vm.graal.enabled & vm.flagless
+ *
  * @library /test/lib
  * @modules java.base/jdk.internal.misc
  *          java.management
@@ -35,9 +35,6 @@
  * @run driver jdk.test.lib.helpers.ClassFileInstaller jdk.test.whitebox.WhiteBox
  * @run main/othervm -Xbootclasspath/a:. -XX:+IgnoreUnrecognizedVMOptions -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI
  *                   -Xmixed -XX:-BackgroundCompilation -XX:-TieredCompilation -XX:CompileThreshold=1000
- *                   -XX:+UnlockExperimentalVMOptions -XX:PerMethodTrapLimit=100 -XX:-StressReflectiveCode
- *                   -XX:+UncommonNullCast -XX:-StressMethodHandleLinkerInlining -XX:TypeProfileLevel=0
- *                   -XX:-AlwaysIncrementalInline -XX:-StressIncrementalInlining -XX:-StressUnstableIfTraps
  *                   -XX:CompileCommand=exclude,compiler.intrinsics.klass.CastNullCheckDroppingsTest::runTest
  *                   compiler.intrinsics.klass.CastNullCheckDroppingsTest
  */
