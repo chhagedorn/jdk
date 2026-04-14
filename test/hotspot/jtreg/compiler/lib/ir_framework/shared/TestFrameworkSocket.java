@@ -133,9 +133,11 @@ public class TestFrameworkSocket implements AutoCloseable {
         try {
             client.setSoTimeout(10000);
             identity = reader.readLine();
-            client.setSoTimeout(0);
+            TestFramework.check(identity != null, "end of stream has been reached without reading the identity");
         } catch (SocketTimeoutException e) {
             throw new TestFrameworkException("Did not receive initial identity message after 10s", e);
+        } finally {
+            client.setSoTimeout(0);
         }
         return identity;
     }
