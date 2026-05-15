@@ -25,6 +25,7 @@ package compiler.lib.ir_framework.driver.irmatching;
 
 import compiler.lib.ir_framework.driver.irmatching.parser.TestClassParser;
 import compiler.lib.ir_framework.driver.irmatching.report.CompilationOutputBuilder;
+import compiler.lib.ir_framework.driver.irmatching.report.failon.successful.skip.FailOnSuccessfulSkipMessageBuilder;
 import compiler.lib.ir_framework.driver.irmatching.report.FailureMessageBuilder;
 
 /**
@@ -34,6 +35,10 @@ import compiler.lib.ir_framework.driver.irmatching.report.FailureMessageBuilder;
  * of the failed compilation phases.
  */
 public class IRMatcher {
+    private static final boolean FAIL_ON_SUCCESSFUL_SKIP =
+            Boolean.parseBoolean(System.getProperty("FailOnSuccessfulSkip", "false"));
+
+
     private final Matchable testClass;
 
     public IRMatcher(Matchable testClass) {
@@ -56,8 +61,13 @@ public class IRMatcher {
      * associated compile phase output of the failure.
      */
     private void reportFailures(MatchResult result) {
-        String failureMsg = new FailureMessageBuilder(result).build();
+        StringBuilder builder = new StringBuilder();
+        if (FAIL_ON_SUCCESSFUL_SKIP) {
+            builder.append(new FailOnSuccessfulSkipMessageBuilder(result).build());
+        }
+        builder.append(new FailureMessageBuilder(result).build());
+
         String compilationOutput = new CompilationOutputBuilder(result).build();
-        throw new IRViolationException(failureMsg, compilationOutput);
+        throw new IRViolationException(builder.toString(), compilationOutput);
     }
 }

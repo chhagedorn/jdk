@@ -69,14 +69,14 @@ public class TestSkip {
         Asserts.assertEQ(expectedCount,  message.split(Pattern.quote("IR rule " + ruleIndex), -1).length - 1);
     }
 
-    @Test
     @Skip
+    @Test
     public static void testSkip() {
         throw new RuntimeException("testSkip() should not be executed");
     }
 
-    @Test
     @Skip
+    @Test
     public static void testSkipWithRun() {
         throw new RuntimeException("testSkipWithRun() should not be executed");
     }
@@ -86,14 +86,14 @@ public class TestSkip {
         testSkipWithRun();
     }
 
-    @Test
     @Skip
+    @Test
     public static void testSkipWithRunMultipleTests1() {
         throw new RuntimeException("testSkipWithRunMultipleTests1() should not be executed");
     }
 
-    @Test
     @Skip
+    @Test
     public static void testSkipWithRunMultipleTests2() {
         throw new RuntimeException("testSkipWithRunMultipleTests2() should not be executed");
     }
@@ -105,28 +105,25 @@ public class TestSkip {
         testSkipWithRunMultipleTests2();
     }
 
-    @Test
     @Skip
+    @Test
     @IR(counts = {IRNode.CALL, "2"}) // normally fails
     public static void testSkipWithIR() {
         throw new RuntimeException("testSkipWithIR() should not be executed");
     }
 
     @Test
-    @SkipIR(1)
-    @IR(counts = {IRNode.CALL, "2"}) // normally fails
+    @IR(skip = true, counts = {IRNode.CALL, "2"}) // normally fails
     public static void testSkipIR1() {}
 
     @Test
-    @SkipIR(1)
-    @IR(counts = {IRNode.CALL, "2"}) // normally fails
+    @IR(skip = true, counts = {IRNode.CALL, "2"}) // normally fails
     @IR(failOn = IRNode.CALL)
     public static void testSkipIR2() {}
 
     @Test
-    @SkipIR({1, 3})
-    @IR(counts = {IRNode.CALL, "2"}) // normally fails
+    @IR(skip = true, counts = {IRNode.CALL, "2"}) // normally fails
     @IR(failOn = IRNode.CALL)
-    @IR(counts = {IRNode.CALL, "1"}) // normally fails
+    @IR(skip = true, counts = {IRNode.CALL, "1"}) // normally fails
     public static void testSkipIR3() {}
 }

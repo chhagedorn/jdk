@@ -40,6 +40,9 @@ import java.util.List;
  * @see IRRule
  */
 public class IRRuleMatchResult implements MatchResult {
+    private static final boolean FAIL_ON_SUCCESSFUL_SKIP =
+            Boolean.parseBoolean(System.getProperty("FailOnSuccessfulSkip", "false"));
+
     private final AcceptChildren acceptChildren;
     private final boolean failed;
     private final int irRuleId;
@@ -47,9 +50,22 @@ public class IRRuleMatchResult implements MatchResult {
 
     public IRRuleMatchResult(int irRuleId, IR irAnno, List<MatchResult> matchResults) {
         this.acceptChildren = new AcceptChildren(matchResults);
-        this.failed = !matchResults.isEmpty();
+        this.failed = isFail(matchResults, irAnno);
         this.irRuleId = irRuleId;
         this.irAnno = irAnno;
+    }
+
+    private boolean isFail(List<MatchResult> matchResults, IR irAnno) {
+        boolean failed = !matchResults.isEmpty();
+        if (!FAIL_ON_SUCCESSFUL_SKIP) {
+            return failed;
+        }
+        if (irAnno.skip()) {
+            // When using -DFailOnSuccessfulSkip, we treat a failure of a skipped IR rule as success and vice versa.
+            return !failed;
+        }
+        // TODO: All other results are ignored in this mode.
+        return failed;
     }
 
     @Override

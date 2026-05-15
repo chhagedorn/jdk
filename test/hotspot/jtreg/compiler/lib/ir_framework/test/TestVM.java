@@ -572,8 +572,6 @@ public class TestVM {
                                             "Found @Warmup annotation on non-@Test or non-@Run method " + m);
                     TestFormat.checkNoThrow(!m.isAnnotationPresent(Skip.class) ,
                                             "Found @Skip annotation on non-@Test method " + m);
-                    TestFormat.checkNoThrow(!m.isAnnotationPresent(SkipIR.class) ,
-                                            "Found @SkipIR annotation on non-@Test method " + m);
                 }
             } catch (TestFormatException e) {
                 // Failure logged. Continue and report later.
@@ -592,13 +590,6 @@ public class TestVM {
             TestFormat.checkNoThrow(warmupIterations >= 0, "Cannot have negative value for @Warmup at " + m);
         }
 
-        TestFormat.checkNoThrow(!m.isAnnotationPresent(Skip.class) ||
-                                !m.isAnnotationPresent(SkipIR.class),
-                                "@SkipIR is useless when @Skip is present at " + m);
-
-        TestFormat.checkNoThrow(!m.isAnnotationPresent(SkipIR.class) ||
-                                m.getAnnotationsByType(IR.class).length > 0,
-                                "@SkipIR cannot be used without @IR at " + m);
         if (!IGNORE_COMPILER_CONTROLS) {
             // Don't inline test methods by default. Do not apply this when -DIgnoreCompilerControls=true is set.
             WHITE_BOX.testSetDontInlineMethod(m, true);

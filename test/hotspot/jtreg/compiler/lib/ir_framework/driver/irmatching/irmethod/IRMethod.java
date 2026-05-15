@@ -25,7 +25,6 @@ package compiler.lib.ir_framework.driver.irmatching.irmethod;
 
 import compiler.lib.ir_framework.CompilePhase;
 import compiler.lib.ir_framework.IR;
-import compiler.lib.ir_framework.SkipIR;
 import compiler.lib.ir_framework.Test;
 import compiler.lib.ir_framework.driver.irmatching.Compilation;
 import compiler.lib.ir_framework.driver.irmatching.MatchResult;
@@ -58,42 +57,11 @@ public class IRMethod implements IRMethodMatchable {
     private static final boolean IGNORE_SKIP_IR = Boolean.parseBoolean(System.getProperty("IgnoreSkipIR", "false"));
 
     private final Method method;
-    private final Set<Integer> skippedIRRules;
     private final MatchableMatcher matcher;
 
     public IRMethod(Method method, IRRuleIds irRuleIds, IR[] irAnnos, Compilation compilation, VMInfo vmInfo) {
         this.method = method;
-        this.skippedIRRules = createSkippedIRRules(irAnnos.length);
         this.matcher = new MatchableMatcher(createIRRules(method, irRuleIds, irAnnos, compilation, vmInfo));
-    }
-
-    private Set<Integer> createSkippedIRRules(int irAnnoCount) {
-        SkipIR skipIR = method.getAnnotation(SkipIR.class);
-        if (skipIR == null) {
-            return Set.of();
-        }
-
-        if (IGNORE_SKIP_IR) {
-            System.out.println("Matching @SkipIR-annotated method \"" + method.getName() + "\"");
-            return Set.of();
-        }
-
-        int[] skipIRIndicesArray = skipIR.value();
-        Set<Integer> skippedIRRules = createValidatedSkippedIRRules(irAnnoCount, skipIRIndicesArray);
-        TestFormat.checkNoThrow(!skippedIRRules.isEmpty(), "Cannot specify empty @SkipIR annotation at " + method);
-        TestFormat.checkNoThrow(skippedIRRules.size() == skipIRIndicesArray.length, "Found duplicated IR rule index in @SkipIR at " + method);
-        return skippedIRRules;
-    }
-
-    private Set<Integer> createValidatedSkippedIRRules(int irAnnoCount, int[] skipIRIndicesArray) {
-        return Arrays.stream(skipIRIndicesArray)
-                .peek(skippedIndex -> checkValidRuleIndex(skippedIndex, irAnnoCount))
-                .boxed()
-                .collect(Collectors.toUnmodifiableSet());
-    }
-
-    private void checkValidRuleIndex(int skippedIndex, int irAnnoCount) {
-        TestFormat.checkNoThrow(skippedIndex > 0 && skippedIndex <= irAnnoCount, "Specified invalid IR rule index " + skippedIndex + " at " + method);
     }
 
     private List<Matchable> createIRRules(Method method, IRRuleIds irRuleIds, IR[] irAnnos, Compilation compilation, VMInfo vmInfo) {
@@ -110,14 +78,19 @@ public class IRMethod implements IRMethodMatchable {
     }
 
     private void createIRRule(IR[] irAnnos, Compilation compilation, VMInfo vmInfo, int ruleId, List<Matchable> irRules) {
-        if (shouldSkipIRRule(ruleId)) {
+        if (shouldSkipIRRule(irAnnos, ruleId)) {
             return;
         }
         irRules.add(new IRRule(ruleId, irAnnos[ruleId - 1], compilation, vmInfo));
     }
 
-    private boolean shouldSkipIRRule(int ruleId) {
-        return skippedIRRules.contains(ruleId);
+    private boolean shouldSkipIRRule(IR[] irAnnos, int ruleId) {
+        boolean shouldSkip = irAnnos[ruleId - 1].skip();
+        if (shouldSkip && IGNORE_SKIP_IR) {
+            System.out.print("Matching skipped IR rule " + ruleId + " for method \"" + method.getName() + "\"");
+            return false;
+        }
+        return shouldSkip;
     }
 
     /**
