@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2026, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -21,31 +21,34 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.driver.irmatching.irrule.constraint;
+package compiler.lib.ir_framework.driver.irmatching;
 
-import compiler.lib.ir_framework.driver.irmatching.LeafMatchResult;
-import compiler.lib.ir_framework.driver.irmatching.Matchable;
-import compiler.lib.ir_framework.driver.irmatching.visitor.MatchResultVisitor;
+import java.util.Iterator;
+import java.util.List;
 
-/**
- * This class represents a successful match result of any {@link Matchable} object.
- */
-public class SuccessResult implements LeafMatchResult {
-    private static final SuccessResult INSTANCE = new SuccessResult();
+public class SubResults implements Iterable<MatchResult> {
+    private final List<MatchResult> subResults;
+    private final int failCount;
 
-    private SuccessResult() {}
-
-    public static SuccessResult getInstance() {
-        return INSTANCE;
+    public SubResults(List<MatchResult> subResults) {
+        this.failCount = (int)subResults.stream().filter(MatchResult::fail).count();
+        this.subResults = subResults;
     }
 
-    @Override
-    public boolean fail() {
-        return false;
+    public SubResults() {
+        this.failCount = 0;
+        this.subResults = List.of();
     }
 
-    @Override
-    public void accept(MatchResultVisitor visitor) {
-        // Must not be visited.
+    public boolean hasFailure() {
+        return failCount > 0;
+    }
+
+    public int failCount() {
+        return failCount;
+    }
+
+    public Iterator<MatchResult> iterator() {
+        return subResults.iterator();
     }
 }
