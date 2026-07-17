@@ -30,6 +30,7 @@ import compiler.lib.ir_framework.driver.irmatching.IRMatcher;
 import compiler.lib.ir_framework.driver.irmatching.IRViolationException;
 import compiler.lib.ir_framework.driver.irmatching.Matchable;
 import compiler.lib.ir_framework.driver.irmatching.parser.TestClassParser;
+import compiler.lib.ir_framework.driver.network.testvm.java.TestVmCrashAsSuccessException;
 import compiler.lib.ir_framework.shared.*;
 import compiler.lib.ir_framework.test.TestVM;
 import jdk.test.lib.Platform;
@@ -158,7 +159,7 @@ public class TestFramework {
     public static final boolean VERBOSE = Boolean.getBoolean("Verbose");
     public static final boolean PRINT_RULE_MATCHING_TIME = Boolean.getBoolean("PrintRuleMatchingTime");
     private static final boolean TEST_LIST_IS_EMPTY = SystemProperty.getTestList().isEmpty();
-    private static final boolean EXCLUDE_LIST_IS_EMPTY = SystemProperty.getExcludeList().isEmpty();;
+    private static final boolean EXCLUDE_LIST_IS_EMPTY = SystemProperty.getExcludeList().isEmpty();
     private static final boolean REPORT_STDOUT = Boolean.getBoolean("ReportStdout");
     // Only used for internal testing and should not be used for normal user testing.
 
@@ -889,8 +890,16 @@ public class TestFramework {
     }
 
     private void runTestVM(List<String> additionalFlags) {
-        TestVMProcess testVMProcess = new TestVMProcess(additionalFlags, testClass, helperClasses, defaultWarmup,
-                                                        allowNotCompilable, testClassesOnBootClassPath);
+        TestVMProcess testVMProcess;
+        try {
+            testVMProcess = new TestVMProcess(additionalFlags, testClass, helperClasses, defaultWarmup,
+                                              allowNotCompilable, testClassesOnBootClassPath);
+        } catch (TestVmCrashAsSuccessException e) {
+            // Special success mode when using -DFailOnSuccessfulSkip=true. Treat as success but report Test VM crash
+            // and skip IR matching.
+            return;
+        }
+
         if (shouldVerifyIR) {
             try {
                 TestClassParser testClassParser = new TestClassParser(testClass, allowNotCompilable);

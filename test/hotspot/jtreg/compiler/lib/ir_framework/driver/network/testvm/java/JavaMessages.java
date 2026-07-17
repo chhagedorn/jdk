@@ -28,16 +28,18 @@ package compiler.lib.ir_framework.driver.network.testvm.java;
  */
 public class JavaMessages {
     private final StdoutMessages stdoutMessages;
-    private final ExecutedTests executedTests;
     private final MethodTimes methodTimes;
+    private final ExecutedTests executedTests;
+    private final FailOnSuccessfulSkipMessages failOnSuccessfulSkipMessages;
     private final ApplicableIRRules applicableIrRules;
     private final VMInfo vmInfo;
 
-    JavaMessages(StdoutMessages stdoutMessages, ExecutedTests executedTests, MethodTimes methodTimes,
-                 ApplicableIRRules applicableIrRules, VMInfo vmInfo) {
+    JavaMessages(StdoutMessages stdoutMessages, MethodTimes methodTimes, ExecutedTests executedTests,
+                 FailOnSuccessfulSkipMessages failOnSuccessfulSkipMessages, ApplicableIRRules applicableIrRules, VMInfo vmInfo) {
         this.stdoutMessages = stdoutMessages;
-        this.executedTests = executedTests;
         this.methodTimes = methodTimes;
+        this.executedTests = executedTests;
+        this.failOnSuccessfulSkipMessages = failOnSuccessfulSkipMessages;
         this.applicableIrRules = applicableIrRules;
         this.vmInfo = vmInfo;
     }
@@ -54,7 +56,12 @@ public class JavaMessages {
         stdoutMessages.print();
         methodTimes.print();
         executedTests.print();
+        failOnSuccessfulSkipMessages.print();
         vmInfo.print();
         applicableIrRules.print();
+    }
+
+    public boolean foundNonFailingSkippedTests() {
+        return failOnSuccessfulSkipMessages.foundNonFailingSkippedTests();
     }
 }

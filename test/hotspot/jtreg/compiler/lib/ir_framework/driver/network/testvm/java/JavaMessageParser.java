@@ -45,8 +45,11 @@ public class JavaMessageParser implements TestVmMessageParser<JavaMessages> {
     private static final Pattern TAG_PATTERN = Pattern.compile("^(\\[[^]]+])\\s*(.*)$");
 
     private final List<String> stdoutMessages;
-    private final List<String> executedTests;
     private final Map<String, Long> methodTimes;
+    private final List<String> executedTests;
+    private final List<String> failedSkipAnnotatedTests;
+    private final List<String> failedNonSkipAnnotatedTests;
+    private final List<String> successfulSkipAnnotatedTests;
     private final MultiLineParser<VMInfo> vmInfoParser;
     private final MultiLineParser<ApplicableIRRules> applicableIRRulesParser;
 
@@ -56,6 +59,9 @@ public class JavaMessageParser implements TestVmMessageParser<JavaMessages> {
         this.stdoutMessages = new ArrayList<>();
         this.methodTimes = new HashMap<>();
         this.executedTests = new ArrayList<>();
+        this.failedSkipAnnotatedTests = new ArrayList<>();
+        this.failedNonSkipAnnotatedTests = new ArrayList<>();
+        this.successfulSkipAnnotatedTests = new ArrayList<>();
         this.vmInfoParser = new MultiLineParser<>(new VMInfoStrategy());
         this.applicableIRRulesParser = new MultiLineParser<>(new ApplicableIRRulesStrategy());
         this.currentMultiLineParser = null;
@@ -93,6 +99,9 @@ public class JavaMessageParser implements TestVmMessageParser<JavaMessages> {
             case STDOUT -> stdoutMessages.add(message);
             case TEST_LIST -> executedTests.add(message);
             case PRINT_TIMES -> parsePrintTimes(message);
+            case FAILED_NON_SKIP_ANNOTATED_TESTS -> failedNonSkipAnnotatedTests.add(message);
+            case FAILED_SKIP_ANNOTATED_TESTS -> failedSkipAnnotatedTests.add(message);
+            case SUCCESSFUL_SKIP_ANNOTATED_TESTS -> successfulSkipAnnotatedTests.add(message);
             case VM_INFO -> currentMultiLineParser = vmInfoParser;
             case APPLICABLE_IR_RULES -> currentMultiLineParser = applicableIRRulesParser;
             default -> throw new TestFrameworkException("unknown tag");
@@ -123,8 +132,11 @@ public class JavaMessageParser implements TestVmMessageParser<JavaMessages> {
     @Override
     public JavaMessages output() {
         return new JavaMessages(new StdoutMessages(stdoutMessages),
-                                new ExecutedTests(executedTests),
                                 new MethodTimes(methodTimes),
+                                new ExecutedTests(executedTests),
+                                new FailOnSuccessfulSkipMessages(failedSkipAnnotatedTests,
+                                                                 failedNonSkipAnnotatedTests,
+                                                                 successfulSkipAnnotatedTests),
                                 applicableIRRulesParser.output(),
                                 vmInfoParser.output());
     }
