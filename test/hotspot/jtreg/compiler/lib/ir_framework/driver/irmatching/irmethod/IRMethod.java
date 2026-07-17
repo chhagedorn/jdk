@@ -60,13 +60,29 @@ public class IRMethod implements IRMethodMatchable {
         List<Matchable> irRules = new ArrayList<>();
         for (int ruleId : irRuleIds) {
             try {
-                irRules.add(new IRRule(ruleId, irAnnos[ruleId - 1], compilation, vmInfo));
+                createIRRule(irAnnos, compilation, vmInfo, ruleId, irRules);
             } catch (TestFormatException e) {
                 String postfixErrorMsg = " for IR rule " + ruleId + " at " + method + ".";
                 TestFormat.failNoThrow(e.getMessage() + postfixErrorMsg);
             }
         }
         return irRules;
+    }
+
+    private void createIRRule(IR[] irAnnos, Compilation compilation, VMInfo vmInfo, int ruleId, List<Matchable> irRules) {
+        if (shouldSkipIRRule(irAnnos, ruleId)) {
+            return;
+        }
+        irRules.add(new IRRule(ruleId, irAnnos[ruleId - 1], compilation, vmInfo));
+    }
+
+    private boolean shouldSkipIRRule(IR[] irAnnos, int ruleId) {
+        boolean shouldSkip = irAnnos[ruleId - 1].skip();
+        if (shouldSkip && IRMatcher.IGNORE_SKIP_IR) {
+            System.out.println("Matching skipped IR rule " + ruleId + " for method \"" + method.getName() + "\"");
+            return false;
+        }
+        return shouldSkip;
     }
 
     /**

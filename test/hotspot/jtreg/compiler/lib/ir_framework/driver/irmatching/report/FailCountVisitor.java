@@ -23,49 +23,14 @@
 
 package compiler.lib.ir_framework.driver.irmatching.report;
 
-import compiler.lib.ir_framework.driver.irmatching.irmethod.IRMethodMatchResult;
-import compiler.lib.ir_framework.driver.irmatching.irmethod.NotCompilableIRMethodMatchResult;
-import compiler.lib.ir_framework.driver.irmatching.irmethod.NotCompiledIRMethodMatchResult;
-import compiler.lib.ir_framework.driver.irmatching.irrule.IRRuleMatchResult;
+import compiler.lib.ir_framework.driver.irmatching.MatchResult;
 import compiler.lib.ir_framework.driver.irmatching.visitor.MatchResultVisitor;
 
 /**
  * Visitor to collect the number of IR method and IR rule failures.
  */
-class FailCountVisitor implements MatchResultVisitor {
-    private int irMethodCount;
-    private int irRuleCount;
-
-
-    @Override
-    public void enter(IRMethodMatchResult result) {
-        irMethodCount++;
-    }
-
-    /**
-     * We directly override this method to stop visiting compile phase IR rule sub results.
-     */
-    @Override
-    public void visit(IRRuleMatchResult result) {
-        irRuleCount++;
-    }
-
-    @Override
-    public void visitLeaf(NotCompiledIRMethodMatchResult result) {
-        irMethodCount++;
-        irRuleCount += result.irRuleCount();
-    }
-
-    @Override
-    public void visitLeaf(NotCompilableIRMethodMatchResult result) {
-        irMethodCount++;
-    }
-
-    public int irRuleCount() {
-        return irRuleCount;
-    }
-
-    public int irMethodCount() {
-        return irMethodCount;
-    }
+public interface FailCountVisitor extends MatchResultVisitor {
+    int irMethodCount();
+    int irRuleCount();
+    void run(MatchResult result);
 }

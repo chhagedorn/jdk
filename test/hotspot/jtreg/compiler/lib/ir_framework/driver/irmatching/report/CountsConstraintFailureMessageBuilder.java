@@ -30,7 +30,7 @@ import compiler.lib.ir_framework.shared.Comparison;
 /**
  * This class creates a failure message for a {@link IR#counts} constraint failure.
  */
-public class CountsConstraintFailureMessageBuilder {
+class CountsConstraintFailureMessageBuilder {
     private final ConstraintFailureMessageBuilder constrainFailureMessageBuilder;
     private final Comparison<Integer> comparison;
     private final int matchedNodesSize;

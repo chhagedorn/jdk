@@ -25,6 +25,7 @@ package compiler.lib.ir_framework.driver.irmatching;
 
 import compiler.lib.ir_framework.driver.irmatching.parser.TestClassParser;
 import compiler.lib.ir_framework.driver.irmatching.report.CompilationOutputBuilder;
+import compiler.lib.ir_framework.driver.irmatching.report.FailOnSuccessfulSkipMessageBuilder;
 import compiler.lib.ir_framework.driver.irmatching.report.FailureMessageBuilder;
 
 /**
@@ -34,6 +35,11 @@ import compiler.lib.ir_framework.driver.irmatching.report.FailureMessageBuilder;
  * of the failed compilation phases.
  */
 public class IRMatcher {
+    public static final boolean FAIL_ON_SUCCESSFUL_SKIP =
+            Boolean.parseBoolean(System.getProperty("FailOnSuccessfulSkip", "false"));
+    public static final boolean IGNORE_SKIP_IR =
+            Boolean.parseBoolean(System.getProperty("IgnoreSkipIR", "false")) || FAIL_ON_SUCCESSFUL_SKIP;
+
     private final Matchable testClass;
 
     public IRMatcher(Matchable testClass) {
@@ -45,9 +51,7 @@ public class IRMatcher {
      */
     public void match() {
         MatchResult result = testClass.match();
-        if (result.fail()) {
-            reportFailures(result);
-        }
+        report(result);
     }
 
     /**
@@ -55,9 +59,22 @@ public class IRMatcher {
      * an exact description of the failure (method, rule, compile phase, check attribute, and constraint) and the
      * associated compile phase output of the failure.
      */
-    private void reportFailures(MatchResult result) {
-        String failureMsg = new FailureMessageBuilder(result).build();
+    private void report(MatchResult result) {
+        StringBuilder builder = new StringBuilder();
+
+        if (FAIL_ON_SUCCESSFUL_SKIP) {
+            builder.append(new FailOnSuccessfulSkipMessageBuilder(result).build());
+        }
+        if (result.fail()) {
+            builder.append(new FailureMessageBuilder(result).build());
+        }
+
+        if (builder.isEmpty()) {
+            // Nothing to report
+            return;
+        }
+
         String compilationOutput = new CompilationOutputBuilder(result).build();
-        throw new IRViolationException(failureMsg, compilationOutput);
+        throw new IRViolationException(builder.toString(), compilationOutput);
     }
 }

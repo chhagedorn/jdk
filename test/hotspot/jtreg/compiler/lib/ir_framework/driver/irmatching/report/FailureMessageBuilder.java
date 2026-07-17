@@ -24,6 +24,7 @@
 package compiler.lib.ir_framework.driver.irmatching.report;
 
 import compiler.lib.ir_framework.CompilePhase;
+import compiler.lib.ir_framework.driver.irmatching.IRMatcher;
 import compiler.lib.ir_framework.driver.irmatching.TestClassMatchResult;
 import compiler.lib.ir_framework.driver.irmatching.irmethod.IRMethodMatchResult;
 import compiler.lib.ir_framework.driver.irmatching.irmethod.NotCompilableIRMethodMatchResult;
@@ -39,68 +40,56 @@ import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.CountsConst
 import compiler.lib.ir_framework.driver.irmatching.irrule.constraint.FailOnConstraintFailure;
 import compiler.lib.ir_framework.driver.irmatching.visitor.MatchResultVisitor;
 
-import java.lang.reflect.Method;
-
 /**
  * This class creates the complete failure message of each IR matching failure by visiting each match result element.
  */
 public class FailureMessageBuilder implements MatchResultVisitor {
-    private final StringBuilder msg;
+    private final FailureMessage failureMessage;
     private final MatchResult testClassMatchResult;
-    private Indentation indentation;
-    private int methodIndex = 0;
+    private final FailCountVisitor failCountVisitor;
 
     public FailureMessageBuilder(MatchResult testClassMatchResult) {
-        this.msg = new StringBuilder();
         this.testClassMatchResult = testClassMatchResult;
+        this.failureMessage = new FailureMessage();
+        this.failCountVisitor = IRMatcher.FAIL_ON_SUCCESSFUL_SKIP ?
+                new UnskippedFailCountVisitor() : new NormalFailCountVisitor();
     }
 
     @Override
     public void enter(TestClassMatchResult result) {
-        FailCountVisitor failCountVisitor = new FailCountVisitor();
-        testClassMatchResult.accept(failCountVisitor);
-        int failedMethodCount = failCountVisitor.irMethodCount();
-        int failedIRRulesCount = failCountVisitor.irRuleCount();
-        msg.append("One or more @IR rules failed:")
-           .append(System.lineSeparator())
-           .append(System.lineSeparator())
-           .append("Failed IR Rules (").append(failedIRRulesCount).append(") of Methods (").append(failedMethodCount)
-           .append(")").append(System.lineSeparator())
-           .append(getTitleSeparator(failedMethodCount, failedIRRulesCount))
-           .append(System.lineSeparator());
-    }
-
-    private static String getTitleSeparator(int failedMethodCount, int failedIRRulesCount) {
-        return "-".repeat(32 + digitCount(failedIRRulesCount) + digitCount(failedMethodCount));
+        failCountVisitor.run(result);
+        String title;
+        if (IRMatcher.FAIL_ON_SUCCESSFUL_SKIP) {
+            if (failCountVisitor.irMethodCount() == 0) {
+                // Only skipped IR rules failed - nothing to report normally.
+                return;
+            }
+            title = "One or more non-skipped @IR rules failed";
+        } else {
+            title = "One or more @IR rules failed";
+        }
+        failureMessage.addSummary(title, "Failed", failCountVisitor);
     }
 
     @Override
     public void enter(IRMethodMatchResult result) {
-        appendIRMethodHeader(result.method(), result.subResults().failCount());
+        if (IRMatcher.FAIL_ON_SUCCESSFUL_SKIP) {
+            failCountVisitor.run(result);
+            if (failCountVisitor.irMethodCount() == 0) {
+                return;
+            }
+        }
+        failureMessage.addFailedIRMethodHeader(result.method(), result.subResults().failCount());
     }
 
     @Override
     public void visitLeaf(NotCompiledIRMethodMatchResult result) {
-        appendIRMethodHeader(result.method(), result.irRuleCount());
-        indentation.add();
-        msg.append(indentation)
-           .append("* Method was not compiled. Did you specify a @Run method in STANDALONE mode? In this case, make " +
-                   "sure to always trigger a C2 compilation by invoking the test enough times.")
-           .append(System.lineSeparator());
-        indentation.sub();
-    }
-
-    private void appendIRMethodHeader(Method method, int failedIrRuleCount) {
-        methodIndex++;
-        indentation = new Indentation(digitCount(methodIndex));
-        if (methodIndex > 1) {
-            msg.append(System.lineSeparator());
-        }
-        msg.append(methodIndex).append(") ");
-        msg.append("Method \"")
-                .append(method.getDeclaringClass().getTypeName()).append("::").append(method.getName())
-                .append("\" - [Failed IR rules: ").append(failedIrRuleCount).append("]:")
-                .append(System.lineSeparator());
+        failureMessage.addFailedIRMethodHeader(result.method(), result.irRuleCount());
+        failureMessage.indent();
+        failureMessage
+                .printIndented("* Method was not compiled. Did you specify a @Run method in STANDALONE mode? In this case, " +
+                               "make sure to always trigger a C2 compilation by invoking the test enough times.");
+        failureMessage.dedent();
     }
 
     @Override
@@ -109,51 +98,62 @@ public class FailureMessageBuilder implements MatchResultVisitor {
     }
 
     @Override
+    public void visit(IRRuleMatchResult result) {
+        if (IRMatcher.IGNORE_SKIP_IR && result.irAnno().skip()) {
+            // No need to visit further sub results.
+            return;
+        }
+        if (IRMatcher.FAIL_ON_SUCCESSFUL_SKIP) {
+            failCountVisitor.run(result);
+            if (failCountVisitor.irRuleCount() == 0) {
+                return;
+            }
+        }
+        MatchResultVisitor.super.visit(result);
+    }
+
+    @Override
     public void enter(IRRuleMatchResult result) {
-        indentation.add();
-        msg.append(indentation).append("* @IR rule ").append(result.irRuleId()).append(": \"")
-           .append(result.irAnno()).append("\"").append(System.lineSeparator());
+        failureMessage.indent();
+        failureMessage.addIRRuleHeader(result.irRuleId(), result.irAnno());
     }
 
     @Override
     public void leave(IRRuleMatchResult result) {
-        indentation.sub();
+        failureMessage.dedent();
     }
 
     @Override
     public void enter(CompilePhaseIRRuleMatchResult result) {
-        indentation.add();
+        failureMessage.indent();
         appendCompilePhaseIRRule(result.compilePhase());
     }
 
     @Override
     public void leave(CompilePhaseIRRuleMatchResult result) {
-        indentation.sub();
+        failureMessage.dedent();
     }
 
     @Override
     public void visitLeaf(CompilePhaseNoCompilationIRRuleMatchResult result) {
-        indentation.add();
+        failureMessage.indent();
         appendCompilePhaseIRRule(result.compilePhase());
-        indentation.add();
-        msg.append(indentation)
-           .append("- NO compilation output found for this phase! Make sure this phase is emitted or remove it from ")
-           .append("the list of compile phases in the @IR rule to match on.")
-           .append(System.lineSeparator());
-        indentation.sub();
-        indentation.sub();
+        failureMessage.indent();
+        failureMessage
+                .printIndented("- NO compilation output found for this phase! Make sure this phase is emitted or remove it from ")
+                .println("the list of compile phases in the @IR rule to match on.");
+        failureMessage.dedent();
+        failureMessage.dedent();
     }
 
     private void appendCompilePhaseIRRule(CompilePhase compilePhase) {
-        msg.append(indentation)
-                .append("> Phase \"").append(compilePhase.getName()).append("\":")
-                .append(System.lineSeparator());
+        failureMessage.printIndented("> Phase \"").print(compilePhase.getName()).println("\":");
     }
 
     @Override
     public void enter(CheckAttributeMatchResult result) {
+        failureMessage.indent();
         CheckAttributeType checkAttributeType = result.checkAttributeType();
-        indentation.add();
         String checkAttributeFailureMsg;
         switch (checkAttributeType) {
             case FAIL_ON -> checkAttributeFailureMsg = "failOn: Graph contains forbidden nodes";
@@ -161,42 +161,40 @@ public class FailureMessageBuilder implements MatchResultVisitor {
             default ->
                     throw new IllegalStateException("Unexpected value: " + checkAttributeType);
         }
-        msg.append(indentation).append("- ").append(checkAttributeFailureMsg)
-           .append(":").append(System.lineSeparator());
+        failureMessage.printIndented("- ").print(checkAttributeFailureMsg).println(":");
     }
 
     @Override
     public void leave(CheckAttributeMatchResult result) {
-        indentation.sub();
+        failureMessage.dedent();
     }
 
     @Override
     public void visitLeaf(FailOnConstraintFailure result) {
-        indentation.add();
+        failureMessage.indent();
         ConstraintFailureMessageBuilder constrainFailureMessageBuilder =
-                new ConstraintFailureMessageBuilder(result, indentation);
-        String failureMessage = constrainFailureMessageBuilder.buildConstraintHeader() +
-                                constrainFailureMessageBuilder.buildMatchedNodesMessage("Matched forbidden");
-        msg.append(failureMessage);
-        indentation.sub();
+                new ConstraintFailureMessageBuilder(result, failureMessage.indentation());
+        String msg = constrainFailureMessageBuilder.buildConstraintHeader() +
+                     constrainFailureMessageBuilder.buildMatchedNodesMessage("Matched forbidden");
+        failureMessage.print(msg);
+        failureMessage.dedent();
     }
 
     @Override
     public void visitLeaf(CountsConstraintFailure result) {
-        indentation.add();
-        msg.append(new CountsConstraintFailureMessageBuilder(result, indentation).build());
-        indentation.sub();
+        failureMessage.indent();
+        failureMessage.print(new CountsConstraintFailureMessageBuilder(result, failureMessage.indentation()).build());
+        failureMessage.dedent();
     }
 
     public String build() {
         testClassMatchResult.accept(this);
-        msg.append(System.lineSeparator())
-           .append(">>> Check stdout for compilation output of the failed methods")
-           .append(System.lineSeparator()).append(System.lineSeparator());
-        return msg.toString();
-    }
-
-    private static int digitCount(int digit) {
-        return String.valueOf(digit).length();
+        if (IRMatcher.FAIL_ON_SUCCESSFUL_SKIP && failureMessage.isEmpty()) {
+            return "";
+        }
+        failureMessage.println()
+                .println(">>> Check stdout for compilation output of the failed methods")
+                .println();
+        return failureMessage.build();
     }
 }
