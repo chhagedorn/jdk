@@ -21,16 +21,17 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.test.network;
+package compiler.lib.ir_framework.driver.network.testvm.java;
 
-public class MessageTag {
-    public static final String STDOUT = "[STDOUT]";
-    public static final String TEST_LIST = "[TEST_LIST]";
-    public static final String PRINT_TIMES = "[PRINT_TIMES]";
-    public static final String FAILED_SKIP_ANNOTATED_TESTS = "[FAILED_SKIP_ANNOTATED_TESTS]";
-    public static final String FAILED_NON_SKIP_ANNOTATED_TESTS = "[FAILED_NON_SKIP_ANNOTATED_TESTS]";
-    public static final String SUCCESSFUL_SKIP_ANNOTATED_TESTS = "[SUCCESSFUL_SKIP_ANNOTATED_TESTS]";
-    public static final String VM_INFO = "[VM_INFO]";
-    public static final String APPLICABLE_IR_RULES = "[APPLICABLE_IR_RULES]";
-    public static final String END_MARKER = "#END#";
+import compiler.lib.ir_framework.Skip;
+
+/**
+ * This exception is thrown when running with {@code -DFailOnSuccessfulSkip=true} and observing that a
+ * {@link Skip @Skip}-annotated method unexpectedly passes. This is an indication that the {@link Skip @Skip}
+ * annotation might no longer be needed.
+ */
+public class SuccessfulSkippedTestException extends RuntimeException {
+    public SuccessfulSkippedTestException() {
+        super("One or more @Skip-annotated method passed (check Test VM Messages)");
+    }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -39,6 +39,7 @@ class BaseTest extends AbstractTest {
     private final boolean shouldCompile;
     private final boolean waitForCompilation;
     private int invocationCounter;
+    private final boolean hasSkipAnno;
 
     public BaseTest(DeclaredTest test, boolean skip) {
         super(test.getWarmupIterations(), skip);
@@ -49,6 +50,7 @@ class BaseTest extends AbstractTest {
         this.shouldCompile = shouldCompile(test);
         this.waitForCompilation = isWaitForCompilation(test);
         this.invocationCounter = 0;
+        this.hasSkipAnno = test.hasSkipAnno();
     }
 
     @Override
@@ -59,6 +61,11 @@ class BaseTest extends AbstractTest {
     @Override
     public String getName() {
         return testMethod.getName();
+    }
+
+    @Override
+    boolean hasSkipAnno() {
+        return hasSkipAnno;
     }
 
     @Override
