@@ -77,6 +77,11 @@ class CustomRunTest extends AbstractTest {
     }
 
     @Override
+    boolean hasSkipAnno() {
+        return tests.stream().anyMatch(DeclaredTest::hasSkipAnno);
+    }
+
+    @Override
     public void run() {
         if (skip) {
             return;

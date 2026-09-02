@@ -57,6 +57,8 @@ abstract class AbstractTest {
 
     abstract String getName();
 
+    abstract boolean hasSkipAnno();
+
     /**
      * Should test be executed?
      */

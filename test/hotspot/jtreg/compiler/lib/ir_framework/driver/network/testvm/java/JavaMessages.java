@@ -30,14 +30,16 @@ public class JavaMessages {
     private final StdoutMessages stdoutMessages;
     private final MethodTimes methodTimes;
     private final ExecutedTests executedTests;
+    private final FailOnSuccessfulSkipMessages failOnSuccessfulSkipMessages;
     private final ApplicableIRRules applicableIrRules;
     private final VMInfo vmInfo;
 
     JavaMessages(StdoutMessages stdoutMessages, MethodTimes methodTimes, ExecutedTests executedTests,
-                 ApplicableIRRules applicableIrRules, VMInfo vmInfo) {
+                 FailOnSuccessfulSkipMessages failOnSuccessfulSkipMessages, ApplicableIRRules applicableIrRules, VMInfo vmInfo) {
         this.stdoutMessages = stdoutMessages;
         this.methodTimes = methodTimes;
         this.executedTests = executedTests;
+        this.failOnSuccessfulSkipMessages = failOnSuccessfulSkipMessages;
         this.applicableIrRules = applicableIrRules;
         this.vmInfo = vmInfo;
     }
@@ -54,7 +56,12 @@ public class JavaMessages {
         stdoutMessages.print();
         methodTimes.print();
         executedTests.print();
+        failOnSuccessfulSkipMessages.print();
         vmInfo.print();
         applicableIrRules.print();
+    }
+
+    public boolean foundNonFailingSkippedTests() {
+        return failOnSuccessfulSkipMessages.foundNonFailingSkippedTests();
     }
 }

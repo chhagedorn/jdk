@@ -63,4 +63,8 @@ public class TestVMData {
     public void printJavaMessages() {
         javaMessages.print();
     }
+
+    public boolean foundNonFailingSkippedTests() {
+        return javaMessages.foundNonFailingSkippedTests();
+    }
 }

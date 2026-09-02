@@ -30,6 +30,7 @@ import compiler.lib.ir_framework.driver.irmatching.IRMatcher;
 import compiler.lib.ir_framework.driver.irmatching.IRViolationException;
 import compiler.lib.ir_framework.driver.irmatching.Matchable;
 import compiler.lib.ir_framework.driver.irmatching.parser.TestClassParser;
+import compiler.lib.ir_framework.driver.network.testvm.java.TestVmCrashAsSuccessException;
 import compiler.lib.ir_framework.shared.*;
 import compiler.lib.ir_framework.test.TestVM;
 import jdk.test.lib.Platform;
@@ -889,8 +890,17 @@ public class TestFramework {
     }
 
     private void runTestVM(List<String> additionalFlags) {
-        TestVMProcess testVMProcess = new TestVMProcess(additionalFlags, testClass, helperClasses, defaultWarmup,
-                                                        allowNotCompilable, testClassesOnBootClassPath);
+        TestVMProcess testVMProcess;
+        try {
+            testVMProcess = new TestVMProcess(additionalFlags, testClass, helperClasses, defaultWarmup,
+                                              allowNotCompilable, testClassesOnBootClassPath);
+        } catch (TestVmCrashAsSuccessException e) {
+            // Special success mode when using -DFailOnSuccessfulSkip=true and encountering a Test VM crash. We treat
+            // this as success but skip IR matching due to possibly having incomplete information. Note that we
+            // additionally reported the Test VM crash at the throw site.
+            return;
+        }
+
         if (shouldVerifyIR) {
             try {
                 TestClassParser testClassParser = new TestClassParser(testClass, allowNotCompilable);

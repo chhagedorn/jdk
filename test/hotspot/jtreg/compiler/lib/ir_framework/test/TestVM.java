@@ -97,6 +97,9 @@ public class TestVM {
     static final boolean EXCLUDE_RANDOM = Boolean.getBoolean("ExcludeRandom");
     private static final String TEST_LIST = SystemProperty.getTestList();
     private static final String EXCLUDE_LIST = SystemProperty.getExcludeList();
+    private static final boolean FAIL_ON_SUCCESSFUL_SKIP = Boolean.getBoolean("FailOnSuccessfulSkip");
+    // We ignore @Skip when either running with -DIgnoreSkip=true or -DFailOnSuccessfulSkip=true
+    private static final boolean IGNORE_SKIP = Boolean.getBoolean("IgnoreSkip") || FAIL_ON_SUCCESSFUL_SKIP;
     private static final boolean DUMP_REPLAY = Boolean.getBoolean("DumpReplay");
     private static final boolean GC_AFTER = Boolean.getBoolean("GCAfter");
     private static final boolean SHUFFLE_TESTS = Boolean.parseBoolean(System.getProperty("ShuffleTests", "true"));
@@ -312,11 +315,13 @@ public class TestVM {
      * A test is excluded from execution if:
      * - -DTest does not list the method
      * - -DExclude lists the method
+     * - The method specifies a (temporary) @Skip annotation.
      */
     private boolean shouldExcludeTest(Method testMethod) {
         String testName = testMethod.getName();
         return isNotOnTestList(testName) ||
-               isOnExcludeList(testName);
+               isOnExcludeList(testName) ||
+               hasSkipAnnotation(testMethod);
     }
 
     private boolean isNotOnTestList(String testName) {
@@ -325,6 +330,14 @@ public class TestVM {
 
     private boolean isOnExcludeList(String testName) {
         return excludeList.contains(testName);
+    }
+
+    private boolean hasSkipAnnotation(Method testMethod) {
+        boolean shouldSkip = getAnnotation(testMethod, Skip.class) != null;
+        if (shouldSkip && IGNORE_SKIP) {
+            return false;
+        }
+        return shouldSkip;
     }
 
     /**
@@ -561,6 +574,8 @@ public class TestVM {
                                             "Found @IR annotation on non-@Test method " + m);
                     TestFormat.checkNoThrow(!m.isAnnotationPresent(Warmup.class) || getAnnotation(m, Run.class) != null,
                                             "Found @Warmup annotation on non-@Test or non-@Run method " + m);
+                    TestFormat.checkNoThrow(!m.isAnnotationPresent(Skip.class) ,
+                                            "Found @Skip annotation on non-@Test method " + m);
                 }
             } catch (TestFormatException e) {
                 // Failure logged. Continue and report later.
@@ -583,17 +598,23 @@ public class TestVM {
             // Don't inline test methods by default. Do not apply this when -DIgnoreCompilerControls=true is set.
             WHITE_BOX.testSetDontInlineMethod(m, true);
         }
+
         CompLevel compLevel = restrictCompLevel(testAnno.compLevel());
         if (FLIP_C1_C2) {
             compLevel = compLevel.flipCompLevel();
             compLevel = restrictCompLevel(compLevel.flipCompLevel());
         }
+
         if (EXCLUDE_RANDOM) {
             compLevel = compLevel.excludeCompilationRandomly(m);
         }
+
         boolean allowNotCompilable = testAnno.allowNotCompilable() || ALLOW_METHOD_NOT_COMPILABLE;
         ArgumentsProvider argumentsProvider = ArgumentsProviderBuilder.build(m, setupMethodMap);
-        DeclaredTest test = new DeclaredTest(m, argumentsProvider, compLevel, warmupIterations, allowNotCompilable);
+        Skip skip = getAnnotation(m, Skip.class);
+        boolean hasSkip = skip != null;
+        DeclaredTest test = new DeclaredTest(m, argumentsProvider, compLevel, warmupIterations,
+                                             hasSkip, allowNotCompilable);
         declaredTests.put(m, test);
         testMethodMap.put(m.getName(), m);
     }
@@ -751,6 +772,7 @@ public class TestVM {
         checkRunMethod(m, runAnno);
         List<DeclaredTest> tests = new ArrayList<>();
         boolean shouldExcludeTest = true;
+        boolean shouldExcludeAtLeastOneTest = false;
         for (String testName : runAnno.test()) {
             try {
                 Method testMethod = testMethodMap.get(testName);
@@ -758,12 +780,18 @@ public class TestVM {
                 checkCustomRunTest(m, testName, testMethod, test, runAnno.mode());
                 test.setAttachedMethod(m);
                 tests.add(test);
+                boolean shouldExclude = shouldExcludeTest(testMethod);
                 // Only exclude custom run test if all its associated test methods are excluded
-                shouldExcludeTest &= shouldExcludeTest(testMethod);
+                shouldExcludeTest &= shouldExclude;
+                shouldExcludeAtLeastOneTest |= shouldExclude;
             } catch (TestFormatException e) {
                 // Logged, continue.
             }
         }
+        if (shouldExcludeAtLeastOneTest) {
+            checkNoneOrAllAssociatedTestsSkipped(m, runAnno);
+        }
+
         if (tests.isEmpty()) {
             return; // There was a format violation. Return.
         }
@@ -807,6 +835,44 @@ public class TestVM {
         Warmup warmupAnno = getAnnotation(m, Warmup.class);
         TestFormat.checkNoThrow(warmupAnno == null || runAnno.mode() != RunMode.STANDALONE,
                                 "Cannot set @Warmup at @Run method " + m + " when used with RunMode.STANDALONE. The @Run method is only invoked once.");
+    }
+
+    private void checkNoneOrAllAssociatedTestsSkipped(Method runMethod, Run runAnno) {
+        List<Method> testMethodsWithoutSkip = testMethodsWithoutSkipAnnotation(runAnno);
+        if (testMethodsWithoutSkip.isEmpty()) {
+            // All with @Skip
+            return;
+        }
+
+        if (testMethodsWithoutSkip.size() == runAnno.test().length) {
+            // No method with @Skip -> must be using -DTest/-DExclude
+            TestFramework.check(testFilterPresent(), "must be present in this case");
+            return;
+        }
+
+        reportPartiallySkippingTests(runMethod, testMethodsWithoutSkip);
+    }
+
+    private List<Method> testMethodsWithoutSkipAnnotation(Run runAnno) {
+        List<Method> methodsWithoutSkip = new ArrayList<>();
+        String[] tests = runAnno.test();
+        for (String testName : tests) {
+            Method testMethod = testMethodMap.get(testName);
+            if (!hasSkipAnnotation(testMethod)) {
+                methodsWithoutSkip.add(testMethod);
+            }
+        }
+        return methodsWithoutSkip;
+    }
+
+    private void reportPartiallySkippingTests(Method runMethod, List<Method> testMethodsWithoutSkip) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("@Run-methods with multiple tests can only either skip none or all methods with @Skip:")
+               .append(System.lineSeparator())
+               .append("   - @Run-method: ").append(runMethod);
+        testMethodsWithoutSkip.forEach(method -> builder.append(System.lineSeparator())
+                                                        .append("   - @Test without @Skip: ").append(method));
+        TestFormat.failNoThrow(builder.toString());
     }
 
     private static <T extends Annotation> T getAnnotation(AnnotatedElement element, Class<T> c) {
@@ -866,6 +932,7 @@ public class TestVM {
         }
         StringBuilder builder = new StringBuilder();
         int failures = 0;
+        int unexpectedFailures = 0;
 
         // Execute all tests and keep track of each exception that is thrown. These are then reported once all tests
         // are executing. This prevents a premature exit without running all tests.
@@ -879,6 +946,9 @@ public class TestVM {
             }
             try {
                 test.run();
+                if (FAIL_ON_SUCCESSFUL_SKIP && test.hasSkipAnno()) {
+                    TestVmSocket.sendWithTag(MessageTag.SUCCESSFUL_SKIP_ANNOTATED_TESTS, testName);
+                }
             } catch (TestRunException e) {
                 StringWriter sw = new StringWriter();
                 PrintWriter pw = new PrintWriter(sw);
@@ -886,6 +956,15 @@ public class TestVM {
                 builder.append("Failed test: ").append(test).append(":").append(System.lineSeparator()).append(sw)
                        .append(System.lineSeparator()).append(System.lineSeparator());
                 failures++;
+
+                if (FAIL_ON_SUCCESSFUL_SKIP) {
+                    if (test.hasSkipAnno()) {
+                        TestVmSocket.sendWithTag(MessageTag.FAILED_SKIP_ANNOTATED_TESTS, testName);
+                    } else {
+                        TestVmSocket.sendWithTag(MessageTag.FAILED_NON_SKIP_ANNOTATED_TESTS, testName);
+                        unexpectedFailures++;
+                    }
+                }
             }
             if (PRINT_TIMES) {
                 long endTime = System.nanoTime();
@@ -903,10 +982,11 @@ public class TestVM {
         }
 
         if (failures > 0) {
-            // Finally, report all occurred exceptions in a nice format.
-            String msg = System.lineSeparator() + System.lineSeparator() + "Test Failures (" + failures + ")"
-                         + System.lineSeparator() + "----------------" + "-".repeat(String.valueOf(failures).length());
-            throw new TestRunException(msg + System.lineSeparator() + builder);
+            if (!FAIL_ON_SUCCESSFUL_SKIP || unexpectedFailures > 0) {
+                String msg = System.lineSeparator() + System.lineSeparator() + "Test Failures (" + failures + ")" +
+                             System.lineSeparator() + "----------------" + "-".repeat(String.valueOf(failures).length());
+                throw new TestRunException(msg + System.lineSeparator() + builder);
+            }
         }
     }
 

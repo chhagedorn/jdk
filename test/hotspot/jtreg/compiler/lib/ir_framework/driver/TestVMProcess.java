@@ -23,8 +23,11 @@
 
 package compiler.lib.ir_framework.driver;
 
+import compiler.lib.ir_framework.Skip;
 import compiler.lib.ir_framework.TestFramework;
 import compiler.lib.ir_framework.driver.network.TestVMData;
+import compiler.lib.ir_framework.driver.network.testvm.java.SuccessfulSkippedTestException;
+import compiler.lib.ir_framework.driver.network.testvm.java.TestVmCrashAsSuccessException;
 import compiler.lib.ir_framework.shared.TestFrameworkException;
 import compiler.lib.ir_framework.shared.TestFrameworkSocket;
 import compiler.lib.ir_framework.shared.NoTestsRunException;
@@ -64,6 +67,7 @@ public class TestVMProcess {
     private static String lastTestVMOutput = "";
 
     private final ArrayList<String> cmds;
+    private final Class<?> testClass;
     private String commandLine;
     private OutputAnalyzer oa;
     private final TestVMData testVmData;
@@ -71,6 +75,7 @@ public class TestVMProcess {
     public TestVMProcess(List<String> additionalFlags, Class<?> testClass, Set<Class<?>> helperClasses, int defaultWarmup,
                          boolean allowNotCompilable, boolean testClassesOnBootClassPath) {
         this.cmds = new ArrayList<>();
+        this.testClass = testClass;
         TestFrameworkSocket socket = new TestFrameworkSocket();
         try (socket) {
             socket.start();
@@ -124,6 +129,12 @@ public class TestVMProcess {
         String hotspotPidFileName = String.format("hotspot_pid%d.log", oa.pid());
         TestVMData testVMData = socket.testVmData(hotspotPidFileName, allowNotCompilable);
         testVMData.printJavaMessages();
+        if (testVMData.foundNonFailingSkippedTests()) {
+            // Found at least one @Skip-annotated test that succeeded. We report it as an error when using
+            // -DFailOnSuccessfulSkip=true.
+            dumpTestVmOutput();
+            throw new SuccessfulSkippedTestException();
+        }
         return testVMData;
     }
 
@@ -151,6 +162,9 @@ public class TestVMProcess {
         String secondaryException = "";
         try {
             readAndDumpTestVmData(socket, allowNotCompilable);
+        } catch (SuccessfulSkippedTestException e) {
+            // Unrelated to Test VM message processing.
+            throw e;
         } catch (RuntimeException e) {
             // We observed a message processing exception. We treat it as secondary failure because messages could be
             // incomplete when the VM crashed or not even sent by the Test VM when it exits early on start-up
@@ -159,6 +173,10 @@ public class TestVMProcess {
         }
         // Primary exception: non-zero Test VM exit.
         String exceptionInfo = buildPrimaryExceptionInfo() + secondaryException;
+        if (shouldTreatCrashAsSuccess()) {
+            reportVmCrashAsSuccessful(exceptionInfo);
+            throw new TestVmCrashAsSuccessException();
+        }
         return new TestVMException(exceptionInfo);
     }
 
@@ -207,6 +225,42 @@ public class TestVMProcess {
      */
     private boolean hasFatalErrorMarker() {
         return oa.getExitValue() != 0 && oa.getOutput().contains(FATAL_ERROR_MARKER);
+    }
+
+    /**
+     * When using -DFailOnSuccessfulSkip=true, we could observe a Test VM crash that was caused by running a skipped
+     * test. We cannot accurately tell whether the crash was indeed caused by a skipped test. The best we can do is
+     * check if there are any @Skip-annotated methods present. If that's the case, we treat the Test VM crash as
+     * expected and throw a {@link TestVmCrashAsSuccessException} exception in the caller to avoid doing any IR matching
+     * with incomplete Test VM information. Otherwise, this method returns false.
+     */
+    private boolean shouldTreatCrashAsSuccess() {
+        return isFailOnSuccessfulSkip() && hasFatalErrorMarker() && hasTestWithSkipAnnotation();
+    }
+
+    /**
+     * We can't directly check -DFailOnSuccessfulSkip=true because a user could only pass this flag with
+     * {@link TestFramework#runWithFlags(String...)} and doesn't run the Driver VM directly with it.
+     */
+    private boolean isFailOnSuccessfulSkip() {
+        return cmds.stream().anyMatch(flag -> flag.equalsIgnoreCase("-DFailOnSuccessfulSkip=true"));
+    }
+
+    private boolean hasTestWithSkipAnnotation() {
+        return Arrays.stream(testClass.getDeclaredMethods())
+                     .anyMatch(method -> method.isAnnotationPresent(Skip.class));
+    }
+
+    private void reportVmCrashAsSuccessful(String exceptionInfo) {
+        System.out.println();
+        System.out.println("We don't know whether the Test VM crashed due to compiling and running @Skip-annotated " +
+                           "tests or not.");
+        System.out.println("Treat as an expected failure but skip IR matching in this case (could have incomplete " +
+                           "dumps).");
+        System.out.println();
+        System.out.println("VM Output:");
+        System.out.println();
+        System.out.println(exceptionInfo);
     }
 
     public String getCommandLine() {

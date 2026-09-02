@@ -21,16 +21,13 @@
  * questions.
  */
 
-package compiler.lib.ir_framework.test.network;
+package compiler.lib.ir_framework.driver.network.testvm.java;
 
-public class MessageTag {
-    public static final String STDOUT = "[STDOUT]";
-    public static final String TEST_LIST = "[TEST_LIST]";
-    public static final String PRINT_TIMES = "[PRINT_TIMES]";
-    public static final String FAILED_SKIP_ANNOTATED_TESTS = "[FAILED_SKIP_ANNOTATED_TESTS]";
-    public static final String FAILED_NON_SKIP_ANNOTATED_TESTS = "[FAILED_NON_SKIP_ANNOTATED_TESTS]";
-    public static final String SUCCESSFUL_SKIP_ANNOTATED_TESTS = "[SUCCESSFUL_SKIP_ANNOTATED_TESTS]";
-    public static final String VM_INFO = "[VM_INFO]";
-    public static final String APPLICABLE_IR_RULES = "[APPLICABLE_IR_RULES]";
-    public static final String END_MARKER = "#END#";
-}
+import compiler.lib.ir_framework.Skip;
+
+/**
+ * This exception is thrown when running with {@code -DFailOnSuccessfulSkip=true} and observing a Test VM crash
+ * potentially caused by executing a {@link Skip @Skip}-annotated method. We treat this situation as success but skip
+ * IR matching due to possibly incomplete Test VM information.
+ */
+public class TestVmCrashAsSuccessException extends RuntimeException {}
