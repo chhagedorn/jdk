@@ -284,71 +284,53 @@ Node* ArrayCopyNode::make_and_transform_addp(PhaseGVN* phase, Node* base, Node* 
   return addp;
 }
 
-bool ArrayCopyNode::prepare_array_copy(PhaseGVN *phase, bool can_reshape,
-                                       Node*& adr_src,
-                                       Node*& base_src,
-                                       Node*& adr_dest,
-                                       Node*& base_dest,
-                                       BasicType& copy_type,
-                                       const Type*& value_type,
-                                       bool& disjoint_bases) {
-  base_src = in(ArrayCopyNode::Src);
-  base_dest = in(ArrayCopyNode::Dest);
-  const Type* src_type = phase->type(base_src);
-  const TypeAryPtr* ary_src = src_type->isa_aryptr();
+// We check whether this ArrayCopyNode can be replaced with individual loads and stores. This requires that we have
+// compatible src and dest array layouts, no unsupported atomicity, or GC-barrier requirements.
+bool ArrayCopyNode::prepare_load_store_expansion(PhaseGVN* phase, const bool can_reshape,
+                                                 Node*& adr_src,
+                                                 Node*& base_src,
+                                                 Node*& adr_dest,
+                                                 Node*& base_dest,
+                                                 BasicType& copy_type,
+                                                 const Type*& value_type,
+                                                 bool& disjoint_bases) {
+  base_src = in(Src);
+  base_dest = in(Dest);
+  const TypeAryPtr* src_ary = phase->type(base_src)->isa_aryptr();
 
-  Node* src_offset = in(ArrayCopyNode::SrcPos);
-  Node* dest_offset = in(ArrayCopyNode::DestPos);
+  Node* src_offset = in(SrcPos);
+  Node* dest_offset = in(DestPos);
 
   if (is_arraycopy() || is_copyofrange() || is_copyof()) {
     const Type* dest_type = phase->type(base_dest);
-    const TypeAryPtr* ary_dest = dest_type->isa_aryptr();
+    const TypeAryPtr* dest_ary = dest_type->isa_aryptr();
 
     // newly allocated object is guaranteed to not overlap with source object
     disjoint_bases = is_alloc_tightly_coupled();
-    if (ary_src  == nullptr || ary_src->elem()  == Type::BOTTOM ||
-        ary_dest == nullptr || ary_dest->elem() == Type::BOTTOM) {
-      // We don't know if arguments are arrays
+    if (!can_expand_with_loads_and_stores(src_ary, dest_ary)) {
       return false;
     }
+    value_type = src_ary->elem();
 
-    BasicType src_elem = ary_src->elem()->array_element_basic_type();
-    BasicType dest_elem = ary_dest->elem()->array_element_basic_type();
-    if (is_reference_type(src_elem, true)) src_elem = T_OBJECT;
-    if (is_reference_type(dest_elem, true)) dest_elem = T_OBJECT;
-
-    // TODO 8251971 What about atomicity?
-    if (src_elem != dest_elem || ary_src->is_null_free() != ary_dest->is_null_free() || ary_src->is_flat() != ary_dest->is_flat() || dest_elem == T_VOID) {
-      // We don't know if arguments are arrays of the same type
-      return false;
+    BasicType dest_elem_bt = dest_ary->elem()->array_element_basic_type();
+    if (is_reference_type(dest_elem_bt, true)) {
+      dest_elem_bt = T_OBJECT;
+    }
+    uint shift  = exact_log2(type2aelembytes(dest_elem_bt));
+    if (dest_ary->is_flat()) {
+      assert(src_ary->is_flat(), "src and dest must be flat");
+      shift = src_ary->flat_log_elem_size();
+      dest_elem_bt = T_FLAT_ELEMENT;
     }
 
-    BarrierSetC2* bs = BarrierSet::barrier_set()->barrier_set_c2();
-    if ((!ary_dest->is_flat() && bs->array_copy_requires_gc_barriers(is_alloc_tightly_coupled(), dest_elem, false, false, BarrierSetC2::Optimization)) ||
-        (ary_dest->is_flat() && ary_src->elem()->value_klass()->contains_oops() &&
-         bs->array_copy_requires_gc_barriers(is_alloc_tightly_coupled(), T_OBJECT, false, false, BarrierSetC2::Optimization))) {
-      // It's an object array copy but we can't emit the card marking that is needed
-      return false;
-    }
+    const uint header = arrayOopDesc::base_offset_in_bytes(dest_elem_bt);
 
-    value_type = ary_src->elem();
-
-    uint shift  = exact_log2(type2aelembytes(dest_elem));
-    if (ary_dest->is_flat()) {
-      assert(ary_src->is_flat(), "src and dest must be flat");
-      shift = ary_src->flat_log_elem_size();
-      src_elem = T_FLAT_ELEMENT;
-      dest_elem = T_FLAT_ELEMENT;
-    }
-
-    const uint header = arrayOopDesc::base_offset_in_bytes(dest_elem);
-
-    src_offset = Compile::conv_I2X_index(phase, src_offset, ary_src->size());
+    src_offset = Compile::conv_I2X_index(phase, src_offset, src_ary->size());
     if (src_offset->is_top()) {
       // Offset is out of bounds (the ArrayCopyNode will be removed)
       return false;
     }
-    dest_offset = Compile::conv_I2X_index(phase, dest_offset, ary_dest->size());
+    dest_offset = Compile::conv_I2X_index(phase, dest_offset, dest_ary->size());
     if (dest_offset->is_top()) {
       // Offset is out of bounds (the ArrayCopyNode will be removed)
       if (can_reshape) {
@@ -372,49 +354,123 @@ bool ArrayCopyNode::prepare_array_copy(PhaseGVN *phase, bool can_reshape,
 
     adr_src = make_and_transform_addp(phase, base_src, adr_src, phase->MakeConX(header));
     adr_dest = make_and_transform_addp(phase, base_dest, adr_dest, phase->MakeConX(header));
-    copy_type = dest_elem;
-  } else {
-    assert(ary_src != nullptr, "should be a clone");
-    assert(is_clonebasic(), "should be");
+    copy_type = dest_elem_bt;
+    return true;
+  }
 
-    disjoint_bases = true;
+  assert(src_ary != nullptr, "should be a clone");
+  assert(is_clonebasic(), "should be");
 
-    if (ary_src->elem()->make_oopptr() != nullptr &&
-        ary_src->elem()->make_oopptr()->can_be_value_type()) {
-      return false;
-    }
+  disjoint_bases = true;
 
-    BasicType elem = ary_src->isa_aryptr()->elem()->array_element_basic_type();
-    if (is_reference_type(elem, true)) {
-      elem = T_OBJECT;
-    }
+  if (src_ary->elem()->make_oopptr() != nullptr &&
+      src_ary->elem()->make_oopptr()->can_be_value_type()) {
+    return false;
+  }
 
-    BarrierSetC2* bs = BarrierSet::barrier_set()->barrier_set_c2();
-    if ((!ary_src->is_flat() && bs->array_copy_requires_gc_barriers(true, elem, true, is_clone_inst(), BarrierSetC2::Optimization)) ||
-        (ary_src->is_flat() && ary_src->elem()->value_klass()->contains_oops() &&
-         bs->array_copy_requires_gc_barriers(true, T_OBJECT, true, is_clone_inst(), BarrierSetC2::Optimization))) {
-      // It's an object array copy but we can't emit the card marking that is needed
-      return false;
-    }
+  BasicType elem = src_ary->isa_aryptr()->elem()->array_element_basic_type();
+  if (is_reference_type(elem, true)) {
+    elem = T_OBJECT;
+  }
 
-    adr_src = make_and_transform_addp(phase, base_src, src_offset);
-    adr_dest = make_and_transform_addp(phase, base_dest, dest_offset);
+  BarrierSetC2* bs = BarrierSet::barrier_set()->barrier_set_c2();
+  if ((!src_ary->is_flat() && bs->array_copy_requires_gc_barriers(true, elem, true, is_clone_inst(), BarrierSetC2::Optimization)) ||
+      (src_ary->is_flat() && src_ary->elem()->value_klass()->contains_oops() &&
+       bs->array_copy_requires_gc_barriers(true, T_OBJECT, true, is_clone_inst(), BarrierSetC2::Optimization))) {
+    // It's an object array copy but we can't emit the card marking that is needed
+    return false;
+  }
 
-    // The address is offsetted to an aligned address where a raw copy would start.
-    // If the clone copy is decomposed into load-stores - the address is adjusted to
-    // point at where the array starts.
-    const Type* toff = phase->type(src_offset);
-    int offset = toff->isa_long() ? (int) toff->is_long()->get_con() : (int) toff->is_int()->get_con();
-    int diff = arrayOopDesc::base_offset_in_bytes(elem) - offset;
-    assert(diff >= 0, "clone should not start after 1st array element");
-    if (diff > 0) {
-      adr_src = make_and_transform_addp(phase, base_src, adr_src, phase->MakeConX(diff));
-      adr_dest = make_and_transform_addp(phase, base_dest, adr_dest, phase->MakeConX(diff));
-    }
-    copy_type = elem;
-    value_type = ary_src->elem();
+  adr_src = make_and_transform_addp(phase, base_src, src_offset);
+  adr_dest = make_and_transform_addp(phase, base_dest, dest_offset);
+
+  // The address is offsetted to an aligned address where a raw copy would start.
+  // If the clone copy is decomposed into load-stores - the address is adjusted to
+  // point at where the array starts.
+  const Type* toff = phase->type(src_offset);
+  int offset = toff->isa_long() ? (int) toff->is_long()->get_con() : (int) toff->is_int()->get_con();
+  int diff = arrayOopDesc::base_offset_in_bytes(elem) - offset;
+  assert(diff >= 0, "clone should not start after 1st array element");
+  if (diff > 0) {
+    adr_src = make_and_transform_addp(phase, base_src, adr_src, phase->MakeConX(diff));
+    adr_dest = make_and_transform_addp(phase, base_dest, adr_dest, phase->MakeConX(diff));
+  }
+  copy_type = elem;
+  value_type = src_ary->elem();
+  return true;
+}
+
+bool ArrayCopyNode::can_expand_with_loads_and_stores(const TypeAryPtr* src_ary, const TypeAryPtr* dest_ary) const {
+  if (src_ary  == nullptr || src_ary->elem()  == Type::BOTTOM ||
+      dest_ary == nullptr || dest_ary->elem() == Type::BOTTOM) {
+    // We don't know if arguments are arrays.
+    return false;
+  }
+
+  if (!can_use_arraycopy_fast_path(src_ary, dest_ary)) {
+    return false;
+  }
+
+  if (requires_gc_barriers_for_non_flat_copy(dest_ary)) {
+    return false;
   }
   return true;
+}
+
+// Check whether the fastpath array copy can be used:
+// - Return false: We proven that it is unsafe to use the fastpath.
+// - Return true:  We might use the fastpath
+bool ArrayCopyNode::can_use_arraycopy_fast_path(const TypeAryPtr* src_ary, const TypeAryPtr* dest_ary) const {
+  assert(src_ary != nullptr && dest_ary != nullptr, "must be array pointers");
+
+  if (src_ary->maybe_different_layout(dest_ary)) {
+    // We don't know whether src and dest have the same layout.
+    return false;
+  }
+
+  if (!src_ary->is_flat()) {
+    return true;
+  }
+  assert(src_ary->exact_klass() == dest_ary->exact_klass(), "same layout");
+  assert(dest_ary->is_flat(), "same flatness");
+  assert(src_ary->is_null_free() == dest_ary->is_null_free(), "same nullness");
+  assert(src_ary->is_atomic() == dest_ary->is_atomic(), "same atomicity");
+
+  BasicType dest_elem_bt = dest_ary->elem()->array_element_basic_type();
+  if (is_reference_type(dest_elem_bt, true)) {
+    dest_elem_bt = T_OBJECT;
+  }
+
+  BarrierSetC2* bs = BarrierSet::barrier_set()->barrier_set_c2();
+  bool needs_barriers = bs->array_copy_requires_gc_barriers(is_alloc_tightly_coupled(), dest_elem_bt, false, false,
+                                                            BarrierSetC2::Optimization);
+
+  if (src_ary->is_atomic()) {
+    // ArrayCopyNode::copy() and the arraycopy stub can only copy non-atomic flat arrays.
+    return false;
+  }
+
+  if (src_ary->elem()->value_klass()->contains_oops() && needs_barriers) {
+    // The flat array could contain oops which require barriers which we cannot handle.
+    return false;
+  }
+  return true;
+}
+
+bool ArrayCopyNode::requires_gc_barriers_for_non_flat_copy(const TypeAryPtr* dest_ary) const {
+  BasicType dest_elem_bt = dest_ary->elem()->array_element_basic_type();
+  if (is_reference_type(dest_elem_bt, true)) {
+    dest_elem_bt = T_OBJECT;
+  }
+  BarrierSetC2* bs = BarrierSet::barrier_set()->barrier_set_c2();
+  bool needs_barriers = bs->array_copy_requires_gc_barriers(is_alloc_tightly_coupled(), dest_elem_bt, false, false,
+                                                            BarrierSetC2::Optimization);
+  if (!dest_ary->is_flat() && needs_barriers) {
+    // We have a non-flat object array copy. Theoretically, we could insert barriers for individual loads/stores but not
+    // all GCs support that during this optimization.
+    return true;
+  }
+  return false;
 }
 
 const TypeAryPtr* ArrayCopyNode::get_address_type(PhaseGVN* phase, const TypePtr* atp, Node* n) {
@@ -673,15 +729,15 @@ Node *ArrayCopyNode::Ideal(PhaseGVN *phase, bool can_reshape) {
 
   // Control flow is going to be created, it's easier to do with _delay_transform set to true.
 
-  // prepare_array_copy() doesn't build control flow, but it creates AddP nodes. The src/dest type possibly gets
+  // prepare_load_store_expansion() doesn't build control flow, but it creates AddP nodes. The src/dest type possibly gets
   // narrowed above. If a newly created AddP node is commoned with a pre-existing one, then the type narrowing is lost.
-  // Setting _delay_transform before prepare_array_copy() guarantees this doesn't happen.
+  // Setting _delay_transform before prepare_load_store_expansion() guarantees this doesn't happen.
   if (can_reshape) {
     assert(!phase->is_IterGVN()->delay_transform(), "cannot delay transforms");
     phase->is_IterGVN()->set_delay_transform(true);
   }
 
-  if (!prepare_array_copy(phase, can_reshape,
+  if (!prepare_load_store_expansion(phase, can_reshape,
                           adr_src, base_src, adr_dest, base_dest,
                           copy_type, value_type, disjoint_bases)) {
     assert(adr_src == nullptr, "no node can be left behind");

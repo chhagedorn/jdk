@@ -1573,7 +1573,7 @@ void PhaseIterGVN::verify_Ideal_for(Node* n, bool can_reshape, bool deep_revisit
       return;
 
     // ArrayCopyNode::Ideal
-    //    calls ArrayCopyNode::prepare_array_copy
+    //    calls ArrayCopyNode::prepare_load_store_expansion
     //    calls Compile::conv_I2X_index        -> is called with sizetype = intcon(0), I think that
     //                                            is not expected, and we create a range int:0..-1
     //    calls Compile::constrained_convI2L   -> creates ConvI2L(intcon(1), int:0..-1)
@@ -1583,13 +1583,13 @@ void PhaseIterGVN::verify_Ideal_for(Node* n, bool can_reshape, bool deep_revisit
     //    calls PhaseIterGVN::subsume_node     -> subsume ConvI2L with TOP
     //    calls Unique_Node_List::push         -> pushes TOP to worklist
     //
-    // Once we get back to ArrayCopyNode::prepare_array_copy, we get back TOP, and
+    // Once we get back to ArrayCopyNode::prepare_load_store_expansion, we get back TOP, and
     // return false. This means we eventually return nullptr from ArrayCopyNode::Ideal.
     //
     // Question: is it ok to push anything to the worklist during ::Ideal, if we will
     //           return nullptr, indicating nothing happened?
     //           Is it smart to do transform in Compile::constrained_convI2L, and then
-    //           check for TOP in calls ArrayCopyNode::prepare_array_copy?
+    //           check for TOP in calls ArrayCopyNode::prepare_load_store_expansion?
     //           Should we just allow TOP to land on the worklist, as an exception?
     //
     // Found with:

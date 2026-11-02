@@ -1811,6 +1811,8 @@ public:
 
   virtual bool can_be_value_array() const;
 
+  bool maybe_different_layout(const TypeAryPtr* other) const;
+
   // Convenience common pre-built types.
   static const TypeAryPtr* BOTTOM;
   static const TypeAryPtr* RANGE;

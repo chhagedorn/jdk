@@ -106,10 +106,15 @@ private:
 
   Node* make_and_transform_addp(PhaseGVN* phase, Node* base, Node* offset);
   Node* make_and_transform_addp(PhaseGVN* phase, Node* base, Node* ptr, Node* offset);
+  bool can_expand_with_loads_and_stores(const TypeAryPtr* src_ary, const TypeAryPtr* dest_ary) const;
+public:
+  bool can_use_arraycopy_fast_path(const TypeAryPtr* src_ary, const TypeAryPtr* dest_ary) const;
 
-  bool prepare_array_copy(PhaseGVN *phase, bool can_reshape,
-                          Node*& adr_src, Node*& base_src, Node*& adr_dest, Node*& base_dest,
-                          BasicType& copy_type, const Type*& value_type, bool& disjoint_bases);
+private:
+  bool prepare_load_store_expansion(PhaseGVN *phase, bool can_reshape,
+                                    Node*& adr_src, Node*& base_src, Node*& adr_dest, Node*& base_dest,
+                                    BasicType& copy_type, const Type*& value_type, bool& disjoint_bases);
+  bool requires_gc_barriers_for_non_flat_copy(const TypeAryPtr* dest_ary) const;
   void array_copy_test_overlap(GraphKit& kit,
                                bool disjoint_bases, int count,
                                Node*& backward_ctl);
